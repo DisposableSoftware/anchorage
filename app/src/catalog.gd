@@ -18,8 +18,9 @@ extends RefCounted
 ##                   cwd         "data" (the port's data folder) or "current" (the unpacked
 ##                               folder, for ports that read config files next to themselves)
 ##                   args        Array of arguments (optional, default [])
-##   extra_files   Array of paths inside the unpacked release that install copies to the
-##                 data folder, keeping the file name (optional, default [])
+##   extra_files   Array of paths of files or folders inside the unpacked release that
+##                 install copies to the data folder, keeping the last path part as the
+##                 name; launch copies them again when missing (optional, default [])
 ##   rom_place     where the ROM is written: "data_dir" (data folder) or "cwd" (the launch
 ##                 working directory)
 ##   rom_file      file name of the written ROM, a big-endian ".z64"

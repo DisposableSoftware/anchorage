@@ -59,8 +59,8 @@
       "repo": "HarbourMasters/Starship",
       "asset_suffix": "-linux.zip",
       "archive": ["sf64.o2r"],
-      "launch": { "executable": "starship.appimage", "cwd": "current", "args": [] },
-      "extra_files": ["gamecontrollerdb.txt"],
+      "launch": { "executable": "starship.appimage", "cwd": "data", "args": [] },
+      "extra_files": ["gamecontrollerdb.txt", "config.yml", "assets"],
       "rom_place": "cwd",
       "rom_file": "sf64.z64",
       "roms": [

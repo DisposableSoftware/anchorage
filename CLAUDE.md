@@ -48,13 +48,21 @@ app/export_presets.cfg   the "Linux" pack preset (nix/package.nix) and the "AppI
 app/scenes/main.tscn     the root node; main.gd adds the Ports service and the home screen   WIN-1
 app/scenes/home.tscn     the home screen: cards row, detail panel, hint bar, menu, dialog, Playing   HOME
 app/scenes/card.tscn     one port card                                            HOME-1 HOME-2
-app/src/main.gd          startup: config, bindings, theme, Ports (real or fake), window, quit   WIN-1 WIN-4
+app/src/main.gd          startup: config, bindings, theme, Ports (real or fake), window, quit   WIN-1 WIN-4 CONF-8 CONF-9
 app/src/ini.gd           INI reader (Godot's ConfigFile can't read unquoted values) CONF-1
 app/src/config.gd        config.ini + keybindings.ini, first-run files            CONF KEY-2
 app/src/keys.gd          Keys.BINDINGS, key and gamepad tokens, InputMap setup, hint labels   KEY HOME-11
 app/src/palette.gd       the four Catppuccin palettes (the only hex colours)      LOOK-3
 app/src/theme.gd         builds the one Theme: type variations, "Palette" colours, contrast   LOOK-2 LOOK-5 LOOK-6 LOOK-8
+app/src/ports.gd         Ports, the one service screens use: state, queue, checks, scans, launches   PORT-5 PORT-6 PORT-12 PORT-14 ROM-4 ROM-5 ROM-9
 app/src/ports_fake.gd    stand-in for Ports with demo data and scenarios (tests, screenshots)   PORT-14
+app/src/catalog.gd       reads and checks data/ports.json (its schema is in the header)   PORT-1
+app/src/releases.gd      latest release from the GitHub API, asset choice, update-check rule   PORT-2 PORT-5 PORT-13
+app/src/http.gd          HTTPRequest wrapper: JSON, downloads with progress, checked redirects   PORT-4 PORT-13
+app/src/installer.gd     download, unpack, swap current/previous, remove, stale cleanup, extra files   PORT-3 PORT-6 PORT-7 PORT-10
+app/src/launcher.gd      child environment, /bin/sh spawn, ROM placement before launch   PORT-8 PORT-9 PORT-15
+app/src/state.gd         state.ini: installed and latest tags, last check, ROM scan cache   PORT-11
+app/src/roms.gd          ROM scan (ScanJob thread), SHA1 identification, big-endian prepare   ROM
 app/src/ui/home.gd       home screen logic: focus, accept, menu, dialog, Playing, hints   HOME
 app/src/ui/card.gd       a card: emblem, titles, badge, progress, focus/selection look   HOME-2 HOME-12
 app/src/ui/detail.gd     detail panel: versions, ROM status, progress, errors      HOME-3 HOME-8 HOME-9
@@ -62,7 +70,9 @@ app/src/ui/hint_bar.gd   the hint bar from the live InputMap                    
 app/src/ui/port_state.gd state, badge text and primary action of one info() dict  HOME-2 HOME-4
 app/fonts/               Inter (variable) and its licence (OFL 1.1)               LOOK-6
 app/data/                config.example.ini + keybindings.example.ini (first-run files)   CONF-2
+app/data/ports.json      the port catalog                                         PORT-1
 app/tests/               run.gd (runner), case.gd (base), test_*.gd; test_spec.gd checks spec <-> code
+app/tests/fake_http.gd   http.gd stand-in that answers from memory and local files
 scripts/test.sh          runs app/tests headless, fails on script errors
 scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway)
 scripts/release-check.sh recommended version bump since the last v* tag (spec delta)
@@ -125,6 +135,17 @@ Run checks with `./scripts/manual/headless.sh ./scripts/manual/<name>.sh`. It st
 - The runner keeps tests out of the user's session. It uses a private bus without portals, temp `XDG_STATE_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, `XDG_DATA_HOME` and runtime dir, and no `$DISPLAY`. Scripts still set their own config and state dirs: never rely on the runner to protect the user's files.
 - In headless mode `hyprctl` only answers `cursorpos` (tracked from `wlrctl` moves) and `monitors`; anything else, and `ydotool` (kernel-level input), fails instead of reaching the real session.
 - Headless sway is not Hyprland or gamescope. Use a real Hyprland session (below) for compositor behaviour, and ask the user to check on the Steam Deck or in game mode for anything gamescope-specific: say plainly that it was not verified there.
+
+### End to end (real network, real ports)
+
+`scripts/manual/e2e.sh` installs all four ports from GitHub with keyboard input, refreshes, launches each one, answers its first-run "Generate one now?" prompt and removes one, with HOME and every XDG folder in a temp sandbox and ROM copies from `ROMS`. Screenshots and the ports' `launch.log` go to `$OUT`; the sandbox is deleted at the end (`KEEP=1` keeps it). On NixOS the release AppImages need an FHS environment and `steam-run` has a private `/tmp`, so put the runner's temp folder in your home, under a short path (sway's socket path has a length limit):
+
+```bash
+mkdir -p ~/.cache/ae && TMPDIR=~/.cache/ae RUNNER=steam-run ROMS=/path/to/rom/copies OUT=/tmp/shots \
+  HEADLESS_RES=1920x1080 HEADLESS_SCALE=1 scripts/manual/headless.sh scripts/manual/e2e.sh
+```
+
+On a NixOS host with `programs.appimage.binfmt`, the kernel hands every AppImage to `appimage-run`, which ignores `APPIMAGE_EXTRACT_AND_RUN` and has fewer libraries than SteamOS (Starship v2.0.0 misses `libgpg-error.so.0` there). Those failures are the host's, not Anchorage's.
 
 ### On Hyprland
 

@@ -17,6 +17,7 @@ extends RefCounted
 ##   Installer.remove(root, id) -> {ok, error}
 ##   Installer.cleanup_previous(root, id)             call 10 s after a launch (PORT-6)
 ##   Installer.cleanup_stale(root) -> int             call at start (PORT-12)
+##   Installer.copy_extra_files(port, from, data, only_missing) -> error   PORT-9, PORT-10
 ## `port` is a catalog entry and `release` a `Releases` release. `progress` is called as
 ## progress(stage, done, total) with stage "download" (bytes), "unpack" or "finish" (0/1).
 ## `done` gets {ok, cancelled, error, version}; `error` is plain text for the UI's detail
@@ -170,7 +171,11 @@ static func extract_zip(zip_path: String, dest: String) -> String:
 			zip.close()
 			return "Could not write “%s”" % entry
 		file.store_buffer(zip.read_file(entry))
+		var write_error := file.get_error()
 		file.close()
+		if write_error != OK:
+			zip.close()
+			return "Could not write “%s”: %s" % [entry, error_string(write_error)]
 	zip.close()
 	return ""
 
@@ -249,7 +254,7 @@ func _on_unpacked(port: Dictionary, release: Dictionary, error: String) -> void:
 		_finish(port, _failure(error))
 		return
 	var staging := download_dir(_root, port["id"]).path_join("staging")
-	error = _copy_extra_files(port, staging)
+	error = copy_extra_files(port, staging, data_dir(_root, port["id"]))
 	if error.is_empty():
 		_report("finish", 0, 1)
 		error = swap(port_dir(_root, port["id"]), staging)
@@ -278,21 +283,54 @@ func _unpack(port: Dictionary, archive: String, asset_name: String, staging: Str
 		return "The release does not contain %s" % executable
 	FileAccess.set_unix_permissions(path, EXECUTABLE_MODE)
 	for extra in port["extra_files"]:
-		if not FileAccess.file_exists(staging.path_join(extra)):
+		var extra_path := staging.path_join(extra)
+		if not (FileAccess.file_exists(extra_path) or DirAccess.dir_exists_absolute(extra_path)):
 			return "The release does not contain %s" % extra
 	return ""
 
 
-## PORT-10: copies the catalog's extra files into the data folder.
-func _copy_extra_files(port: Dictionary, staging: String) -> String:
-	var data := data_dir(_root, port["id"])
+## PORT-10: copies the catalog's extra files and folders from `from` (the unpacked release)
+## into `data`, named by their last path part. With `only_missing` an extra already in
+## `data` is left alone (PORT-9, before a launch). Returns an error text, empty on success.
+static func copy_extra_files(
+	port: Dictionary, from: String, data: String, only_missing := false
+) -> String:
 	for extra in port["extra_files"]:
 		if DirAccess.make_dir_recursive_absolute(data) != OK:
 			return "Could not create %s" % data
+		var source := from.path_join(extra)
 		var target := data.path_join((extra as String).get_file())
-		if DirAccess.copy_absolute(staging.path_join(extra), target) != OK:
+		if (
+			only_missing
+			and (FileAccess.file_exists(target) or DirAccess.dir_exists_absolute(target))
+		):
+			continue
+		if DirAccess.dir_exists_absolute(source):
+			rm_rf(target)
+			if not copy_tree(source, target):
+				return "Could not copy %s" % extra
+		elif DirAccess.copy_absolute(source, target) != OK:
 			return "Could not copy %s" % extra
 	return ""
+
+
+## Copies the folder `from` to `to` with everything in it. Links are skipped.
+static func copy_tree(from: String, to: String) -> bool:
+	var dir := DirAccess.open(from)
+	if dir == null or DirAccess.make_dir_recursive_absolute(to) != OK:
+		return false
+	dir.include_hidden = true
+	for name in dir.get_files():
+		if dir.is_link(from.path_join(name)):
+			continue
+		if DirAccess.copy_absolute(from.path_join(name), to.path_join(name)) != OK:
+			return false
+	for name in dir.get_directories():
+		if dir.is_link(from.path_join(name)):
+			continue
+		if not copy_tree(from.path_join(name), to.path_join(name)):
+			return false
+	return true
 
 
 func _offload(work: Callable, finished: Callable) -> void:

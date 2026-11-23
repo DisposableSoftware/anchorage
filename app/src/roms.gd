@@ -118,10 +118,13 @@ static func scan(
 	if dir.is_empty() or not DirAccess.dir_exists_absolute(dir):
 		result["status"] = "missing"
 		return result
-	var names := DirAccess.get_files_at(dir)
-	if names.is_empty() and DirAccess.get_open_error() != OK:
+	# get_files_at leaves get_open_error() as it was, so an unreadable folder is found by
+	# opening it.
+	var access := DirAccess.open(dir)
+	if access == null:
 		result["status"] = "missing"
 		return result
+	var names := access.get_files()
 	names.sort()
 
 	var best := {}
