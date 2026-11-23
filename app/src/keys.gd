@@ -12,8 +12,25 @@ const BINDINGS := [
 	["right", "ui_right", "Move right", ["Right", "Pad:DPadRight", "Pad:LeftStickRight"]],
 	["accept", "ui_accept", "Accept", ["Enter", "Pad:A"]],
 	["back", "ui_cancel", "Back", ["Escape", "Pad:B"]],
+	["options", "options", "Options", ["O", "Pad:Y"]],
+	["refresh", "refresh", "Refresh", ["F5", "Pad:X"]],
 	["quit", "quit", "Quit", ["Ctrl+Q"]],
 ]
+
+## What the hint bar prints for a gamepad input: the Steam Deck's labels.
+const PAD_LABELS := {
+	JOY_BUTTON_BACK: "View",
+	JOY_BUTTON_START: "Menu",
+	JOY_BUTTON_GUIDE: "Steam",
+	JOY_BUTTON_LEFT_STICK: "L3",
+	JOY_BUTTON_RIGHT_STICK: "R3",
+	JOY_BUTTON_LEFT_SHOULDER: "L1",
+	JOY_BUTTON_RIGHT_SHOULDER: "R1",
+	JOY_BUTTON_DPAD_UP: "D-pad ↑",
+	JOY_BUTTON_DPAD_DOWN: "D-pad ↓",
+	JOY_BUTTON_DPAD_LEFT: "D-pad ←",
+	JOY_BUTTON_DPAD_RIGHT: "D-pad →",
+}
 
 const PAD_BUTTONS := {
 	"A": JOY_BUTTON_A,
@@ -102,6 +119,42 @@ static func resolve(overrides: Dictionary) -> Dictionary:
 				events.append(event)
 		out[binding[0]] = events
 	return out
+
+
+## The first gamepad input and the first keyboard key bound to `action` in the live
+## InputMap, as short labels (`["A", "Enter"]`); "" where there is none (HOME-11).
+static func hint(action: String) -> Array[String]:
+	var pad := ""
+	var key := ""
+	if not InputMap.has_action(action):
+		return [pad, key]
+	for event in InputMap.action_get_events(action):
+		if pad.is_empty() and (event is InputEventJoypadButton or event is InputEventJoypadMotion):
+			pad = event_label(event)
+		elif key.is_empty() and event is InputEventKey:
+			key = event_label(event)
+	return [pad, key]
+
+
+static func event_label(event: InputEvent) -> String:
+	if event is InputEventJoypadButton:
+		var button: JoyButton = event.button_index
+		if PAD_LABELS.has(button):
+			return PAD_LABELS[button]
+		return PAD_BUTTONS.find_key(button) if PAD_BUTTONS.values().has(button) else "?"
+	if event is InputEventJoypadMotion:
+		match event.axis:
+			JOY_AXIS_TRIGGER_LEFT:
+				return "L2"
+			JOY_AXIS_TRIGGER_RIGHT:
+				return "R2"
+		var stick := "L" if event.axis in [JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y] else "R"
+		var horizontal: bool = event.axis in [JOY_AXIS_LEFT_X, JOY_AXIS_RIGHT_X]
+		var arrows := ["←", "→"] if horizontal else ["↑", "↓"]
+		return "%s-stick %s" % [stick, arrows[0] if event.axis_value < 0.0 else arrows[1]]
+	if event is InputEventKey:
+		return OS.get_keycode_string(event.get_keycode_with_modifiers())
+	return "?"
 
 
 ## Replaces the events of every bound action in the InputMap.

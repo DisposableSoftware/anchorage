@@ -1,5 +1,5 @@
 extends "res://tests/case.gd"
-## CONF-1, CONF-3, CONF-4, CONF-5, KEY-2
+## CONF-1, CONF-3, CONF-4, CONF-6 .. CONF-9, KEY-2
 
 const Config := preload("res://src/config.gd")
 
@@ -7,7 +7,7 @@ const Config := preload("res://src/config.gd")
 func test_reads_settings_and_keybindings_from_their_files() -> void:
 	var dir := temp_dir("read")
 	FileAccess.open(dir.path_join("config.ini"), FileAccess.WRITE).store_string(
-		"[window]\nwidth=100\nheight=900\n[view]\ngreeting=Hi there\n"
+		"[window]\nwidth=100\nheight=900\n[roms]\ndirectory = /media/My ROMs\n"
 	)
 	FileAccess.open(dir.path_join("keybindings.ini"), FileAccess.WRITE).store_string(
 		"[keybindings]\nquit=Ctrl+Q;Ctrl+Shift+Q\nback=\n"
@@ -15,7 +15,7 @@ func test_reads_settings_and_keybindings_from_their_files() -> void:
 	var cfg := Config.load_from(dir)
 	eq(cfg.width, 1280, "clamped up to 720p")
 	eq(cfg.height, 900, "height")
-	eq(cfg.greeting, "Hi there", "greeting")
+	eq(cfg.roms_directory, "/media/My ROMs", "ROM folder (CONF-8)")
 	eq(cfg.keybindings["quit"], PackedStringArray(["Ctrl+Q", "Ctrl+Shift+Q"]), "quit")
 	check(cfg.keybindings["back"].is_empty(), "empty value unbinds")
 	remove(dir)
@@ -82,3 +82,27 @@ func test_paths_follow_xdg() -> void:
 			data.path_join("anchorage"),
 			"user:// is the XDG data dir"
 		)
+
+
+func config_with(text: String) -> RefCounted:
+	var dir := temp_dir("with")
+	FileAccess.open(dir.path_join("config.ini"), FileAccess.WRITE).store_string(text)
+	var cfg := Config.load_from(dir)
+	remove(dir)
+	return cfg
+
+
+func test_appearance_falls_back_on_unknown_values() -> void:
+	var cfg := config_with("[appearance]\nflavor = latte\naccent = blue\n")
+	eq([cfg.flavor, cfg.accent], ["latte", "blue"], "known values are used (CONF-6, CONF-7)")
+	cfg = config_with("[appearance]\nflavor = gtk\naccent = chartreuse\n")
+	eq([cfg.flavor, cfg.accent], ["mocha", "mauve"], "unknown values fall back")
+	cfg = config_with("[appearance]\nflavor =\n")
+	eq(cfg.flavor, "mocha", "empty value is the default")
+
+
+func test_check_updates_is_off_only_for_false() -> void:
+	eq(config_with("").check_updates, true, "default (CONF-9)")
+	eq(config_with("[ports]\ncheck_updates = false\n").check_updates, false, "false")
+	eq(config_with("[ports]\ncheck_updates = no\n").check_updates, true, "anything else is true")
+	eq(config_with("").roms_directory, "~/Roms/n64", "ROM folder default (CONF-8)")

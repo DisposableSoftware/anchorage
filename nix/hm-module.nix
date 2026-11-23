@@ -21,8 +21,10 @@ in
       inherit (ini) type;
       default = { };
       example = {
-        window.width = 1920;
-        window.height = 1080;
+        appearance.flavor = "latte";
+        appearance.accent = "blue";
+        roms.directory = "~/Games/n64";
+        ports.check_updates = false;
       };
       description = "Written to $XDG_CONFIG_HOME/anchorage/config.ini.";
     };

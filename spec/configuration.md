@@ -9,10 +9,10 @@
 | `CONF-3` | When the app starts and `config.ini` or `keybindings.ini` doesn't exist, it creates the missing file (and the folder) from the example (`CONF-2`), with every line commented out, so the file changes nothing until a line is uncommented. A file that exists is never written to, whether it is a regular file, a symlink (as with dotfiles or home-manager) or a dangling symlink. If a file can't be created, that is warned about and the app starts normally. | done | `test_config` |
 | `CONF-4` | `[window] width` and `height`: the size of the window in logical px when it is not fullscreen, clamped to 1280–8192 and 720–8192, so the window is never smaller than 720p. | partial | `test_config`, `test_spec`. Gap: under sway, a size the app sets on itself after startup leaves the surface partly unpainted (the default size is fine, and so is a size the compositor sets, such as fullscreen). Not checked on Hyprland or in gamescope. |
 | `CONF-5` | `[view] greeting`. | dropped | superseded: the window shows the home screen (`WIN-1`), so the template's greeting has nothing to show. No release had it. |
-| `CONF-6` | `[appearance] flavor`: `latte`, `frappe`, `macchiato` or `mocha`, default `mocha`. An unknown value falls back to `mocha` with a warning. Style guide: palette.md, "Config". | planned | `test_config`, `test_spec` |
-| `CONF-7` | `[appearance] accent`: one of the 14 Catppuccin accent names, default `mauve`, with unknown values falling back to `mauve`. Style guide: palette.md, "Config". | planned | `test_config`, `test_spec` |
-| `CONF-8` | `[roms] directory`: the folder scanned for ROMs (`ROM-1`), default `~/Roms/n64`. | planned | `test_config`, `test_spec` |
-| `CONF-9` | `[ports] check_updates`: `true` or `false`, default `true`; whether Anchorage checks for updates at start (`PORT-5`). Anything but `false` counts as `true`. | planned | `test_config`, `test_spec` |
+| `CONF-6` | `[appearance] flavor`: `latte`, `frappe`, `macchiato` or `mocha`, default `mocha`. An unknown value falls back to `mocha` with a warning. Style guide: palette.md, "Config". | done | `test_config::test_appearance_falls_back_on_unknown_values`, `test_spec` |
+| `CONF-7` | `[appearance] accent`: one of the 14 Catppuccin accent names, default `mauve`, with unknown values falling back to `mauve`. Style guide: palette.md, "Config". | done | `test_config::test_appearance_falls_back_on_unknown_values`, `test_spec` |
+| `CONF-8` | `[roms] directory`: the folder scanned for ROMs (`ROM-1`), default `~/Roms/n64`. | partial | `test_config`, `test_spec`. Gap: read into `Config.roms_directory`, but nothing scans it until the ROM scanner (`ROM-1`) is wired to `main.gd`. |
+| `CONF-9` | `[ports] check_updates`: `true` or `false`, default `true`; whether Anchorage checks for updates at start (`PORT-5`). Anything but `false` counts as `true`. | partial | `test_config::test_check_updates_is_off_only_for_false`, `test_spec`. Gap: read into `Config.check_updates`; the start-up check that obeys it is `PORT-5`. |
 
 ## Defaults
 
@@ -21,7 +21,10 @@
 |---------|-----|---------|
 | `window` | `width` | `1280` |
 | `window` | `height` | `720` |
-| `view` | `greeting` | `Hello` |
+| `appearance` | `flavor` | `mocha` |
+| `appearance` | `accent` | `mauve` |
+| `roms` | `directory` | `~/Roms/n64` |
+| `ports` | `check_updates` | `true` |
 <!-- spec:config:end -->
 
 The defaults for `[keybindings]` are in [keybindings.md](keybindings.md).

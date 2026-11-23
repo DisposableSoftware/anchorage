@@ -8,7 +8,6 @@ const Keys := preload("res://src/keys.gd")
 func _ready() -> void:
 	var cfg := Config.load_from(Config.dir())
 	Keys.apply(cfg.keybindings)
-	$Greeting.text = cfg.greeting
 	var window := get_window()
 	window.title = "Anchorage"
 	window.min_size = Vector2i(1280, 720)
