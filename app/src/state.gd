@@ -1,0 +1,144 @@
+extends RefCounted
+## What Anchorage remembers between runs (PORT-11): installed version and latest known tag
+## per port, the time of the last update check, and the ROM scan cache. It lives in
+## `$XDG_STATE_HOME/anchorage/state.ini`. Every setter saves, atomically; a missing or
+## broken file means nothing is remembered.
+##
+## File layout (plain INI, read by `ini.gd`):
+##   [ports]    <id>.installed = <tag>      <id>.latest = <tag>
+##   [updates]  last_check = <unix seconds>
+##   [roms]     cache = <one line of JSON>  (owned by the ROM code: path -> entry)
+
+const Ini := preload("res://src/ini.gd")
+
+var path := ""
+var _ports := {}
+var _last_check := 0
+var _rom_cache := {}
+
+
+## $XDG_STATE_HOME/anchorage/state.ini (default ~/.local/state).
+static func default_path() -> String:
+	var base := OS.get_environment("XDG_STATE_HOME")
+	if base.is_empty() or not base.is_absolute_path():
+		base = OS.get_environment("HOME").path_join(".local/state")
+	return base.path_join("anchorage").path_join("state.ini")
+
+
+static func load_from(file_path: String) -> RefCounted:
+	var state := new()
+	state.path = file_path
+	if not FileAccess.file_exists(file_path):
+		return state
+	var file := FileAccess.open(file_path, FileAccess.READ)
+	if file == null:
+		push_warning("%s: %s" % [file_path, error_string(FileAccess.get_open_error())])
+		return state
+	var parsed := Ini.parse(file.get_as_text())
+	var ports: Dictionary = parsed.get("ports", {})
+	for key in ports:
+		var dot := (key as String).rfind(".")
+		if dot < 1 or ports[key].is_empty():
+			continue
+		var id := (key as String).substr(0, dot)
+		var field := (key as String).substr(dot + 1)
+		if field in ["installed", "latest"]:
+			if not state._ports.has(id):
+				state._ports[id] = {}
+			state._ports[id][field] = ports[key]
+	var last: String = parsed.get("updates", {}).get("last_check", "")
+	state._last_check = int(last) if last.is_valid_int() else 0
+	var json := JSON.new()
+	if json.parse(parsed.get("roms", {}).get("cache", "")) == OK and json.data is Dictionary:
+		state._rom_cache = json.data
+	return state
+
+
+func installed_version(id: String) -> String:
+	return _ports.get(id, {}).get("installed", "")
+
+
+func set_installed(id: String, tag: String) -> void:
+	_store(id, "installed", tag)
+
+
+## Forgets the installed version (Remove, PORT-7).
+func clear_installed(id: String) -> void:
+	_store(id, "installed", "")
+
+
+func latest_version(id: String) -> String:
+	return _ports.get(id, {}).get("latest", "")
+
+
+func set_latest(id: String, tag: String) -> void:
+	_store(id, "latest", tag)
+
+
+## Unix seconds of the last successful update check, 0 when never.
+func last_check() -> int:
+	return _last_check
+
+
+func set_last_check(unix_time: int) -> void:
+	_last_check = unix_time
+	save()
+
+
+func rom_cache() -> Dictionary:
+	return _rom_cache
+
+
+func set_rom_cache(cache: Dictionary) -> void:
+	_rom_cache = cache
+	save()
+
+
+## Writes a temp file beside the real one and renames it over, so a kill never leaves a
+## half-written state.ini. Returns false (and warns) when it could not.
+func save() -> bool:
+	if path.is_empty():
+		return false
+	var err := DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	if err != OK:
+		push_warning("%s: %s" % [path, error_string(err)])
+		return false
+	var tmp := path + ".tmp"
+	var file := FileAccess.open(tmp, FileAccess.WRITE)
+	if file == null:
+		push_warning("%s: %s" % [tmp, error_string(FileAccess.get_open_error())])
+		return false
+	file.store_string(_serialise())
+	file.close()
+	err = DirAccess.rename_absolute(tmp, path)
+	if err != OK:
+		push_warning("%s: %s" % [path, error_string(err)])
+		DirAccess.remove_absolute(tmp)
+		return false
+	return true
+
+
+func _store(id: String, field: String, value: String) -> void:
+	if not _ports.has(id):
+		_ports[id] = {}
+	_ports[id][field] = value
+	save()
+
+
+func _serialise() -> String:
+	var out := "# Anchorage remembers these between runs. Safe to delete.\n[ports]\n"
+	var ids := _ports.keys()
+	ids.sort()
+	for id in ids:
+		for field in ["installed", "latest"]:
+			var value := _line(_ports[id].get(field, ""))
+			if not value.is_empty():
+				out += "%s.%s = %s\n" % [_line(id), field, value]
+	out += "\n[updates]\nlast_check = %d\n" % _last_check
+	if not _rom_cache.is_empty():
+		out += "\n[roms]\ncache = %s\n" % JSON.stringify(_rom_cache)
+	return out
+
+
+static func _line(value: String) -> String:
+	return value.replace("\n", " ").replace("\r", " ").strip_edges()
