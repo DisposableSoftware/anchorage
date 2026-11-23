@@ -1,0 +1,413 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://src/ui/home.gd" id="1"]
+[ext_resource type="Script" path="res://src/ui/detail.gd" id="2"]
+[ext_resource type="Script" path="res://src/ui/hint_bar.gd" id="3"]
+
+[node name="Home" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Background" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_type_variation = &"Background"
+
+[node name="Layout" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="Content" type="MarginContainer" parent="Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 36
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 28
+
+[node name="Column" type="VBoxContainer" parent="Layout/Content"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Cards" type="HBoxContainer" parent="Layout/Content/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.4
+theme_override_constants/separation = 24
+
+[node name="Detail" type="PanelContainer" parent="Layout/Content/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_type_variation = &"DetailPanel"
+script = ExtResource("2")
+
+[node name="Clip" type="Control" parent="Layout/Content/Column/Detail"]
+clip_contents = true
+layout_mode = 2
+
+[node name="Box" type="VBoxContainer" parent="Layout/Content/Column/Detail/Clip"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="InfoBox" type="HBoxContainer" parent="Layout/Content/Column/Detail/Clip/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 48
+
+[node name="Left" type="VBoxContainer" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.25
+theme_override_constants/separation = 4
+
+[node name="Name" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Left"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Heading"
+text_overrun_behavior = 3
+
+[node name="Game" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Left"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Dim"
+text_overrun_behavior = 3
+
+[node name="Gap" type="Control" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Left"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+
+[node name="Description" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Left"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+max_lines_visible = 3
+text_overrun_behavior = 3
+
+[node name="Notice" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Left"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"Notice"
+autowrap_mode = 3
+
+[node name="Right" type="VBoxContainer" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="Fields" type="GridContainer" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right"]
+layout_mode = 2
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 10
+columns = 2
+
+[node name="InstalledName" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right/Fields"]
+layout_mode = 2
+theme_type_variation = &"FieldName"
+text = "Installed"
+
+[node name="Installed" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"FieldValue"
+text_overrun_behavior = 3
+
+[node name="LatestName" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right/Fields"]
+layout_mode = 2
+theme_type_variation = &"FieldName"
+text = "Latest"
+
+[node name="Latest" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"FieldValue"
+text_overrun_behavior = 3
+
+[node name="RomName" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right/Fields"]
+layout_mode = 2
+theme_type_variation = &"FieldName"
+text = "ROM"
+
+[node name="Rom" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right/Fields"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(1, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"FieldValue"
+autowrap_mode = 3
+max_lines_visible = 2
+text_overrun_behavior = 3
+
+[node name="RomHint" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(1, 0)
+layout_mode = 2
+theme_type_variation = &"Dim"
+autowrap_mode = 3
+
+[node name="BusyBox" type="VBoxContainer" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BusyRow" type="HBoxContainer" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right/BusyBox"]
+layout_mode = 2
+
+[node name="BusyLabel" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right/BusyBox/BusyRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"FieldValue"
+
+[node name="BusyDetail" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right/BusyBox/BusyRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Dim"
+
+[node name="DetailProgress" type="ProgressBar" parent="Layout/Content/Column/Detail/Clip/Box/InfoBox/Right/BusyBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+show_percentage = false
+
+[node name="ErrorBox" type="VBoxContainer" parent="Layout/Content/Column/Detail/Clip/Box"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="ErrorTitle" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/ErrorBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ErrorTitle"
+autowrap_mode = 3
+
+[node name="ErrorDetail" type="Label" parent="Layout/Content/Column/Detail/Clip/Box/ErrorBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(1, 0)
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="HintBar" type="PanelContainer" parent="Layout"]
+unique_name_in_owner = true
+z_index = 1
+layout_mode = 2
+theme_type_variation = &"HintBar"
+script = ExtResource("3")
+
+[node name="Row" type="HBoxContainer" parent="Layout/HintBar"]
+layout_mode = 2
+
+[node name="Brand" type="Label" parent="Layout/HintBar/Row"]
+layout_mode = 2
+theme_type_variation = &"Brand"
+text = "Anchorage"
+
+[node name="Spacer" type="Control" parent="Layout/HintBar/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Hints" type="HBoxContainer" parent="Layout/HintBar/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 32
+
+[node name="Scrim" type="ColorRect" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MenuLayer" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+z_index = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Menu" type="PanelContainer" parent="MenuLayer"]
+custom_minimum_size = Vector2(480, 0)
+layout_mode = 2
+theme_type_variation = &"Dialog"
+
+[node name="Box" type="VBoxContainer" parent="MenuLayer/Menu"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="MenuTitle" type="Label" parent="MenuLayer/Menu/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"DialogTitle"
+
+[node name="MenuGame" type="Label" parent="MenuLayer/Menu/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Dim"
+
+[node name="Gap" type="Control" parent="MenuLayer/Menu/Box"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="PlayButton" type="Button" parent="MenuLayer/Menu/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Play"
+alignment = 0
+
+[node name="CheckButton" type="Button" parent="MenuLayer/Menu/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Check for updates"
+alignment = 0
+
+[node name="RemoveButton" type="Button" parent="MenuLayer/Menu/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"DangerButton"
+text = "Remove"
+alignment = 0
+
+[node name="ConfirmLayer" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+z_index = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Confirm" type="PanelContainer" parent="ConfirmLayer"]
+custom_minimum_size = Vector2(600, 0)
+layout_mode = 2
+theme_type_variation = &"Dialog"
+
+[node name="Box" type="VBoxContainer" parent="ConfirmLayer/Confirm"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="ConfirmTitle" type="Label" parent="ConfirmLayer/Confirm/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(1, 0)
+layout_mode = 2
+theme_type_variation = &"DialogTitle"
+autowrap_mode = 3
+
+[node name="ConfirmBody" type="Label" parent="ConfirmLayer/Confirm/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(1, 0)
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="Gap" type="Control" parent="ConfirmLayer/Confirm/Box"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+
+[node name="Buttons" type="HBoxContainer" parent="ConfirmLayer/Confirm/Box"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 2
+
+[node name="CancelButton" type="Button" parent="ConfirmLayer/Confirm/Box/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "Cancel"
+
+[node name="ConfirmButton" type="Button" parent="ConfirmLayer/Confirm/Box/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+theme_type_variation = &"DangerButton"
+text = "Remove"
+
+[node name="PlayingLayer" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"Playing"
+
+[node name="Center" type="CenterContainer" parent="PlayingLayer"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Box" type="VBoxContainer" parent="PlayingLayer/Center"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PlayingEmblem" type="PanelContainer" parent="PlayingLayer/Center/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 150)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"Emblem0"
+
+[node name="PlayingMonogram" type="Label" parent="PlayingLayer/Center/Box/PlayingEmblem"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Monogram0"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Gap" type="Control" parent="PlayingLayer/Center/Box"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="PlayingLabel" type="Label" parent="PlayingLayer/Center/Box"]
+layout_mode = 2
+theme_type_variation = &"PlayingDim"
+text = "Playing"
+horizontal_alignment = 1
+
+[node name="PlayingGame" type="Label" parent="PlayingLayer/Center/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"PlayingTitle"
+horizontal_alignment = 1
+
+[node name="PlayingNote" type="Label" parent="PlayingLayer/Center/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"PlayingDim"
+horizontal_alignment = 1

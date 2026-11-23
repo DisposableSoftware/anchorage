@@ -44,11 +44,22 @@ Keep this table current: one line per file, with the spec IDs it implements. The
 ```
 app/project.godot        engine settings: viewport 1280x720, stretch, renderer, app ID (config/name), version   LOOK-1 WIN-3
 app/export_presets.cfg   the "Linux" preset that `--export-pack` needs
-app/scenes/main.tscn     the main screen                                          WIN-1
-app/src/main.gd          startup: config, bindings, window title and size, quit   WIN-1 WIN-4
+app/scenes/main.tscn     the root node; main.gd adds the Ports service and the home screen   WIN-1
+app/scenes/home.tscn     the home screen: cards row, detail panel, hint bar, menu, dialog, Playing   HOME
+app/scenes/card.tscn     one port card                                            HOME-1 HOME-2
+app/src/main.gd          startup: config, bindings, theme, Ports (real or fake), window, quit   WIN-1 WIN-4
 app/src/ini.gd           INI reader (Godot's ConfigFile can't read unquoted values) CONF-1
 app/src/config.gd        config.ini + keybindings.ini, first-run files            CONF KEY-2
-app/src/keys.gd          Keys.BINDINGS, key and gamepad tokens, InputMap setup    KEY
+app/src/keys.gd          Keys.BINDINGS, key and gamepad tokens, InputMap setup, hint labels   KEY HOME-11
+app/src/palette.gd       the four Catppuccin palettes (the only hex colours)      LOOK-3
+app/src/theme.gd         builds the one Theme: type variations, "Palette" colours, contrast   LOOK-2 LOOK-5 LOOK-6 LOOK-8
+app/src/ports_fake.gd    stand-in for Ports with demo data and scenarios (tests, screenshots)   PORT-14
+app/src/ui/home.gd       home screen logic: focus, accept, menu, dialog, Playing, hints   HOME
+app/src/ui/card.gd       a card: emblem, titles, badge, progress, focus/selection look   HOME-2 HOME-12
+app/src/ui/detail.gd     detail panel: versions, ROM status, progress, errors      HOME-3 HOME-8 HOME-9
+app/src/ui/hint_bar.gd   the hint bar from the live InputMap                      HOME-11
+app/src/ui/port_state.gd state, badge text and primary action of one info() dict  HOME-2 HOME-4
+app/fonts/               Inter (variable) and its licence (OFL 1.1)               LOOK-6
 app/data/                config.example.ini + keybindings.example.ini (first-run files)   CONF-2
 app/tests/               run.gd (runner), case.gd (base), test_*.gd; test_spec.gd checks spec <-> code
 scripts/test.sh          runs app/tests headless, fails on script errors
@@ -57,6 +68,7 @@ scripts/release-check.sh recommended version bump since the last v* tag (spec de
 scripts/release.sh       bump, commit "Anchorage X.Y.Z", tag, draft notes (no push)
 .githooks/pre-push       on a push of main, offers to release
 data/                    desktop entry, metainfo, icon                            INT-2 INT-41
+data/themes/             the style guide's Catppuccin CSS files, for test_palette   LOOK-3
 nix/                     package.nix, nixos-module.nix, hm-module.nix             INT-2x
 spec/                    the specification
 ```
@@ -71,6 +83,8 @@ spec/                    the specification
 - Scene (`.tscn`) edits by hand are fine and keep diffs small. If the editor rewrites a file, check that `git diff` shows only the intended change.
 - Godot prints script errors and keeps going. `scripts/test.sh` treats "SCRIPT ERROR" and "Parse Error" in the output as a failure, so a green run means none.
 - A test file is `app/tests/test_*.gd`, extending `res://tests/case.gd`; each `test_*` method runs separately. Use `eq` and `check`. Use `temp_dir` for files and `repo_file` to read from `spec/` or `data/`.
+- The runner starts the tests on the first frame, so a test can add a scene to `(Engine.get_main_loop() as SceneTree).root` and drive it with `get_viewport().push_input(event)` (see `test_home.gd`). Free what you add before the test returns.
+- Colours come from the theme: `theme_type_variation` for styles, `get_theme_color(name, "Palette")` for a palette colour. No hex or numeric `Color(...)` outside `palette.gd` (`test_theme` checks).
 - Comments only when the reason is not obvious. `gdlint` allows 100 columns; `gdformat` decides the rest.
 - Commits: `spec: <summary>` for spec changes, a `Spec: ID, ID` trailer on code commits, `BREAKING` in the body for incompatible changes (`scripts/release-check.sh` reads all three). No Claude-Session links in commit messages.
 
@@ -85,6 +99,14 @@ spec/                    the specification
 ## Manual testing
 
 Prefer adding a script to `scripts/manual/` (source `lib.sh`, which has the guards below built in) over ad-hoc commands. Each script names the spec IDs it checks. Run it after `nix build`.
+
+### Fake ports and screenshots
+
+`--fake-ports [SCENARIO]` after `--` starts the app with `app/src/ports_fake.gd` instead of the real service (it is also used while `app/src/ports.gd` doesn't exist): `./result/bin/anchorage -- --fake-ports error`, or `godot --path app -- --fake-ports offline`. Scenarios: `showcase` (default: one card per state), `fresh`, `installing`, `updating`, `rom-missing`, `error`, `offline`, `playing`; the list and what each sets are at the top of `ports_fake.gd`. Actions in the fake play out over time (a download takes 6 s, a launched port runs 8 s); the scenarios' own busy states stay still, so screenshots repeat.
+
+- `scripts/manual/shots.sh SIZE` takes a screenshot of every scenario, the options menu, the Remove dialog and latte with blue: `HEADLESS_RES=1280x720 HEADLESS_SCALE=1 OUT=/tmp/shots scripts/manual/headless.sh scripts/manual/shots.sh 1280x720`. `FLAVOR` and `ACCENT` change the look for the whole run.
+- `scripts/manual/home.sh` (1280×720) drives focus with keys and finds the focus ring by its colour, including while a download runs.
+- To try the UI from a checkout without `nix build`, run `godot --headless --path app --import` once (it imports the font), then pass `BIN=` a script that runs `godot --path app "$@"`.
 
 ### Headless (default)
 

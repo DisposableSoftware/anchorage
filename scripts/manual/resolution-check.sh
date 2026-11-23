@@ -13,12 +13,13 @@ OUT=${OUT:-$T}
 export XDG_STATE_HOME=$T/state
 w=${1%x*}; h=${1#*x}
 
-launch "$T/cfg"
+launch "$T/cfg" -- --fake-ports
 swaymsg fullscreen enable >/dev/null
 sleep 2
 check "window size at $1" "$w $h" "$(active '"\(.size[0]) \(.size[1])"')"
 shot "$OUT/window.png"
 check "screenshot in device px" "$w $h" "$(magick identify -format '%w %h' "$OUT/window.png")"
-# The whole window is painted, not just the 1280x720 the app starts with.
-check "bottom-right corner is painted" "srgba(77,77,77,1)" "$(magick "$OUT/window.png" -format '%[pixel:p{'$((w - 2))','$((h - 2))'}]' info: | sed 's/^srgb(/srgba(/; s/)$/,1)/; s/,1,1)/,1)/')"
+# The whole window is painted, not just the 1280x720 the app starts with: the corner is
+# the hint bar, mocha's mantle.
+check "bottom-right corner is painted" "srgba(24,24,37,1)" "$(magick "$OUT/window.png" -format '%[pixel:p{'$((w - 2))','$((h - 2))'}]' info: | sed 's/^srgb(/srgba(/; s/)$/,1)/; s/,1,1)/,1)/')"
 [ "$FAILS" = 0 ]

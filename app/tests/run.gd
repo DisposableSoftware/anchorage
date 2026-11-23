@@ -2,11 +2,16 @@ extends SceneTree
 ## Runs every tests/test_*.gd. Usage (from the repo root): scripts/test.sh
 ## A method named `xfail_*` is a reproduction of a known bug: it is listed but not run.
 ## `/implement` renames it to `test_*` when it fixes the bug.
+## Tests run on the first frame, once `root` is in the tree, so they can add scenes to it.
 ## A script error inside a test is printed by Godot, not thrown, so scripts/test.sh also
 ## fails on "SCRIPT ERROR" in the output.
 
 
 func _init() -> void:
+	process_frame.connect(_run, CONNECT_ONE_SHOT)
+
+
+func _run() -> void:
 	var failed := 0
 	var passed := 0
 	var files := Array(DirAccess.get_files_at("res://tests")).filter(
