@@ -51,10 +51,10 @@ func test_hashes_are_unique_across_ports() -> void:
 			seen[rom["sha1"]] = true
 
 
-func test_starship_runs_in_its_unpacked_folder_and_copies_the_controller_db() -> void:
+func test_starship_runs_in_its_data_folder_with_what_its_extractor_reads() -> void:
 	var starship := Catalog.find(Catalog.load_default()["ports"], "starship")
-	eq(starship["launch"]["cwd"], "current", "config.yml and assets/ are next to the executable")
-	eq(starship["extra_files"], ["gamecontrollerdb.txt"], "extra files")
+	eq(starship["launch"]["cwd"], "data", "sf64.o2r is written to the working directory (PORT-9)")
+	eq(starship["extra_files"], ["gamecontrollerdb.txt", "config.yml", "assets"], "extra files")
 	var kart := Catalog.find(Catalog.load_default()["ports"], "spaghettikart")
 	eq(kart["extra_files"], ["gamecontrollerdb.txt"], "extra files")
 

@@ -319,6 +319,65 @@ func test_update_swaps_and_keeps_the_old_version_as_previous() -> void:
 	remove(_dir)
 
 
+func test_extra_folders_are_copied_to_data_and_replaced_on_update() -> void:
+	_setup("inst_folder")
+	var port := _port(["gamecontrollerdb.txt", "config.yml", "assets"])
+	var zip := _good_zip("v1")
+	_http.files[ZIP_URL] = zip
+	check(_run("install", port, _release(zip))["ok"], "installed")
+	var data := Installer.data_dir(_root, "starship")
+	eq(_text(data.path_join("config.yml")), "x: 1\n", "file next to the folder")
+	eq(_text(data.path_join("assets/a/b.yaml")), "k: v\n", "folder copied with its subfolders")
+	var stale := FileAccess.open(data.path_join("assets/old.yaml"), FileAccess.WRITE)
+	stale.store_string("old")
+	stale.close()
+	FileAccess.open(data.path_join("sf64.o2r"), FileAccess.WRITE).close()
+	zip = _good_zip("v2")
+	_http.files[ZIP_URL] = zip
+	check(_run("update", port, _release(zip))["ok"], "updated")
+	check(not FileAccess.file_exists(data.path_join("assets/old.yaml")), "old folder replaced")
+	check(FileAccess.file_exists(data.path_join("assets/a/b.yaml")), "new folder in place")
+	check(FileAccess.file_exists(data.path_join("sf64.o2r")), "the archive survives an update")
+	remove(_dir)
+
+
+func test_copy_extra_files_only_missing_keeps_what_is_there() -> void:
+	_setup("inst_missing")
+	var from := _dir.path_join("from")
+	DirAccess.make_dir_recursive_absolute(from.path_join("assets/x"))
+	for path in ["config.yml", "assets/x/y.yaml"]:
+		var file := FileAccess.open(from.path_join(path), FileAccess.WRITE)
+		file.store_string("new")
+		file.close()
+	var data := _dir.path_join("data")
+	DirAccess.make_dir_recursive_absolute(data)
+	var mine := FileAccess.open(data.path_join("config.yml"), FileAccess.WRITE)
+	mine.store_string("mine")
+	mine.close()
+	var port := {"extra_files": ["config.yml", "assets"]}
+	eq(Installer.copy_extra_files(port, from, data, true), "", "no error")
+	eq(_text(data.path_join("config.yml")), "mine", "present file kept")
+	eq(_text(data.path_join("assets/x/y.yaml")), "new", "missing folder copied")
+	remove(_dir)
+
+
+func test_a_write_error_while_unpacking_fails() -> void:
+	_setup("inst_full")
+	if not FileAccess.file_exists("/dev/full"):
+		remove(_dir)
+		return
+	var zip := _dir.path_join("full.zip")
+	# Larger than stdio's buffer, so the write itself fails, as for a real program file.
+	_zip(zip, {"big.bin": "x".repeat(65536)})
+	var dest := _dir.path_join("dest")
+	DirAccess.make_dir_recursive_absolute(dest)
+	# Writing through a link to /dev/full fails like a full disk (ENOSPC).
+	OS.execute("ln", ["-s", "/dev/full", dest.path_join("big.bin")])
+	var error := Installer.extract_zip(zip, dest)
+	check(error.begins_with("Could not write “big.bin”"), "a full disk is an error: %s" % error)
+	remove(_dir)
+
+
 func test_swap_failure_restores_current() -> void:
 	_setup("inst_swap")
 	_install_old()
