@@ -31,6 +31,7 @@ godot --path app               # run the app (opens a window); `godot --path app
 scripts/test.sh                # unit tests + spec conformance tests (headless)
 cd app && gdlint src tests && gdformat --check src tests    # must pass; `gdformat src tests` fixes
 nix build                      # package -> ./result/bin/anchorage (also runs the tests)
+scripts/build-appimage.sh      # AppImage for SteamOS -> dist/Anchorage-X.Y.Z-x86_64.AppImage (INT-25)
 nix flake check
 git config core.hooksPath .githooks   # once per clone: enables the pre-push release check
 ```
@@ -43,7 +44,7 @@ Keep this table current: one line per file, with the spec IDs it implements. The
 
 ```
 app/project.godot        engine settings: viewport 1280x720, stretch, renderer, app ID (config/name), version   LOOK-1 WIN-3
-app/export_presets.cfg   the "Linux" preset that `--export-pack` needs
+app/export_presets.cfg   the "Linux" pack preset (nix/package.nix) and the "AppImage" release preset (embedded pack)   INT-25
 app/scenes/main.tscn     the root node; main.gd adds the Ports service and the home screen   WIN-1
 app/scenes/home.tscn     the home screen: cards row, detail panel, hint bar, menu, dialog, Playing   HOME
 app/scenes/card.tscn     one port card                                            HOME-1 HOME-2
@@ -66,10 +67,11 @@ scripts/test.sh          runs app/tests headless, fails on script errors
 scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway)
 scripts/release-check.sh recommended version bump since the last v* tag (spec delta)
 scripts/release.sh       bump, commit "Anchorage X.Y.Z", tag, draft notes (no push)
+scripts/build-appimage.sh builds the AppImage into dist/ (git-ignored)             INT-26
 .githooks/pre-push       on a push of main, offers to release
 data/                    desktop entry, metainfo, icon                            INT-2 INT-41
 data/themes/             the style guide's Catppuccin CSS files, for test_palette   LOOK-3
-nix/                     package.nix, nixos-module.nix, hm-module.nix             INT-2x
+nix/                     package.nix, appimage.nix (+ AppRun), nixos-module.nix, hm-module.nix   INT-2x
 spec/                    the specification
 ```
 
@@ -90,7 +92,9 @@ spec/                    the specification
 
 ## Packaging
 
-`nix/package.nix` exports `anchorage.pck` with `godot --headless --export-pack Linux` and installs a wrapper that runs nixpkgs' `godot` on it. That avoids patching an export-template binary for NixOS. The nixpkgs build is a debug build, so the window title gets " (DEBUG)". A self-contained build for SteamOS without Nix is `INT-25`.
+`nix/package.nix` exports `anchorage.pck` with `godot --headless --export-pack Linux` and installs a wrapper that runs nixpkgs' `godot` on it. That avoids patching an export-template binary for NixOS. The nixpkgs build is a debug build, so the window title gets " (DEBUG)".
+
+`nix/appimage.nix` (`nix build .#appimage`, x86_64-linux only) is the self-contained build for SteamOS (`INT-25`, `INT-26`). It exports with the "AppImage" preset (`--export-release`, pack embedded) on the official release template from `godot.export-templates-bin`, so the binary is not patched for Nix: `dontFixup` keeps the stdenv from touching it, and the build fails on an RPATH, a Nix interpreter or a store path. It assembles an AppDir (`nix/AppRun`, desktop entry, icon, metainfo), makes a zstd squashfs and appends it to the pinned static type 2 runtime (`appimagetool` is not in nixpkgs). To update, bump the runtime's dated release and hash together, and nixpkgs brings the templates with the engine. Test with `scripts/manual/headless.sh scripts/manual/appimage.sh`. On NixOS the binary needs a stock `/lib64` loader, so run it as `TMPDIR=$HOME/.cache/at RUNNER=steam-run scripts/manual/headless.sh scripts/manual/appimage.sh` (`MODE=mount` covers the FUSE mount; a direct FUSE launch needs a non-NixOS host).
 
 ## Releasing
 

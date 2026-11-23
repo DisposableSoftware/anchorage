@@ -51,6 +51,8 @@ $changes
 
 ## Install
 
+On SteamOS or any other x86_64 Linux, download \`Anchorage-$new-x86_64.AppImage\` from this release, make it executable and add it to Steam as a non-Steam game. With Nix:
+
 \`\`\`sh
 nix run github:DisposableSoftware/anchorage/v$new
 \`\`\`
