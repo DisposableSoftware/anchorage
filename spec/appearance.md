@@ -17,4 +17,6 @@
 
 - The [style guide](https://github.com/DisposableSoftware/style-guide) describes the shared look; this file wins on conflict. Catppuccin belongs to the Catppuccin community (https://catppuccin.com).
 - The project sets the base size and stretch in `app/project.godot` (`display/window/size/viewport_*`, `display/window/stretch/*`). Don't set pixel sizes in code against the real window size.
+- The palettes are `app/src/palette.gd`, the only place with hex colours. `data/themes/<flavour>.css` are byte-identical copies of the style guide's `reference/themes/`, which `test_palette` compares the data against.
+- The focus colour is the accent. Where the accent is under 3:1 against `base` (some latte accents), it is mixed toward `text` in steps until it reaches 3:1 (`LOOK-8`).
 - The renderer is GL Compatibility: it starts fast, runs under gamescope on the Steam Deck and in a headless compositor, and a launcher needs nothing more.
