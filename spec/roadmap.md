@@ -2,16 +2,11 @@
 
 The order of approved work: `planned` requirements, and `partial` ones with a known bug from `/bug`. Change it here when priorities change. `/implement` works through this file: the verification backlog first, then the requirements in the order listed.
 
-1. `LOOK-3`: the four Catppuccin palette files.
-2. `CONF-6`, `CONF-7`: `[appearance]` keys (`flavor`, `accent`, `opacity`).
-3. `LOOK-2`, `LOOK-5`, `LOOK-6`: theme module and the generic scoped `style.css`; the window gets its binary-name class.
-4. `LOOK-7`: the user's `style.css`.
-5. `LOOK-4`: `flavor = gtk`.
-6. `LOOK-8`: selection contrast test.
-7. `KEY-5`, `WIN-5`: the `?` shortcut overlay.
-8. `INT-42`, `INT-43`: symbolic icon, README shape and Catppuccin credit.
-
-These bring the template in line with the [style guide](https://github.com/DisposableSoftware/style-guide). Apps copy the theme module, palette files and `style.css` from the template afterwards, so keep them generic.
+1. `CONF-4`: window size applied after startup repaints fully (check on Hyprland and in gamescope first).
+2. `PROD-6`, `PROD-7`: fullscreen in gamescope and a controller-only first screen with a button hint bar. Written through `/feature`.
+3. `LOOK-3`, `CONF-6`, `CONF-7`, `LOOK-2`, `LOOK-5`, `LOOK-6`, `LOOK-8`: the palette, theme and focus look.
+4. `PROD-13`, `PROD-12`, `PROD-8`, `PROD-9`, `PROD-10`, `PROD-11`: the port list, install, update, launch and ROM scan. Each goes through `/feature`.
+5. `INT-25`, `INT-42`, `INT-43`: self-contained release build, symbolic icon, README shape.
 
 ## Verification backlog
 

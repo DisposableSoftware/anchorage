@@ -6,11 +6,11 @@ A controller-first launcher for the [HarbourMasters](https://github.com/HarbourM
 
 | ID | Requirement | Status |
 |----|-------------|--------|
-| `PROD-1` | Lightweight and minimal: few dependencies, no libadwaita, fast startup. | done (ongoing constraint) |
+| `PROD-1` | Lightweight and minimal: no addons, no GDExtensions, fast startup. | done (ongoing constraint) |
 | `PROD-2` | Follow a freedesktop/XDG spec wherever one exists for the behaviour (see [integration.md](integration.md)). | done (ongoing constraint) |
-| `PROD-3` | Simple toolchain: `cargo` inside a Nix devshell, nothing else. | done |
+| `PROD-3` | Simple toolchain: `godot` and `gdtoolkit` inside a Nix devshell, nothing else. | done |
 | `PROD-4` | Easy NixOS integration. | done (see `INT-20`…`INT-24`) |
-| `PROD-5` | Every action has a keybinding users can change (see [keybindings.md](keybindings.md)). | done (ongoing constraint) |
+| `PROD-5` | Every action has a binding users can change, for keyboard and gamepad (see [keybindings.md](keybindings.md)). | done (ongoing constraint) |
 | `PROD-6` | Run fullscreen in gamescope at 1280×720 and up. The layout scales with the window size and uses no fixed pixel layouts. | planned |
 | `PROD-7` | Be fully usable with a gamepad alone: D-pad and stick to move, A to select, B to go back, with a button hint bar. Mouse and keyboard also work. | planned |
 | `PROD-8` | Install a port by downloading its latest Linux release from GitHub into the XDG data directory. | planned |
@@ -26,14 +26,15 @@ The shared look, feel and wording of DisposableSoftware apps is described in the
 
 ## Non-goals
 
-- No libadwaita. It fights custom theming and transparency.
 - Not a ROM manager or a general emulator frontend. Anchorage never downloads or distributes ROMs or game assets.
 - No Steam shortcut per game. Anchorage is the single non-Steam entry.
 - No status bar.
 
 ## Stack constraints
 
-- Rust and gtk4-rs (`gtk4` 0.11 with feature `gnome_49`).
-- Use GIO/GLib for anything they provide (XDG dirs, MIME, files, D-Bus) rather than reimplementing it or adding a crate.
-- Ask before adding a crate.
-- File I/O is async through GIO. The main loop never blocks on I/O.
+- Godot 4.7 from nixpkgs, GDScript only. No C#, no GDExtension, no addons: ask first.
+- GL Compatibility renderer. UI is built from `Control` nodes, so focus navigation works from a gamepad.
+- Scenes (`.tscn`) and scripts are text and live in git. Edit them by hand or in the editor, and keep diffs small: don't let the editor reorder or reformat unrelated parts of `project.godot`.
+- Anything that touches disk or network is non-blocking: use `HTTPRequest`, threads or `await`, never a blocking call on the main thread in a frame callback.
+- Use Godot's own APIs for paths, HTTP, JSON, zip and processes before adding anything.
+- Ports run as child processes (`OS.create_process`), and Anchorage never links against them.

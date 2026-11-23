@@ -4,23 +4,28 @@
 
 | ID | Requirement | Status | Verified by |
 |----|-------------|--------|-------------|
-| `KEY-1` | Every user-facing action has a binding name, and its defaults are listed in the table below. | done | `spec_tests::keybindings_match_spec` |
-| `KEY-2` | Users override a binding in the `[keybindings]` group of `$XDG_CONFIG_HOME/anchorage/keybindings.ini`, writing `name = accel;accel`. An empty value unbinds it. A binding that isn't listed keeps its defaults. | done | `config::tests::reads_settings_and_keybindings_from_their_files`, `keys::tests::accelerators` |
-| `KEY-3` | Unknown binding names and accelerators that can't be parsed are warned about on stderr and skipped. They never crash the app. | done | `keys::tests::accelerators` (a bad accelerator is dropped) |
-| `KEY-4` | Accelerator syntax is GTK's (`gtk_accelerator_parse`): `<Ctrl>`, `<Shift>`, `<Alt>`, `<Super>` plus a GDK key name. | done | `keys::tests::accelerators` |
-| `KEY-5` | A `show-help` binding, default `?`, shows the shortcut overlay (`WIN-5`). Style guide: interaction.md, "Keybindings". | planned | `spec_tests::keybindings_match_spec`; manual |
+| `KEY-1` | Every user-facing action has a binding name, and its defaults are listed in the table below. Each binding drives one Godot input action, so a gamepad and a keyboard do the same thing. | done | `test_spec::test_keybindings_match_spec` |
+| `KEY-2` | Users override a binding in the `[keybindings]` group of `$XDG_CONFIG_HOME/anchorage/keybindings.ini`, writing `name = key;key`. An empty value unbinds it. A binding that isn't listed keeps its defaults. | done | `test_config::test_reads_settings_and_keybindings_from_their_files`, `test_keys::test_overrides_replace_defaults_and_bad_ones_are_dropped` |
+| `KEY-3` | Unknown binding names and keys that can't be parsed are warned about on stderr and skipped. They never crash the app. | done | `test_keys::test_overrides_replace_defaults_and_bad_ones_are_dropped` |
+| `KEY-4` | Key syntax: a keyboard key is optional `Ctrl+`, `Shift+`, `Alt+` or `Super+` modifiers and a Godot key name (`Enter`, `Escape`, `Up`, `Q`, `F4`). A gamepad input is `Pad:` and a button (`A`, `B`, `X`, `Y`, `Back`, `Guide`, `Start`, `LeftStick`, `RightStick`, `LeftShoulder`, `RightShoulder`, `DPadUp`, `DPadDown`, `DPadLeft`, `DPadRight`), a stick direction (`LeftStickUp`, `LeftStickDown`, `LeftStickLeft`, `LeftStickRight`, and the same for `RightStick`) or a trigger (`LeftTrigger`, `RightTrigger`). | done | `test_keys::test_tokens` |
+| `KEY-5` | Button names are the Xbox layout that Steam Input reports. The Steam Deck's A, B, X and Y are `Pad:A`, `Pad:B`, `Pad:X` and `Pad:Y`. | done | `test_keys::test_tokens` |
 
 ## Default bindings
 
 <!-- spec:keybindings:begin -->
 | Name | Action | Default keys |
 |------|--------|--------------|
-| `new-window` | `win.new-window` | `<Ctrl>n` |
-| `close-window` | `window.close` | `<Ctrl>w` |
-| `quit` | `app.quit` | `<Ctrl>q` |
+| `up` | `ui_up` | `Up`, `Pad:DPadUp`, `Pad:LeftStickUp` |
+| `down` | `ui_down` | `Down`, `Pad:DPadDown`, `Pad:LeftStickDown` |
+| `left` | `ui_left` | `Left`, `Pad:DPadLeft`, `Pad:LeftStickLeft` |
+| `right` | `ui_right` | `Right`, `Pad:DPadRight`, `Pad:LeftStickRight` |
+| `accept` | `ui_accept` | `Enter`, `Pad:A` |
+| `back` | `ui_cancel` | `Escape`, `Pad:B` |
+| `quit` | `quit` | `Ctrl+Q` |
 <!-- spec:keybindings:end -->
 
 ## Implementation notes
 
-- To add a binding, edit the table above, `keys::BINDINGS`, `data/keybindings.example.ini` and the man page's KEY BINDINGS section (`INT-32`). The spec tests fail until they agree.
-- Bindings without Ctrl, Alt or Super (letters, Space, Delete) set with `set_accels_for_action` also fire while typing in a text field. Before adding one, attach those to the window with a capture-phase `ShortcutController` that passes keys through while an `Editable` has focus.
+- To add a binding, edit the table above, `Keys.BINDINGS` in `app/src/keys.gd` and `app/data/keybindings.example.ini`. The spec tests fail until they agree.
+- `ui_up`, `ui_down`, `ui_left`, `ui_right`, `ui_accept` and `ui_cancel` are Godot's own focus-navigation actions. Replacing their events (`Keys.apply`) is what makes `Control` focus movement follow the user's bindings, so screens use `Control` focus rather than reading raw input.
+- A stick direction is a joypad-motion event, and the action's deadzone decides when it counts as pressed. `Keys.apply` leaves the deadzone at Godot's default.

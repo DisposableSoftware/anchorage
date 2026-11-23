@@ -4,26 +4,27 @@
 
 | ID | Spec | Requirement | Status |
 |----|------|-------------|--------|
-| `INT-1` | Base Directory | Config, cache and state paths come from `glib::user_config_dir()` / `user_cache_dir()` / `user_state_dir()`. They are never hard-coded as `~/.config`. | done |
-| `INT-2` | Desktop Entry | `io.github.DisposableSoftware.Anchorage.desktop`: `Name=Anchorage`, `Exec=anchorage`, `Icon=io.github.DisposableSoftware.Anchorage`, `StartupWMClass=io.github.DisposableSoftware.Anchorage`, and a New Window action. It passes `desktop-file-validate`. | done |
+| `INT-1` | Base Directory | Config paths come from `OS.get_config_dir()` (`$XDG_CONFIG_HOME`), and `user://` is `$XDG_DATA_HOME/anchorage` (`application/config/use_custom_user_dir`). State goes to `$XDG_STATE_HOME`, falling back to `~/.local/state`, and cache to `OS.get_cache_dir()`. Nothing is hard-coded as `~/.config`. | done |
+| `INT-2` | Desktop Entry | `io.github.DisposableSoftware.Anchorage.desktop`: `Name=Anchorage`, `Exec=anchorage`, `Icon=io.github.DisposableSoftware.Anchorage`, `StartupWMClass=io.github.DisposableSoftware.Anchorage`, `Categories=Game;`. It passes `desktop-file-validate`. | done |
 
 ## Nix
 
 | ID | Requirement | Status |
 |----|-------------|--------|
 | `INT-20` | The flake exports `packages.<system>.default`, `devShells.<system>.default`, `overlays.default` (attr `anchorage`), `nixosModules.default` and `homeManagerModules.default`, for x86_64-linux and aarch64-linux. | done |
-| `INT-21` | The package installs `bin/anchorage` (wrapped by `wrapGAppsHook4`), the desktop entry, the app icon, the AppStream metainfo (`INT-41`), both example files (`CONF-2`) and the man page (`INT-32`). `nix build` runs the unit tests and the spec tests. | done |
+| `INT-21` | The package builds `anchorage.pck` with nixpkgs' `godot` (`--export-pack`) and installs `bin/anchorage` (a wrapper that runs that `godot` on the pack), the desktop entry, the app icon, the AppStream metainfo (`INT-41`) and both example files (`CONF-2`). `nix build` runs the unit tests and the spec tests. | done |
 | `INT-22` | NixOS module `programs.anchorage`: `enable`, `package`. | done |
 | `INT-23` | Home-manager module `programs.anchorage`: `enable`, `package`, `settings` (generates `config.ini`), `keybindings` (binding name to a list of keys; generates `keybindings.ini`, lists joined with `;`). | done |
-| `INT-24` | `nix flake check` passes, and it runs `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` as well as the tests. | done |
+| `INT-24` | `nix flake check` passes, and it runs `gdlint` and `gdformat --check` over `app/src` and `app/tests` as well as the tests. | done |
+| `INT-25` | Each GitHub release attaches a self-contained `x86_64` Linux build (Godot export with the pack embedded), so SteamOS without Nix can add it as a non-Steam game. | planned |
 
-## Command line and manual
+## Command line and metadata
 
 | ID | Requirement | Status | Verified by |
 |----|-------------|--------|-------------|
-| `INT-30` | `anchorage --help` (or `-h`) prints a short help to stdout and exits with status 0, without opening a window or reaching a running instance: the usage line, the options, the paths of `config.ini` and `keybindings.ini`, and a pointer to `anchorage(1)`. | done | `cli::tests::help_and_version` |
-| `INT-31` | `anchorage --version` (or `-V`) prints `anchorage <version>`, the version in `Cargo.toml`, and exits with status 0 in the same way. | done | `cli::tests::help_and_version` |
-| `INT-32` | The man page `anchorage(1)` documents the synopsis and options, every binding in the default bindings table with its description and default keys, how to override one (`KEY-2`), where the config files live and how they are created (`CONF-3`), every key in the config defaults table with its allowed values and default, and files and environment variables. It renders with `man` without warnings. | done | `spec_tests::man_page_matches_spec`, manual (`man --warnings=all -l data/anchorage.1`) |
-| `INT-41` | AppStream metainfo, `share/metainfo/io.github.DisposableSoftware.Anchorage.metainfo.xml`: ID, name, summary, a description that keeps the README's warning, the launchable desktop entry, licences, developer, homepage and the current release. It passes `appstreamcli validate --no-net`. | done | manual (`appstreamcli validate --no-net`) |
+| `INT-30` | `anchorage --help`. | dropped | superseded: Godot reads `--help` and `--version` itself, and the app is started from Steam, not a terminal. |
+| `INT-31` | `anchorage --version`. | dropped | same reason as `INT-30`. The version is `config/version` in `app/project.godot`. |
+| `INT-32` | The man page. | dropped | superseded: bindings and settings are documented in the example files (`CONF-2`), which are the reference for a game-mode app. |
+| `INT-41` | AppStream metainfo, `share/metainfo/io.github.DisposableSoftware.Anchorage.metainfo.xml`: ID, name, summary, a description that keeps the README's warning, the launchable desktop entry, licences, developer, homepage and the current release. It passes `appstreamcli validate --no-net`. | done | manual (`appstreamcli validate --no-net`); `test_spec::test_version_is_the_same_everywhere` |
 | `INT-42` | A symbolic app icon, `io.github.DisposableSoftware.Anchorage-symbolic.svg` (one colour), is installed beside the full-colour icon. The full-colour icon is flat Catppuccin mocha with no text. Style guide: layout.md, "Icons". | planned | manual (`nix build`; the file is in `share/icons`) |
 | `INT-43` | The README follows the style guide's shape: centred icon and name, a one-line tagline, the vibe-coded warning, and a Credits section that credits [Catppuccin](https://catppuccin.com) and its community with links. Style guide: readme.md. | planned | manual |

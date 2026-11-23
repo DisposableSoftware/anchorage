@@ -37,4 +37,4 @@ Each requirement is one line in a table:
 
 ## Machine-checked sections
 
-Tables between `<!-- spec:NAME:begin -->` and `<!-- spec:NAME:end -->` markers are parsed by `src/spec_tests.rs`. `cargo test` (and so `nix build`) fails when they disagree with the code, `data/config.example.ini`, `data/keybindings.example.ini` or the man page. Keep their column layout unchanged.
+Tables between `<!-- spec:NAME:begin -->` and `<!-- spec:NAME:end -->` markers are parsed by `app/tests/test_spec.gd`. `scripts/test.sh` (and so `nix build`) fails when they disagree with the code or `app/data/config.example.ini` and `app/data/keybindings.example.ini`. Keep their column layout unchanged.
