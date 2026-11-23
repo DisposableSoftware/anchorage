@@ -2,3 +2,4 @@
 /.claude/settings.local.json
 /app/.godot/
 /app/export_presets.cfg.bak
+/.claude/worktrees/
