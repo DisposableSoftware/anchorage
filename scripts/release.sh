@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bumps the version, commits "Template App X.Y.Z" and tags vX.Y.Z. Does not push.
+# Bumps the version, commits "Anchorage X.Y.Z" and tags vX.Y.Z. Does not push.
 # Writes draft release notes to NOTES_FILE for `gh release create -F`.
 # Usage: scripts/release.sh patch|minor|major|X.Y.Z NOTES_FILE
 set -euo pipefail
@@ -23,14 +23,14 @@ date=$(date +%F)
 ids=$(scripts/release-check.sh | tail -n +2 | grep -E '^[A-Z]+-[0-9]+ is now ' | cut -d' ' -f1 || true)
 
 sed -i "0,/^version = \"$old\"/s//version = \"$new\"/" Cargo.toml
-sed -i "/^name = \"template-app\"$/{n;s/^version = \"$old\"/version = \"$new\"/}" Cargo.lock
-sed -i "s|^\(    \)<release version=\"$old\"|\1<release version=\"$new\" date=\"$date\"/>\n&|" data/io.github.DisposableSoftware.TemplateApp.metainfo.xml
-sed -i "s|^\.TH TAPP 1 [0-9-]* \"tapp $old\"|.TH TAPP 1 $date \"tapp $new\"|" data/tapp.1
+sed -i "/^name = \"anchorage\"$/{n;s/^version = \"$old\"/version = \"$new\"/}" Cargo.lock
+sed -i "s|^\(    \)<release version=\"$old\"|\1<release version=\"$new\" date=\"$date\"/>\n&|" data/io.github.DisposableSoftware.Anchorage.metainfo.xml
+sed -i "s|^\.TH ANCHORAGE 1 [0-9-]* \"anchorage $old\"|.TH ANCHORAGE 1 $date \"anchorage $new\"|" data/anchorage.1
 
 nix develop -c cargo test --quiet >/dev/null 2>&1 || { git checkout -- .; echo "cargo test failed; version left at $old" >&2; exit 1; }
 
-git commit -q -am "Template App $new" -m "Spec: INT-31, INT-32, INT-41"
-git tag -a "v$new" -m "Template App $new"
+git commit -q -am "Anchorage $new" -m "Spec: INT-31, INT-32, INT-41"
+git tag -a "v$new" -m "Anchorage $new"
 
 changes=$(
   if [ -n "$prev" ]; then
@@ -38,7 +38,7 @@ changes=$(
       row=$(grep -h "^| \`$id\` | " spec/[!R]*.md | head -1 | awk -F' [|] ' '{print $2}')
       echo "- \`$id\`: $row"
     done
-    git log --format='- %s' "$prev..v$new^" | grep -v -e '^- spec: ' -e '^- Template App '
+    git log --format='- %s' "$prev..v$new^" | grep -v -e '^- spec: ' -e '^- Anchorage '
   else
     echo "- First release."
   fi
@@ -54,9 +54,9 @@ $changes
 ## Install
 
 \`\`\`sh
-nix run github:DisposableSoftware/gtk-desktop-template/v$new
+nix run github:DisposableSoftware/anchorage/v$new
 \`\`\`
 
-See the [README](https://github.com/DisposableSoftware/gtk-desktop-template/blob/v$new/README.md).
+See the [README](https://github.com/DisposableSoftware/anchorage/blob/v$new/README.md).
 NOTES
 echo "v$new"

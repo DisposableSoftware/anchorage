@@ -6,15 +6,15 @@ self:
   ...
 }:
 let
-  cfg = config.programs.template-app;
+  cfg = config.programs.anchorage;
 in
 {
-  options.programs.template-app = {
-    enable = lib.mkEnableOption "Template App";
+  options.programs.anchorage = {
+    enable = lib.mkEnableOption "Anchorage";
     package = lib.mkOption {
       type = lib.types.package;
       default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
-      defaultText = lib.literalExpression "template-app.packages.\${system}.default";
+      defaultText = lib.literalExpression "anchorage.packages.\${system}.default";
     };
   };
 

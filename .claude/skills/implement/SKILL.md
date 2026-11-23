@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Work through the outstanding items in Template App's spec/roadmap.md, the verification backlog first and then the planned requirements in roadmap order, implementing and verifying each one against the spec and committing it. Use when the user runs /implement.
+description: Work through the outstanding items in Anchorage's spec/roadmap.md, the verification backlog first and then the planned requirements in roadmap order, implementing and verifying each one against the spec and committing it. Use when the user runs /implement.
 argument-hint: [IDs to limit the run to, e.g. VIEW-3 KEY-7]
 disable-model-invocation: true
 ---
@@ -44,7 +44,7 @@ For each item in turn:
 2. **Verify** (`CLAUDE.md` step 3):
    - `cargo clippy --all-targets -- -D warnings`, `cargo test` (spec conformance included) and `nix build` pass.
    - Check the row as its **Verified by** column says. Prefer adding a unit test where one is possible.
-   - For manual checks, follow "Manual testing" in `CLAUDE.md`: run them headless (`scripts/manual/headless.sh`) by default, and keep screenshots of visual changes for the report. Only compositor behaviour needs real Hyprland. There, check there are no `io.github.DisposableSoftware.TemplateApp` clients and that the screen isn't locked, ask the user before a test that opens a window and takes focus, run it on an empty workspace, and go back afterwards. If the check can't run, mark the row `partial` and say why.
+   - For manual checks, follow "Manual testing" in `CLAUDE.md`: run them headless (`scripts/manual/headless.sh`) by default, and keep screenshots of visual changes for the report. Only compositor behaviour needs real Hyprland. There, check there are no `io.github.DisposableSoftware.Anchorage` clients and that the screen isn't locked, ask the user before a test that opens a window and takes focus, run it on an empty workspace, and go back afterwards. If the check can't run, mark the row `partial` and say why.
    - Re-run the manual scripts for the area, since a change often moves something they rely on.
    - Re-read the change against the row, and look for behaviour the spec doesn't mention.
    - A row from `/bug` names its regression check in **Verified by**. Run it before the fix and confirm it still fails, then after the fix and confirm it passes. Remove the `#[ignore = "<ID>: fails until fixed"]` attribute from its unit test.3. **Update the spec.** Set the row to `done`, or `partial` with the gap written in, and fill in **Verified by**. Remove the item from `roadmap.md`, or move a `partial` gap to its verification backlog.
