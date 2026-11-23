@@ -14,7 +14,7 @@ Anchorage finds the user's own ROM files and hands the right one to each port. I
 | `ROM-6` | Anchorage only reads the ROM folder. It never writes, moves, renames or deletes anything in it. | done | `test_roms` (folder names, sizes and mtimes unchanged after a scan and a prepare; prepare refuses to write next to its source) |
 | `ROM-7` | When several files or zip entries match one port, the catalog's hash order decides which is used (the first hash of the list wins), then the file name. | done | `test_roms` (hash order, then file name, then zip entry) |
 | `ROM-8` | Preparing a ROM for a port writes the identified data as a big-endian `.z64` named by the catalog into the port's data folder, streamed from a zip entry when the source is a zip. | done | `test_roms` (prepare from a file and from a zip entry writes the correct SHA1; the source is read whole, as the notes allow) |
-| `ROM-9` | When no ROM matches a port, the port shows which game versions it accepts (from the catalog) and the folder that was scanned. | planned | `test_ports` |
+| `ROM-9` | When no ROM matches a port, the port shows which game versions it accepts (from the catalog, each named once) and the folder that was scanned. A port whose generated archive already exists (`PORT-9`) needs no ROM and is not shown as missing one. | planned | `test_ports` |
 
 ## Implementation notes
 
