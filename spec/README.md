@@ -10,6 +10,9 @@ This folder is the source of truth for what Anchorage does. The code implements 
 | [window.md](window.md) | `WIN` | Windows and what they show |
 | [keybindings.md](keybindings.md) | `KEY` | Default bindings, user overrides |
 | [appearance.md](appearance.md) | `LOOK` | Styling and display scale |
+| [home.md](home.md) | `HOME` | The home screen: port cards, details, actions, hint bar |
+| [ports.md](ports.md) | `PORT` | Catalog, install, update, launch, remove |
+| [roms.md](roms.md) | `ROM` | Finding and preparing the user's ROMs |
 | [configuration.md](configuration.md) | `CONF` | `config.ini` and `keybindings.ini` |
 | [integration.md](integration.md) | `INT` | XDG/freedesktop, desktop entry, Nix, command line, man page |
 | [roadmap.md](roadmap.md) | — | The order of planned work, which `/implement` follows |

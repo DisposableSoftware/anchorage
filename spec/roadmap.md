@@ -2,11 +2,16 @@
 
 The order of approved work: `planned` requirements, and `partial` ones with a known bug from `/bug`. Change it here when priorities change. `/implement` works through this file: the verification backlog first, then the requirements in the order listed.
 
-1. `CONF-4`: window size applied after startup repaints fully (check on Hyprland and in gamescope first).
-2. `PROD-6`, `PROD-7`: fullscreen in gamescope and a controller-only first screen with a button hint bar. Written through `/feature`.
-3. `LOOK-3`, `CONF-6`, `CONF-7`, `LOOK-2`, `LOOK-5`, `LOOK-6`, `LOOK-8`: the palette, theme and focus look.
-4. `PROD-13`, `PROD-12`, `PROD-8`, `PROD-9`, `PROD-10`, `PROD-11`: the port list, install, update, launch and ROM scan. Each goes through `/feature`.
-5. `INT-25`, `INT-42`, `INT-43`: self-contained release build, symbolic icon, README shape.
+## MVP
+
+1. **Foundation (parallel):**
+   - Look and UI shell: `LOOK-2`, `LOOK-3`, `LOOK-5`, `LOOK-6`, `LOOK-8`, `CONF-6`, `CONF-7`, `KEY-6`, `HOME-1`, `HOME-2`, `HOME-3`, `HOME-4`, `HOME-5`, `HOME-6`, `HOME-7`, `HOME-8`, `HOME-9`, `HOME-11`, `HOME-12`, `HOME-13` against `ports_fake.gd`.
+   - Catalog, releases, install, update, remove, state: `PORT-1`, `PORT-2`, `PORT-3`, `PORT-4`, `PORT-5`, `PORT-6`, `PORT-7`, `PORT-10`, `PORT-11`, `PORT-13`.
+   - ROMs: `CONF-8`, `ROM-1` to `ROM-9`.
+2. **Integration:** the real `Ports` service (`PORT-12`, `PORT-14`), `CONF-9`, and the launcher (`PORT-8`, `PORT-9`, `HOME-10`), wired to the screen.
+3. **Real-world check:** install each port from GitHub in a sandbox, prepare ROMs from the sandbox copy, launch as far as the machine allows.
+4. **Polish to the family's quality bar:** `INT-42`, `INT-43`, icon, metainfo screenshots, README with screenshots, `docs/`, man-page-equivalent docs, a code review pass.
+5. Later: `INT-25` self-contained release build, `CONF-4` on Hyprland and gamescope.
 
 ## Verification backlog
 

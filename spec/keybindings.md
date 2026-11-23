@@ -9,6 +9,7 @@
 | `KEY-3` | Unknown binding names and keys that can't be parsed are warned about on stderr and skipped. They never crash the app. | done | `test_keys::test_overrides_replace_defaults_and_bad_ones_are_dropped` |
 | `KEY-4` | Key syntax: a keyboard key is optional `Ctrl+`, `Shift+`, `Alt+` or `Super+` modifiers and a Godot key name (`Enter`, `Escape`, `Up`, `Q`, `F4`). A gamepad input is `Pad:` and a button (`A`, `B`, `X`, `Y`, `Back`, `Guide`, `Start`, `LeftStick`, `RightStick`, `LeftShoulder`, `RightShoulder`, `DPadUp`, `DPadDown`, `DPadLeft`, `DPadRight`), a stick direction (`LeftStickUp`, `LeftStickDown`, `LeftStickLeft`, `LeftStickRight`, and the same for `RightStick`) or a trigger (`LeftTrigger`, `RightTrigger`). | done | `test_keys::test_tokens` |
 | `KEY-5` | Button names are the Xbox layout that Steam Input reports. The Steam Deck's A, B, X and Y are `Pad:A`, `Pad:B`, `Pad:X` and `Pad:Y`. | done | `test_keys::test_tokens` |
+| `KEY-6` | Two more bindings drive the home screen: `options` (default `O`, `Pad:Y`) opens the port menu (`HOME-5`) and `refresh` (default `F5`, `Pad:X`) checks for updates and rescans ROMs (`HOME-6`). Add them to the table below with the code. | planned | `test_spec::test_keybindings_match_spec` |
 
 ## Default bindings
 

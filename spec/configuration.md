@@ -11,6 +11,8 @@
 | `CONF-5` | `[view] greeting`: the text the window shows (`WIN-1`). | done | `test_config`, `test_spec` |
 | `CONF-6` | `[appearance] flavor`: `latte`, `frappe`, `macchiato` or `mocha`, default `mocha`. An unknown value falls back to `mocha` with a warning. Style guide: palette.md, "Config". | planned | `test_config`, `test_spec` |
 | `CONF-7` | `[appearance] accent`: one of the 14 Catppuccin accent names, default `mauve`, with unknown values falling back to `mauve`. Style guide: palette.md, "Config". | planned | `test_config`, `test_spec` |
+| `CONF-8` | `[roms] directory`: the folder scanned for ROMs (`ROM-1`), default `~/Roms/n64`. | planned | `test_config`, `test_spec` |
+| `CONF-9` | `[ports] check_updates`: `true` or `false`, default `true`; whether Anchorage checks for updates at start (`PORT-5`). Anything but `false` counts as `true`. | planned | `test_config`, `test_spec` |
 
 ## Defaults
 
