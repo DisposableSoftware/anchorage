@@ -1,6 +1,6 @@
 <h1 align="center">Anchorage</h1>
 
-<p align="center">A starting point for GTK 4 apps on Wayland.</p>
+<p align="center">Install, update and launch the HarbourMasters game ports from Steam OS game mode, with a controller.</p>
 
 > [!WARNING]
 > **Certified, artisanal, vibe-coded slop.**

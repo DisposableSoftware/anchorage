@@ -1,6 +1,6 @@
 # Anchorage
 
-A starting point for GTK 4 apps on Wayland. Display name **Anchorage**, binary `anchorage`, app ID `io.github.DisposableSoftware.Anchorage`.
+A controller-first launcher for the HarbourMasters game ports, for Steam OS game mode. Display name **Anchorage**, binary `anchorage`, app ID `io.github.DisposableSoftware.Anchorage`.
 
 **What the app does is defined in [`spec/`](spec/README.md).** This file covers how to work on it.
 
