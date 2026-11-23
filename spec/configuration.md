@@ -11,8 +11,8 @@
 | `CONF-5` | `[view] greeting`. | dropped | superseded: the window shows the home screen (`WIN-1`), so the template's greeting has nothing to show. No release had it. |
 | `CONF-6` | `[appearance] flavor`: `latte`, `frappe`, `macchiato` or `mocha`, default `mocha`. An unknown value falls back to `mocha` with a warning. Style guide: palette.md, "Config". | done | `test_config::test_appearance_falls_back_on_unknown_values`, `test_spec` |
 | `CONF-7` | `[appearance] accent`: one of the 14 Catppuccin accent names, default `mauve`, with unknown values falling back to `mauve`. Style guide: palette.md, "Config". | done | `test_config::test_appearance_falls_back_on_unknown_values`, `test_spec` |
-| `CONF-8` | `[roms] directory`: the folder scanned for ROMs (`ROM-1`), default `~/Roms/n64`. | partial | `test_config`, `test_spec`. Gap: read into `Config.roms_directory`, but nothing scans it until the ROM scanner (`ROM-1`) is wired to `main.gd`. |
-| `CONF-9` | `[ports] check_updates`: `true` or `false`, default `true`; whether Anchorage checks for updates at start (`PORT-5`). Anything but `false` counts as `true`. | partial | `test_config::test_check_updates_is_off_only_for_false`, `test_spec`. Gap: read into `Config.check_updates`; the start-up check that obeys it is `PORT-5`. |
+| `CONF-8` | `[roms] directory`: the folder scanned for ROMs (`ROM-1`), default `~/Roms/n64`. | done | `test_config`, `test_spec`, `test_ports::test_rom_status_names_what_is_wanted_and_where_it_looked` (the folder Ports scans and names); `main.gd` hands `Config.roms_directory` to `Ports` |
+| `CONF-9` | `[ports] check_updates`: `true` or `false`, default `true`; whether Anchorage checks for updates at start (`PORT-5`). Anything but `false` counts as `true`. | done | `test_config::test_check_updates_is_off_only_for_false`, `test_spec`, `test_ports::test_the_start_check_obeys_check_updates_and_the_hour`; `main.gd` hands `Config.check_updates` to `Ports` |
 
 ## Defaults
 

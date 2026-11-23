@@ -47,13 +47,21 @@ app/export_presets.cfg   the "Linux" preset that `--export-pack` needs
 app/scenes/main.tscn     the root node; main.gd adds the Ports service and the home screen   WIN-1
 app/scenes/home.tscn     the home screen: cards row, detail panel, hint bar, menu, dialog, Playing   HOME
 app/scenes/card.tscn     one port card                                            HOME-1 HOME-2
-app/src/main.gd          startup: config, bindings, theme, Ports (real or fake), window, quit   WIN-1 WIN-4
+app/src/main.gd          startup: config, bindings, theme, Ports (real or fake), window, quit   WIN-1 WIN-4 CONF-8 CONF-9
 app/src/ini.gd           INI reader (Godot's ConfigFile can't read unquoted values) CONF-1
 app/src/config.gd        config.ini + keybindings.ini, first-run files            CONF KEY-2
 app/src/keys.gd          Keys.BINDINGS, key and gamepad tokens, InputMap setup, hint labels   KEY HOME-11
 app/src/palette.gd       the four Catppuccin palettes (the only hex colours)      LOOK-3
 app/src/theme.gd         builds the one Theme: type variations, "Palette" colours, contrast   LOOK-2 LOOK-5 LOOK-6 LOOK-8
+app/src/ports.gd         Ports, the one service screens use: state, queue, checks, scans, launches   PORT-5 PORT-6 PORT-12 PORT-14 ROM-4 ROM-5 ROM-9
 app/src/ports_fake.gd    stand-in for Ports with demo data and scenarios (tests, screenshots)   PORT-14
+app/src/catalog.gd       reads and checks data/ports.json (its schema is in the header)   PORT-1
+app/src/releases.gd      latest release from the GitHub API, asset choice, update-check rule   PORT-2 PORT-5 PORT-13
+app/src/http.gd          HTTPRequest wrapper: JSON, downloads with progress, checked redirects   PORT-4 PORT-13
+app/src/installer.gd     download, unpack, swap current/previous, remove, stale cleanup, extra files   PORT-3 PORT-6 PORT-7 PORT-10
+app/src/launcher.gd      child environment, /bin/sh spawn, ROM placement before launch   PORT-8 PORT-9 PORT-15
+app/src/state.gd         state.ini: installed and latest tags, last check, ROM scan cache   PORT-11
+app/src/roms.gd          ROM scan (ScanJob thread), SHA1 identification, big-endian prepare   ROM
 app/src/ui/home.gd       home screen logic: focus, accept, menu, dialog, Playing, hints   HOME
 app/src/ui/card.gd       a card: emblem, titles, badge, progress, focus/selection look   HOME-2 HOME-12
 app/src/ui/detail.gd     detail panel: versions, ROM status, progress, errors      HOME-3 HOME-8 HOME-9
@@ -61,7 +69,9 @@ app/src/ui/hint_bar.gd   the hint bar from the live InputMap                    
 app/src/ui/port_state.gd state, badge text and primary action of one info() dict  HOME-2 HOME-4
 app/fonts/               Inter (variable) and its licence (OFL 1.1)               LOOK-6
 app/data/                config.example.ini + keybindings.example.ini (first-run files)   CONF-2
+app/data/ports.json      the port catalog                                         PORT-1
 app/tests/               run.gd (runner), case.gd (base), test_*.gd; test_spec.gd checks spec <-> code
+app/tests/fake_http.gd   http.gd stand-in that answers from memory and local files
 scripts/test.sh          runs app/tests headless, fails on script errors
 scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway)
 scripts/release-check.sh recommended version bump since the last v* tag (spec delta)

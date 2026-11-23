@@ -21,7 +21,7 @@ func _ready() -> void:
 	window.min_size = Vector2i(1280, 720)
 	if window.mode == Window.MODE_WINDOWED:
 		window.size = Vector2i(cfg.width, cfg.height)
-	var ports := make_ports(OS.get_cmdline_user_args())
+	var ports := make_ports(OS.get_cmdline_user_args(), cfg)
 	add_child(ports)
 	var home := HomeScene.instantiate()
 	home.ports = ports
@@ -29,10 +29,15 @@ func _ready() -> void:
 
 
 ## The real service when it exists, else (or with `--fake-ports [SCENARIO]`) the fake.
-static func make_ports(args: PackedStringArray) -> Node:
+## `cfg` gives the real one its ROM folder (CONF-8) and update-check setting (CONF-9).
+static func make_ports(args: PackedStringArray, cfg: RefCounted = null) -> Node:
 	var at := args.find("--fake-ports")
 	if at < 0 and ResourceLoader.exists(PORTS):
-		return load(PORTS).new()
+		var ports: Node = load(PORTS).new()
+		if cfg != null:
+			ports.roms_dir = cfg.roms_directory
+			ports.check_updates = cfg.check_updates
+		return ports
 	var scenario := "showcase"
 	if at >= 0 and at + 1 < args.size() and not args[at + 1].begins_with("--"):
 		scenario = args[at + 1]
