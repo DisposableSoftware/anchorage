@@ -12,6 +12,7 @@ This folder is the source of truth for what Anchorage does. The code implements 
 | [appearance.md](appearance.md) | `LOOK` | Styling and display scale |
 | [home.md](home.md) | `HOME` | The home screen: port cards, details, actions, hint bar |
 | [ports.md](ports.md) | `PORT` | Catalog, install, update, launch, remove |
+| [art.md](art.md) | `ART` | Cover art from SteamGridDB |
 | [roms.md](roms.md) | `ROM` | Finding and preparing the user's ROMs |
 | [configuration.md](configuration.md) | `CONF` | `config.ini` and `keybindings.ini` |
 | [integration.md](integration.md) | `INT` | XDG/freedesktop, desktop entry, Nix, command line, man page |
