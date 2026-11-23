@@ -46,13 +46,14 @@ Also note anything the user should know before a release, without stopping for i
    - Keep commit lines that change what a user sees or installs, reworded as a plain sentence if the subject is terse.
    - Drop lines for work only developers see: skills, `CLAUDE.md`, spec-only edits, manual test scripts, `Reproduce …` commits.
    - If nothing is left, write one line that says what the release fixes or changes.
-3. `NO_RELEASE_CHECK=1 git push origin main vX.Y.Z`.
-4. `gh release create vX.Y.Z --title "Anchorage X.Y.Z" -F NOTES`.
+3. **Build the AppImage** from the tagged commit, before pushing, so a build failure leaves nothing published: `nix develop -c scripts/build-appimage.sh` (`INT-25`, `INT-26`). It writes `dist/Anchorage-X.Y.Z-x86_64.AppImage`. If it fails, stop and show why: the commit and tag stay local.
+4. `NO_RELEASE_CHECK=1 git push origin main vX.Y.Z`.
+5. `gh release create vX.Y.Z --title "Anchorage X.Y.Z" -F NOTES dist/Anchorage-X.Y.Z-x86_64.AppImage`. The release must carry the AppImage: don't create it without.
 
-If the push fails, the release commit and tag stay local: report that and the commands to finish, and don't force anything. If `gh release create` fails after the push, show its error and the command to retry. Never delete or move a tag that was pushed.
+If the push fails, the release commit and tag stay local: report that and the commands to finish, and don't force anything. If `gh release create` fails after the push, show its error and the command to retry (with the AppImage). Never delete or move a tag that was pushed.
 
 ## 5. Report
 
 - What was pushed (the commit range), and the level with its reasons, or the override.
-- For a release: the tag, the release URL that `gh` printed, and the final notes.
+- For a release: the tag, the release URL that `gh` printed, the AppImage that was attached (name and size), and the final notes.
 - Anything from step 2 the user should know: the verification backlog, `planned` rows the commits mention.

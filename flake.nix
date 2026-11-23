@@ -13,9 +13,16 @@
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
-      packages = forAll (pkgs: {
-        default = pkgs.callPackage ./nix/package.nix { };
-      });
+      packages = forAll (
+        pkgs:
+        {
+          default = pkgs.callPackage ./nix/package.nix { };
+        }
+        # INT-25: the AppImage uses the prebuilt x86_64 export template.
+        // nixpkgs.lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
+          appimage = pkgs.callPackage ./nix/appimage.nix { };
+        }
+      );
 
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
