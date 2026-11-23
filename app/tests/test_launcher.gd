@@ -258,4 +258,19 @@ func test_last_line_of_a_log() -> void:
 	_write(path, "x".repeat(300))
 	eq(Launcher.last_line(path).length(), 200, "cut to 200 characters")
 	eq(Launcher.last_line(dir.path_join("none")), "", "no log")
+	_write(
+		path,
+		(
+			"/home/deck/.cache/appimage-run/1a8c73041a2e87d4fb3c202eba443f6c/AppRun: error while"
+			+ " loading shared libraries: libgpg-error.so.0: cannot open shared object file\n"
+		)
+	)
+	eq(
+		Launcher.last_line(path),
+		(
+			"AppRun: error while loading shared libraries: libgpg-error.so.0: cannot open"
+			+ " shared object file"
+		),
+		"paths cut to the file name, so the reason shows"
+	)
 	remove(dir)

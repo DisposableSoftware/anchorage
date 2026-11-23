@@ -208,6 +208,8 @@ static func after_exit(root: String, port: Dictionary) -> void:
 
 
 ## The last non-empty line of a log, at most 200 characters, for an error's detail.
+## Absolute paths are cut to their file name: they are long (an AppImage's extraction
+## folder) and would push the reason off the screen.
 static func last_line(path: String) -> String:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
@@ -219,5 +221,6 @@ static func last_line(path: String) -> String:
 	var lines := text.strip_edges().split("\n", false)
 	if lines.is_empty():
 		return ""
-	var line := lines[-1].strip_edges()
+	var paths := RegEx.create_from_string("(?:/[^\\s/:]+)+/([^\\s/:]+)")
+	var line := paths.sub(lines[-1].strip_edges(), "$1", true)
 	return line if line.length() <= 200 else line.left(199) + "…"
