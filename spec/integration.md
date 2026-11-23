@@ -16,7 +16,8 @@
 | `INT-22` | NixOS module `programs.anchorage`: `enable`, `package`. | done |
 | `INT-23` | Home-manager module `programs.anchorage`: `enable`, `package`, `settings` (generates `config.ini`), `keybindings` (binding name to a list of keys; generates `keybindings.ini`, lists joined with `;`). | done |
 | `INT-24` | `nix flake check` passes, and it runs `gdlint` and `gdformat --check` over `app/src` and `app/tests` as well as the tests. | done |
-| `INT-25` | Each GitHub release attaches a self-contained `x86_64` Linux build (Godot export with the pack embedded), so SteamOS without Nix can add it as a non-Steam game. | planned |
+| `INT-26` | `scripts/build-appimage.sh` (inside `nix develop`) builds that AppImage from a clean checkout with no network except the Godot export templates and the AppImage runtime, both fetched by Nix with pinned hashes. The result is runnable with `--appimage-extract-and-run`, and `scripts/manual/appimage.sh` starts it headless and checks the window. | planned |
+| `INT-25` | Each GitHub release attaches `Anchorage-<version>-x86_64.AppImage`, a self-contained build (Godot release export with the pack embedded, Compatibility renderer) that runs on SteamOS and other x86_64 glibc Linux without Nix or other installs: it needs only what SteamOS ships (glibc, FUSE 2, Wayland or X11, Vulkan/GL drivers). The AppImage carries the desktop entry, icon and metainfo. The window title has no "(DEBUG)". | planned |
 
 ## Command line and metadata
 

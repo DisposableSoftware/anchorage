@@ -10,8 +10,9 @@ The order of approved work: `planned` requirements, and `partial` ones with a kn
    - ROMs: `CONF-8`, `ROM-1` to `ROM-9`.
 2. **Integration:** the real `Ports` service (`PORT-12`, `PORT-14`), `CONF-9`, and the launcher (`PORT-8`, `PORT-9`, `HOME-10`), wired to the screen.
 3. **Real-world check:** install each port from GitHub in a sandbox, prepare ROMs from the sandbox copy, launch as far as the machine allows.
-4. **Polish to the family's quality bar:** `INT-42`, `INT-43`, icon, metainfo screenshots, README with screenshots, `docs/`, man-page-equivalent docs, a code review pass.
-5. Later: `INT-25` self-contained release build, `CONF-4` on Hyprland and gamescope.
+4. **AppImage for SteamOS:** `INT-25`, `INT-26`, `PORT-15`. Anchorage must run as an AppImage on SteamOS, so this is part of the MVP.
+5. **Polish to the family's quality bar:** `INT-42`, `INT-43`, icon, metainfo screenshots, README with screenshots, `docs/`, man-page-equivalent docs, a code review pass.
+6. Later: `CONF-4` on Hyprland and gamescope.
 
 ## Verification backlog
 
