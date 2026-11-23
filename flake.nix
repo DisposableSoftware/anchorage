@@ -1,5 +1,5 @@
 {
-  description = "Anchorage — a starting point for GTK 4 apps";
+  description = "Anchorage — a controller-first launcher for the HarbourMasters game ports";
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
@@ -19,16 +19,14 @@
 
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
-          inputsFrom = [ self.packages.${pkgs.stdenv.hostPlatform.system}.default ];
           packages = with pkgs; [
-            clippy
-            rustfmt
-            rust-analyzer
+            godot
+            gdtoolkit_4
           ];
         };
       });
 
-      # INT-24: `nix flake check` runs the tests (by building the package), clippy and rustfmt.
+      # INT-24: `nix flake check` runs the tests (by building the package), gdlint and gdformat.
       checks = forAll (
         pkgs:
         let
@@ -36,18 +34,11 @@
         in
         {
           tests = pkg;
-          clippy = pkg.overrideAttrs (old: {
-            pname = "anchorage-clippy";
-            nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.clippy ];
-            buildPhase = "cargo clippy --all-targets --offline -- -D warnings";
-            doCheck = false;
-            installPhase = "touch $out";
-            postInstall = "";
-            dontFixup = true;
-          });
-          fmt = pkgs.runCommand "anchorage-fmt" { nativeBuildInputs = [ pkgs.rustfmt ]; } ''
-            cd ${./.}
-            rustfmt --check --edition 2024 src/main.rs
+          gdscript = pkgs.runCommand "anchorage-gdscript" { nativeBuildInputs = [ pkgs.gdtoolkit_4 ]; } ''
+            export HOME=$TMPDIR
+            cp -r ${./app} app && chmod -R u+w app && cd app
+            gdlint src tests
+            gdformat --check src tests
             touch $out
           '';
         }

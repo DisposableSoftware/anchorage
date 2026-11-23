@@ -31,7 +31,7 @@ Re-read the row, its neighbours, the implementation notes and the non-goals in `
 
 - **The row can't be built as written:** it is ambiguous, it can't be checked, or the stack can't do it.
 - **It conflicts** with another requirement, a non-goal or a stack constraint, including one that changed after the row was written.
-- **It needs a new crate.** `CLAUDE.md` says to ask first.
+- **It needs an addon, a GDExtension or other new dependency.** `CLAUDE.md` says to ask first.
 - **It needs a decision only the user can make**, such as a choice of default or wording that the spec leaves open.
 
 If the answer changes the spec, commit the spec change on its own (`spec: <summary>`) before the code, as `/feature` does. If the user puts the item off, leave it `planned` and move on to the next one.
@@ -42,12 +42,13 @@ For each item in turn:
 
 1. **Code.** Implement only what the row says. If the code needs behaviour the spec doesn't describe, go back to step 2 for it. Keep the change small and match the surrounding code.
 2. **Verify** (`CLAUDE.md` step 3):
-   - `cargo clippy --all-targets -- -D warnings`, `cargo test` (spec conformance included) and `nix build` pass.
+   - `gdlint` and `gdformat --check` over `app/src` and `app/tests`, `scripts/test.sh` (spec conformance included) and `nix build` pass.
    - Check the row as its **Verified by** column says. Prefer adding a unit test where one is possible.
    - For manual checks, follow "Manual testing" in `CLAUDE.md`: run them headless (`scripts/manual/headless.sh`) by default, and keep screenshots of visual changes for the report. Only compositor behaviour needs real Hyprland. There, check there are no `io.github.DisposableSoftware.Anchorage` clients and that the screen isn't locked, ask the user before a test that opens a window and takes focus, run it on an empty workspace, and go back afterwards. If the check can't run, mark the row `partial` and say why.
    - Re-run the manual scripts for the area, since a change often moves something they rely on.
    - Re-read the change against the row, and look for behaviour the spec doesn't mention.
-   - A row from `/bug` names its regression check in **Verified by**. Run it before the fix and confirm it still fails, then after the fix and confirm it passes. Remove the `#[ignore = "<ID>: fails until fixed"]` attribute from its unit test.3. **Update the spec.** Set the row to `done`, or `partial` with the gap written in, and fill in **Verified by**. Remove the item from `roadmap.md`, or move a `partial` gap to its verification backlog.
+   - A row from `/bug` names its regression check in **Verified by**. Run it before the fix and confirm it still fails, then after the fix and confirm it passes. Rename its `xfail_` test method to `test_`.
+3. **Update the spec.** Set the row to `done`, or `partial` with the gap written in, and fill in **Verified by**. Remove the item from `roadmap.md`, or move a `partial` gap to its verification backlog.
 4. **Commit** the code and the status update with a `Spec: ID` trailer listing the requirements it implements or affects. One commit per item, so a later item that fails doesn't hold back the earlier ones.
 
 A verification backlog item usually needs no code: run the check, then update the row and the backlog. If the check fails, the item is a bug: leave the backlog entry, set the row to `partial` with what failed, and suggest `/bug` in the report. Don't fix it here, because the spec change for a bug needs the user's approval.

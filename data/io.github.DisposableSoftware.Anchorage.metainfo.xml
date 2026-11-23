@@ -5,7 +5,7 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <name>Anchorage</name>
-  <summary>A starting point for GTK 4 apps</summary>
+  <summary>Install, update and launch the HarbourMasters game ports from Steam OS game mode</summary>
   <developer id="io.github.disposablesoftware">
     <name>DisposableSoftware</name>
   </developer>
@@ -14,7 +14,7 @@
       Certified, artisanal, vibe-coded slop: an AI wrote all of it while a person said
       "yeah, looks good" and pressed Enter a lot.
     </p>
-    <p>Anchorage opens a window that says hello.</p>
+    <p>Anchorage is a controller-first launcher for the HarbourMasters game ports.</p>
   </description>
   <launchable type="desktop-id">io.github.DisposableSoftware.Anchorage.desktop</launchable>
   <url type="homepage">https://github.com/DisposableSoftware/anchorage</url>

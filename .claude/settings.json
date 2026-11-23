@@ -1,15 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cargo build:*)",
-      "Bash(cargo check:*)",
-      "Bash(cargo clippy:*)",
-      "Bash(cargo fmt:*)",
-      "Bash(cargo test:*)",
-      "Bash(cargo run:*)",
-      "Bash(cargo tree:*)",
-      "Bash(cargo search:*)",
-      "Bash(cargo info:*)",
+      "Bash(scripts/test.sh:*)",
+      "Bash(gdlint:*)",
+      "Bash(gdformat:*)",
+      "Bash(godot --headless:*)",
       "Bash(nix build:*)",
       "Bash(nix develop:*)",
       "Bash(nix flake check:*)",

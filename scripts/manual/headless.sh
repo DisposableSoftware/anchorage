@@ -64,9 +64,8 @@ export XDG_RUNTIME_DIR=$R HEADLESS=1
 export WAYLAND_DISPLAY=$(cd "$R" && ls wayland-* | grep -v lock | head -1)
 export SWAYSOCK=$(ls "$R"/sway-ipc.*.sock)
 # Without these, an app that can't reach the headless display falls back to the user's
-# session: X11 through $DISPLAY (Xwayland), or a Wayland socket it finds there.
+# session through Xwayland ($DISPLAY).
 unset DISPLAY HYPRLAND_INSTANCE_SIGNATURE
-export GDK_BACKEND=wayland
 if [ -z "$WAYLAND_DISPLAY" ] || [ ! -S "$R/$WAYLAND_DISPLAY" ] || ! swaymsg -t get_outputs >/dev/null 2>&1; then
   echo "headless sway didn't start; see below" >&2; tail -5 "$R/sway.log" >&2; exit 2
 fi

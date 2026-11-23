@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 [ $# = 2 ] || { echo "usage: $0 patch|minor|major|X.Y.Z NOTES_FILE" >&2; exit 2; }
 git diff --quiet && git diff --cached --quiet || { echo "working tree is dirty" >&2; exit 1; }
 
-old=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+old=$(sed -n 's/^config\/version="\(.*\)"/\1/p' app/project.godot | head -1)
 IFS=. read -r major minor patch <<<"$old"
 case $1 in
   major) new="$((major + 1)).0.0" ;;
@@ -22,14 +22,12 @@ prev=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
 date=$(date +%F)
 ids=$(scripts/release-check.sh | tail -n +2 | grep -E '^[A-Z]+-[0-9]+ is now ' | cut -d' ' -f1 || true)
 
-sed -i "0,/^version = \"$old\"/s//version = \"$new\"/" Cargo.toml
-sed -i "/^name = \"anchorage\"$/{n;s/^version = \"$old\"/version = \"$new\"/}" Cargo.lock
+sed -i "s|^config/version=\"$old\"|config/version=\"$new\"|" app/project.godot
 sed -i "s|^\(    \)<release version=\"$old\"|\1<release version=\"$new\" date=\"$date\"/>\n&|" data/io.github.DisposableSoftware.Anchorage.metainfo.xml
-sed -i "s|^\.TH ANCHORAGE 1 [0-9-]* \"anchorage $old\"|.TH ANCHORAGE 1 $date \"anchorage $new\"|" data/anchorage.1
 
-nix develop -c cargo test --quiet >/dev/null 2>&1 || { git checkout -- .; echo "cargo test failed; version left at $old" >&2; exit 1; }
+nix develop -c scripts/test.sh >/dev/null 2>&1 || { git checkout -- .; echo "tests failed; version left at $old" >&2; exit 1; }
 
-git commit -q -am "Anchorage $new" -m "Spec: INT-31, INT-32, INT-41"
+git commit -q -am "Anchorage $new" -m "Spec: INT-41"
 git tag -a "v$new" -m "Anchorage $new"
 
 changes=$(

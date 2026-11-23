@@ -3,7 +3,7 @@
 # Prints the level (none, patch, minor or major) on the first line, then the reasons.
 #   major: a commit says BREAKING, or a config key or keybinding name was removed
 #   minor: a requirement became done or partial (new behaviour shipped)
-#   patch: anything else that changes the package (src, data, nix, Cargo files)
+#   patch: anything else that changes the package (app, data, nix, flake.nix)
 #   none:  only spec, docs, scripts or tooling changed
 # Usage: scripts/release-check.sh [REV]   (REV defaults to HEAD)
 set -euo pipefail
@@ -42,8 +42,8 @@ while IFS=$'\t' read -r id st; do
   case $old in done | partial) ;; *) bump 2 "$id is now $st (was ${old:-absent})" ;; esac
 done < <(requirements "$rev")
 
-if git diff --quiet "$tag" "$rev" -- src data nix Cargo.toml Cargo.lock flake.nix; then :; else
-  bump 1 "$(git diff --name-only "$tag" "$rev" -- src data nix Cargo.toml Cargo.lock flake.nix | wc -l) package files changed"
+if git diff --quiet "$tag" "$rev" -- app data nix flake.nix; then :; else
+  bump 1 "$(git diff --name-only "$tag" "$rev" -- app data nix flake.nix | wc -l) package files changed"
 fi
 
 names=(none patch minor major)

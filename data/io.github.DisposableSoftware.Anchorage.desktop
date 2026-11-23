@@ -1,15 +1,10 @@
 [Desktop Entry]
 Type=Application
 Name=Anchorage
-Comment=A starting point for GTK 4 apps
+Comment=Install, update and launch the HarbourMasters game ports
 Exec=anchorage
 Icon=io.github.DisposableSoftware.Anchorage
 StartupWMClass=io.github.DisposableSoftware.Anchorage
 Terminal=false
 StartupNotify=true
-Categories=GTK;Utility;
-Actions=new-window;
-
-[Desktop Action new-window]
-Name=New Window
-Exec=anchorage
+Categories=Game;

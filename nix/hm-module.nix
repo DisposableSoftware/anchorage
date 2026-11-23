@@ -21,8 +21,8 @@ in
       inherit (ini) type;
       default = { };
       example = {
-        window.width = 1000;
-        view.greeting = "Hi";
+        window.width = 1920;
+        window.height = 1080;
       };
       description = "Written to $XDG_CONFIG_HOME/anchorage/config.ini.";
     };
@@ -31,12 +31,15 @@ in
       default = { };
       example = {
         quit = [
-          "<Ctrl>q"
-          "<Alt>F4"
+          "Ctrl+Q"
+          "Alt+F4"
         ];
-        new-window = [ ];
+        accept = [
+          "Enter"
+          "Pad:A"
+        ];
       };
-      description = "Binding name to keys, written to $XDG_CONFIG_HOME/anchorage/keybindings.ini. An empty list unbinds it; see anchorage(1) for the names.";
+      description = "Binding name to keys, written to $XDG_CONFIG_HOME/anchorage/keybindings.ini. An empty list unbinds it; names are in the example file.";
     };
   };
 

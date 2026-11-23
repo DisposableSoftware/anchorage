@@ -30,34 +30,30 @@ Or as a flake input:
   imports = [ inputs.anchorage.homeManagerModules.default ];
   programs.anchorage = {
     enable = true;
-    settings.window.width = 1000;
-    keybindings.quit = [ "<Ctrl>q" "<Alt>F4" ];
+    settings.window.width = 1920;
+    keybindings.quit = [ "Ctrl+Q" "Alt+F4" ];
   };
 }
 ```
 
 ## Usage
 
-```sh
-anchorage            # open a window
-anchorage --help
-man anchorage        # every binding and setting
-```
+Add Anchorage to Steam as a non-Steam game and start it from game mode, or run `anchorage` on a desktop. A gamepad or the keyboard moves around (arrows, Enter, Escape).
 
 Settings live in `~/.config/anchorage/config.ini` and keybindings in
 `~/.config/anchorage/keybindings.ini`. Both are created on first start with every
-default commented out; remove the `# ` from a line to change it.
+default commented out; remove the `# ` from a line to change it. Keys and gamepad
+buttons are listed in the keybindings file.
 
 ## Development
 
 What the app does is written down in [`spec/`](spec/README.md); see
-[`CLAUDE.md`](CLAUDE.md) for how changes are made.
+[`CLAUDE.md`](CLAUDE.md) for how changes are made. It is a [Godot](https://godotengine.org) 4 project in `app/`.
 
 ```sh
-nix develop                 # cargo, clippy, rustfmt, rust-analyzer, GTK 4
-cargo run
-cargo clippy --all-targets -- -D warnings
-cargo test
+nix develop                 # godot, gdlint, gdformat
+godot --path app            # run it
+scripts/test.sh             # unit and spec tests
 nix build                   # ./result/bin/anchorage
 scripts/manual/headless.sh scripts/manual/smoke.sh
 ```

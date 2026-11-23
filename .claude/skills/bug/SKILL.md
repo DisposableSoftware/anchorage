@@ -21,7 +21,7 @@ Follow the spec-first workflow in `CLAUDE.md`. A bug means the spec failed to pi
 
 Reproduce the bug before changing anything, and keep the reproduction as the regression check:
 
-- **Unit test first** when the behaviour can be tested without a display (parsing, sorting, paths, ops on a temp dir, CSS generation). Write the test and confirm it fails.
+- **Unit test first** when the behaviour can be tested without a display (parsing, sorting, paths, ops on a temp dir, theme generation). Tests are GDScript files in `app/tests/`. Write the test and confirm it fails.
 - **Otherwise a manual script** in `scripts/manual/` (source `lib.sh`), or a new check in the script that already covers the area. Follow "Manual testing" in `CLAUDE.md`: run it headless (`scripts/manual/headless.sh`) unless the bug is in compositor behaviour. On real Hyprland the guards matter most: check there are no `io.github.DisposableSoftware.Anchorage` clients, and check that the screen isn't locked. If the user is at the machine, ask before a test that opens a window and takes focus. Run it on an empty workspace, and go back afterwards.
 - Record what you saw (test output, screenshot), so the report can show before and after.
 
@@ -29,7 +29,7 @@ If you can't reproduce it, say what you tried and ask the user for the missing d
 
 ## 3. Find the root cause
 
-Trace the bug to its cause in the code. Read GTK/GIO docs or source rather than guessing (see `CLAUDE.md`). Then look for the same mistake elsewhere: other views, dialogs or code paths with the same pattern. The spec change should state the general rule, not just the one instance. Don't change the code.
+Trace the bug to its cause in the code. Read the Godot docs or source rather than guessing (see `CLAUDE.md`). Then look for the same mistake elsewhere: other views, dialogs or code paths with the same pattern. The spec change should state the general rule, not just the one instance. Don't change the code.
 
 ## 4. Draft the spec delta
 
@@ -72,6 +72,6 @@ Never treat silence, or an unrelated message, as approval.
 ## 6. After approval
 
 1. Commit the spec on its own: `spec: <summary> (ID)`. In the body, give the bug in one line (observed vs expected) and the root cause. Use the usual trailers.
-2. Commit the reproduction on its own: `Reproduce <summary>` with a `Spec: ID` trailer. A unit test that fails would break `cargo test` and `nix build`, so commit it with `#[ignore = "<ID>: fails until fixed"]`. `/implement` removes the attribute. Manual scripts don't run in the build and need no marker.
+2. Commit the reproduction on its own: `Reproduce <summary>` with a `Spec: ID` trailer. A unit test that fails would break `scripts/test.sh` and `nix build`, so commit it with its method named `xfail_<name>` (the runner lists it and skips it). `/implement` renames it to `test_<name>`. Manual scripts don't run in the build and need no marker.
 3. **Approve spec only:** report the IDs now in the roadmap and stop. The user runs `/implement` when they want the fix.
 4. **Approve and implement:** read `.claude/skills/implement/SKILL.md` and follow it with these IDs as the limit. Its report is this skill's report, and it should show the regression check failing before the fix and passing after.

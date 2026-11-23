@@ -21,9 +21,9 @@ Follow the spec-first workflow in `CLAUDE.md`. This skill writes the spec change
 
 Before drafting, test the request against the whole spec. Stop and confirm with the user when the request:
 
-- **Doesn't make sense as written:** it can't be checked, it describes something impossible with the stack (e.g. needs libadwaita), or it conflicts with itself.
+- **Doesn't make sense as written:** it can't be checked, it describes something impossible with the stack (e.g. needs C# or an addon), or it conflicts with itself.
 - **Directly contradicts an existing requirement:** for example, "Ctrl+W quits" when `KEY` binds `<Ctrl>w` to `close-window` and `WIN-4` says closing one window leaves the others open.
-- **Conflicts with a non-goal or stack constraint** in `spec/product.md` (e.g. "use libadwaita").
+- **Conflicts with a non-goal or stack constraint** in `spec/product.md` (e.g. "add a GDExtension").
 
 Don't guess and don't quietly pick a side. Ask with `AskUserQuestion`. Quote the request and every conflicting row (ID and text). Explain the conflict in a sentence, and offer concrete options:
 
@@ -50,7 +50,7 @@ Edit `spec/` only:
 - **New behaviour:** add rows with the next free ID in the right prefix. Never reuse an ID. Set the status to `planned`. Write **Verified by** as the test or manual check you will use.
 - **Changed behaviour:** edit the existing row's text and reset its status to `planned`. Don't create a duplicate row.
 - **Removed behaviour:** set the status to `dropped` and give the reason. Keep the row.
-- **New binding or config key:** add it to the machine-checked tables (`spec:keybindings`, `spec:config`). Keep their columns unchanged. `cargo test` will then fail until the code, the example files and the man page match, which is intended.
+- **New binding or config key:** add it to the machine-checked tables (`spec:keybindings`, `spec:config`). Keep their columns unchanged. `scripts/test.sh` will then fail until the code and the example files match, which is intended.
 - Put each new planned item in `spec/roadmap.md` at a sensible position.
 - Each requirement is one checkable sentence about behaviour, not about implementation. Add **Implementation notes** only for constraints that aren't obvious.
 - Re-check the finished draft against step 2. Writing the rows sometimes exposes a conflict the request hid. If it does, go back to step 2 before asking for approval.

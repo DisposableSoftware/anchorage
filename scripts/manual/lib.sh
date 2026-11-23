@@ -53,8 +53,8 @@ if [ -n "${HEADLESS:-}" ]; then
   ydotool() { echo "headless: ydotool acts on the real session; run this check on Hyprland" >&2; return 1; }
 fi
 
-# The app is single-instance: launching while the user has it open would join their
-# process, and killing it would close their windows.
+# Refuses to run while the user has Anchorage open or the screen locked. Tests only ever
+# kill the process they started ($PID), never a window they find.
 require_no_instance() {
   if [ "$(win_count)" != 0 ]; then
     echo "$APP is already running; close it first (refusing to touch the user's windows)" >&2
@@ -64,16 +64,15 @@ require_no_instance() {
   if pidof hyprlock >/dev/null; then echo "screen is locked" >&2; exit 2; fi
 }
 
-# launch [XDG_CONFIG_HOME] [ARGS...]: starts the app and focuses it. Sets PID.
+# launch [XDG_CONFIG_HOME] [GODOT-ARGS...]: starts the app on Wayland (GL) and focuses it. Sets PID.
 launch() {
   local cfg=${1:-}
   shift || true
   [ -x "$BIN" ] || { echo "run nix build first" >&2; exit 2; }
-  if [ -n "$cfg" ]; then XDG_CONFIG_HOME=$cfg "$BIN" "$@" >"${LOG:-/dev/null}" 2>&1 &
-  else "$BIN" "$@" >"${LOG:-/dev/null}" 2>&1 & fi
-  for _ in $(seq 25); do [ "$(win_count)" -gt 0 ] && break; sleep 0.2; done
-  sleep 0.4
-  PID=$(wins | jq -r '.[0].pid')
+  XDG_CONFIG_HOME=${cfg:-${XDG_CONFIG_HOME:-$HOME/.config}} "$BIN" --display-driver wayland --rendering-driver opengl3 "$@" >"${LOG:-/dev/null}" 2>&1 &
+  PID=$!
+  for _ in $(seq 50); do [ "$(win_count)" -gt 0 ] && break; sleep 0.2; done
+  sleep 0.5
   focus_app
   sleep 0.3
 }
