@@ -50,7 +50,13 @@ Also note anything the user should know before a release, without stopping for i
 4. `NO_RELEASE_CHECK=1 git push origin main vX.Y.Z`.
 5. `gh release create vX.Y.Z --title "Anchorage X.Y.Z" -F NOTES dist/vX.Y.Z/*`. The release must carry every file in `dist/vX.Y.Z/`: do not create it without them.
 
-If the push fails, the release commit and tag stay local: report that and the commands to finish, and don't force anything. If `gh release create` fails after the push, show its error and the command to retry (with `dist/vX.Y.Z/*`); if the release exists but lacks files, `gh release upload vX.Y.Z dist/vX.Y.Z/*` adds them. Never delete or move a tag that was pushed.
+If the push fails, the release commit and tag stay local: report that and the commands to finish, and don't force anything. Never delete or move a tag that was pushed.
+
+If `gh release create` fails after the push, show its error, then find out what it left with `gh release view vX.Y.Z` (it says "Not Found" when nothing was made). With files to attach, `gh release create` makes a draft release, uploads the files one by one and then publishes the draft, in separate API calls (`gh release create --help`). So a failure partway (often an upload) usually leaves a **draft** with some of the files. A draft is not public, and GitHub's "latest release" (`releases/latest`, which the README's install command downloads from) is the newest published release that is not a draft or prerelease, so the install command still gets the previous release meanwhile. Finish it, rather than creating it again:
+
+- No release: run the `gh release create` command again.
+- A draft: `gh release upload vX.Y.Z dist/vX.Y.Z/* --clobber` (re-uploads every file, replacing a partial one of the same name), check with `gh release view vX.Y.Z` that every file in `dist/vX.Y.Z/` is listed, then publish it with `gh release edit vX.Y.Z --draft=false`.
+- Published but lacking files (for example, the draft was published by hand): `gh release upload vX.Y.Z dist/vX.Y.Z/* --clobber`. If the repository has release immutability on, a published release's files can't be changed: report it to the user instead.
 
 ## 5. Report
 
