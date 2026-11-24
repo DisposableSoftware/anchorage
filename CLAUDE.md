@@ -76,7 +76,7 @@ app/fonts/               Inter (variable) and its licence (OFL 1.1)             
 app/data/                config.example.ini + keybindings.example.ini (first-run files)   CONF-2
 app/data/ports.json      the port catalog                                         PORT-1
 app/tests/               run.gd (runner; awaits tests that await; TESTS=name runs one file), case.gd (base), test_*.gd; test_spec.gd checks spec <-> code
-app/tests/test_home_row.gd the cards row at 1280x720, 1280x800, 1920x1080: seven cards scroll with focus   HOME-1
+app/tests/test_home_row.gd the cards row at 1280x720, 1280x800, 1920x1080: seven cards scroll with focus; every first-run note fits the detail panel   HOME-1 PORT-17
 app/tests/test_http.gd   http.gd against a local TCPServer: redirects, stall, cancel, size limit, JSON   PORT-4 PORT-13
 app/tests/test_art.gd    art.gd with fake HTTP; art_catalog.json is its test catalog   ART
 app/tests/test_rom_folders.gd, test_rom_folder.gd   ROM folder detection and search over fake trees; Ports' folder API and the chooser screen   ROM-10 .. ROM-16
