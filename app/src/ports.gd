@@ -82,6 +82,9 @@ var _search := {"status": "idle", "results": []}
 var _search_job: RefCounted
 ## The search ROM-10 started by itself: its first result becomes the folder.
 var _search_auto := false
+## The running search was cancelled, and a new one is to start once it has stopped.
+var _search_cancelled := false
+var _search_again := false
 ## Launches asked for while a scan ran: they start with its result (the first scan at start
 ## has no ROMs yet).
 var _launch_after_scan: Array[String] = []
@@ -305,6 +308,8 @@ func search_sd_card() -> void:
 
 func cancel_search() -> void:
 	if _search_job != null:
+		_search_cancelled = true
+		_search_again = false
 		_search_job.abort()
 
 
@@ -350,8 +355,12 @@ func _use_folder(path: String, source: String) -> void:
 
 func _start_search(auto: bool) -> void:
 	if _search_job != null:
+		# A cancelled search may still be stopping: search again once it has.
+		_search_again = _search_again or _search_cancelled
 		return
 	_search_auto = auto
+	_search_cancelled = false
+	_search_again = false
 	_search = {"status": "running", "results": []}
 	search_changed.emit()
 	if not threaded:
@@ -365,6 +374,9 @@ func _start_search(auto: bool) -> void:
 
 func _on_searched(result: Dictionary) -> void:
 	_search_job = null
+	if _search_again:
+		_start_search(false)
+		return
 	var statuses := {"ok": "done", "no_card": "no_card", "aborted": "cancelled"}
 	var results := []
 	for entry in result.get("results", []):

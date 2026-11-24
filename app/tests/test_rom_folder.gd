@@ -93,9 +93,12 @@ func _state_text() -> String:
 	return FileAccess.get_file_as_string(_dir.path_join("state/state.ini"))
 
 
-func _frames(until: Callable, limit := 200) -> void:
-	for _i in limit:
-		if until.call():
+## Waits frame by frame until `until` holds; a failure after `seconds`.
+func _frames(until: Callable, seconds := 10.0) -> void:
+	var deadline := Time.get_ticks_msec() + int(seconds * 1000)
+	while not until.call():
+		if Time.get_ticks_msec() > deadline:
+			check(false, "timed out after %.0f s waiting" % seconds)
 			return
 		await (Engine.get_main_loop() as SceneTree).process_frame
 
@@ -212,6 +215,9 @@ func test_detection_browse_and_search_run_off_the_main_thread() -> void:
 		"emulationPath=%s\n" % emu.get_base_dir().get_base_dir()
 	)
 	_put_rom("media/mmcblk0p1/Emulation/roms/n64")
+	# Enough folders that a cancel always comes while the search still runs.
+	for i in 2000:
+		DirAccess.make_dir_recursive_absolute(_dir.path_join("media/mmcblk0p1/junk/d%d" % i))
 	var ports := _make("", true)
 	eq(ports.rom_folder_info().path, "", "the UI does not wait for detection")
 	eq(ports.info("alpha").rom.label, "Looking for ROMs", "the cards say so")
@@ -230,8 +236,25 @@ func test_detection_browse_and_search_run_off_the_main_thread() -> void:
 	ports.search_sd_card()
 	ports.cancel_search()
 	await _frames(func() -> bool: return ports.search_info().status != "running")
-	check(ports.search_info().status in ["cancelled", "done"], "a cancelled search ends")
+	eq(ports.search_info(), {"status": "cancelled", "results": []}, "a cancelled search stops")
 	eq(ports.rom_folder_info().source, "emudeck", "a search the user ran changes nothing")
+	# Finding: searching again while the cancelled search was still stopping did nothing,
+	# and the chooser then said "The search stopped".
+	var heard := []
+	ports.search_changed.connect(func() -> void: heard.append(ports.search_info().status))
+	ports.search_sd_card()
+	ports.cancel_search()
+	ports.search_sd_card()
+	await _frames(func() -> bool: return ports.search_info().status != "running")
+	eq(ports.search_info().status, "done", "the new search runs once the old one stopped")
+	eq(ports.search_info().results.size(), 1, "and finds the folder")
+	check(not heard.has("cancelled"), "the stopped search is not reported: %s" % [heard])
+	ports.search_sd_card()
+	ports.cancel_search()
+	ports.search_sd_card()
+	ports.cancel_search()
+	await _frames(func() -> bool: return ports.search_info().status != "running")
+	eq(ports.search_info().status, "cancelled", "a cancel after that cancels the restart too")
 	_free(ports)
 	remove(_dir)
 
@@ -436,6 +459,31 @@ func test_a_folder_set_in_config_ini_is_only_shown() -> void:
 	_press(home, KEY_ESCAPE)
 	eq(home.chooser(), null, "back leaves")
 	_done(home)
+
+
+func test_search_again_right_after_back_in_the_chooser() -> void:
+	_setup("chooser_again")
+	_put_rom("media/mmcblk0p1/n64")
+	for i in 2000:
+		DirAccess.make_dir_recursive_absolute(_dir.path_join("media/mmcblk0p1/junk/d%d" % i))
+	var ports := _make("", true)
+	await _frames(func() -> bool: return ports.search_info().status != "running")
+	ports.set_rom_folder(_home())
+	var host := _host()
+	var chooser := ChooserScene.instantiate()
+	chooser.ports = ports
+	host.add_child(chooser)
+	await _frames(func() -> bool: return chooser.row_texts().has("Search the SD card"))
+	_press(chooser, KEY_ENTER)
+	_press(chooser, KEY_ESCAPE)
+	eq(chooser.row_texts()[0], "Search the SD card", "back cancels")
+	_press(chooser, KEY_ENTER)
+	await _frames(func() -> bool: return ports.search_info().status != "running")
+	eq(chooser.row_texts(), ["SD card › n64"], "the new search's result (ROM-14)")
+	check(not chooser.shown_text().contains("The search stopped"), chooser.shown_text())
+	_done(chooser)
+	_free(ports)
+	remove(_dir)
 
 
 func test_the_chooser_over_the_real_service_on_a_temp_tree() -> void:
