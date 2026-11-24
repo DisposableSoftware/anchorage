@@ -23,13 +23,17 @@ func _parse(entries: Array) -> Dictionary:
 	return Catalog.parse(JSON.stringify({"ports": entries}))
 
 
-func test_shipped_catalog_is_valid_and_has_the_four_ports() -> void:
+func test_shipped_catalog_is_valid_and_has_the_seven_ports() -> void:
 	var catalog := Catalog.load_default()
 	eq(catalog["errors"], PackedStringArray(), "no problems in ports.json")
 	var ids := []
 	for port in catalog["ports"]:
 		ids.append(port["id"])
-	eq(ids, ["soh", "2ship", "starship", "spaghettikart"], "ids in catalog order")
+	eq(
+		ids,
+		["soh", "2ship", "starship", "spaghettikart", "ghostship", "paperboat", "lighthouse"],
+		"ids in catalog order (PORT-1)"
+	)
 	eq(ids.size(), Array(ids).duplicate().size(), "ids are unique")
 
 
@@ -40,7 +44,7 @@ func test_every_hash_is_40_lowercase_hex() -> void:
 		for rom in port["roms"]:
 			count += 1
 			check(Catalog.is_sha1(rom["sha1"]), "%s %s" % [port["id"], rom["sha1"]])
-	eq(count, 19 + 2 + 2 + 1, "OoT 19, MM 2, SF64 US 2, MK64 1")
+	eq(count, 19 + 2 + 2 + 1 + 2 + 1 + 4, "OoT 19, MM 2, SF64 2, MK64 1, SM64 2, PM64 1, BK 4")
 
 
 func test_hashes_are_unique_across_ports() -> void:
@@ -59,19 +63,101 @@ func test_starship_runs_in_its_data_folder_with_what_its_extractor_reads() -> vo
 	eq(kart["extra_files"], ["gamecontrollerdb.txt"], "extra files")
 
 
+## What docs/research/ports-2.md found in Ghostship 3.0.0, PaperBoat 1.0.3 and Lighthouse
+## 1.2.2: hashes copied from each port's source, labels from its version names.
+func test_the_three_new_ports_are_as_the_research_found() -> void:
+	var ports: Array = Catalog.load_default()["ports"]
+	var expected := {
+		"ghostship":
+		{
+			"repo": "HarbourMasters/Ghostship",
+			"game": "Super Mario 64",
+			"monogram": "",
+			"asset_suffix": "-linux.zip",
+			"archive": ["sm64.o2r"],
+			"executable": "ghostship.appimage",
+			"extra_files": ["gamecontrollerdb.txt"],
+			"rom_file": "sm64.z64",
+			"roms":
+			[
+				["US", "9bef1128717f958171a4afac3ed78ee2bb4e86ce"],
+				["JP", "8a20a5c83d6ceb0f0506cfc9fa20d8f438cafe51"],
+			],
+		},
+		"paperboat":
+		{
+			"repo": "HarbourMasters/PaperBoat",
+			"game": "Paper Mario",
+			"monogram": "PM64",
+			"asset_suffix": "-linux.zip",
+			"archive": ["pm64.o2r"],
+			"executable": "Paperboat.AppImage",
+			"extra_files": ["gamecontrollerdb.txt"],
+			"rom_file": "pm64.z64",
+			"roms": [["US", "3837f44cda784b466c9a2d99df70d77c322b97a0"]],
+		},
+		"lighthouse":
+		{
+			"repo": "HarbourMasters/Lighthouse",
+			"game": "Banjo-Kazooie",
+			"monogram": "BK",
+			"asset_suffix": ".appimage",
+			"archive": ["bk.o2r"],
+			"executable": "lighthouse.appimage",
+			"extra_files": [],
+			"rom_file": "bk.z64",
+			"roms":
+			[
+				["US 1.0", "1fe1632098865f639e22c11b9a81ee8f29c75d7a"],
+				["US 1.1", "ded6ee166e740ad1bc810fd678a84b48e245ab80"],
+				["PAL", "bb359a75941df74bf7290212c89fbc6e2c5601fe"],
+				["JP", "90726d7e7cd5bf6cdfd38f45c9acbf4d45bd9fd8"],
+			],
+		},
+	}
+	for id in expected:
+		var port := Catalog.find(ports, id)
+		var want: Dictionary = expected[id]
+		for key in ["repo", "game", "monogram", "asset_suffix", "archive", "extra_files"]:
+			eq(port[key], want[key], "%s %s" % [id, key])
+		eq(port["rom_file"], want["rom_file"], "%s rom_file" % id)
+		eq(port["launch"]["executable"], want["executable"], "%s executable" % id)
+		eq(port["launch"]["cwd"], "data", "%s runs in its data folder (SHIP_HOME)" % id)
+		eq(port["launch"]["args"], [], "%s has no arguments of its own" % id)
+		var roms := []
+		for rom in port["roms"]:
+			roms.append([rom["label"], rom["sha1"]])
+		eq(roms, want["roms"], "%s accepted ROMs in order" % id)
+		check(port.has("art"), "%s has cover art" % id)
+
+
+func test_monogram_is_optional_and_short() -> void:
+	eq(_parse([_entry()])["ports"][0]["monogram"], "", "no monogram: built from the title")
+	var given := _entry()
+	given["monogram"] = "PM64"
+	eq(_parse([given])["ports"][0]["monogram"], "PM64", "kept")
+	for bad in ["", "   ", "TOOLONG", 64]:
+		given["monogram"] = bad
+		check(not _parse([given])["errors"].is_empty(), "monogram %s is refused" % str(bad))
+
+
 func test_first_launch_rom_place_and_note_per_port() -> void:
 	var ports: Array = Catalog.load_default()["ports"]
-	for id in ["soh", "2ship"]:
+	for id in ["soh", "2ship", "lighthouse"]:
 		eq(Catalog.find(ports, id)["rom_place"], "argv", "%s gets the ROM as an argument" % id)
 	for id in ["starship", "spaghettikart"]:
 		eq(Catalog.find(ports, id)["rom_place"], "cwd", "%s finds it in its working dir" % id)
+	for id in ["ghostship", "paperboat"]:
+		eq(Catalog.find(ports, id)["rom_place"], "data_dir", "%s scans its data folder" % id)
 	for port in ports:
 		var note: String = port.get("first_run", "")
 		check(not note.is_empty(), "%s has a first_run note (PORT-17)" % port["id"])
 		for line in note.split("\n"):
 			check(not line.ends_with("."), "%s: no full stop at the end: %s" % [port["id"], line])
 			check(line.length() <= 100, "%s: short lines: %s" % [port["id"], line])
-		var needs_mouse: bool = port["id"] in ["starship", "spaghettikart"]
+		var needs_mouse: bool = (
+			port["id"] in ["starship", "spaghettikart", "ghostship", "paperboat"]
+		)
 		eq(note.contains("mouse"), needs_mouse, "%s names the mouse only when needed" % port["id"])
 		eq(note.contains("Play again"), not needs_mouse, "%s: press Play again" % port["id"])
 	var odd := _entry()
@@ -161,4 +247,4 @@ func test_shipped_art_is_complete_and_all_one_style() -> void:
 		eq(Catalog.validate_art(port["art"]).size(), 0, "%s art is valid (ART-1)" % port["id"])
 		styles[port["art"]["style"]] = true
 	check(styles.size() == 1, "every entry has the same style (ART-2): %s" % str(styles.keys()))
-	eq(count, 4, "every port has art")
+	eq(count, 7, "every port has art")

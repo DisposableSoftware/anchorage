@@ -76,6 +76,7 @@ app/fonts/               Inter (variable) and its licence (OFL 1.1)             
 app/data/                config.example.ini + keybindings.example.ini (first-run files)   CONF-2
 app/data/ports.json      the port catalog                                         PORT-1
 app/tests/               run.gd (runner; awaits tests that await; TESTS=name runs one file), case.gd (base), test_*.gd; test_spec.gd checks spec <-> code
+app/tests/test_home_row.gd the cards row at 1280x720, 1280x800, 1920x1080: seven cards scroll with focus   HOME-1
 app/tests/test_http.gd   http.gd against a local TCPServer: redirects, stall, cancel, size limit, JSON   PORT-4 PORT-13
 app/tests/test_art.gd    art.gd with fake HTTP; art_catalog.json is its test catalog   ART
 app/tests/test_rom_folders.gd, test_rom_folder.gd   ROM folder detection and search over fake trees; Ports' folder API and the chooser screen   ROM-10 .. ROM-16
@@ -158,7 +159,7 @@ Run checks with `./scripts/manual/headless.sh ./scripts/manual/<name>.sh`. It st
 
 ### End to end (real network, real ports)
 
-`scripts/manual/e2e.sh` installs all four ports from GitHub with keyboard input, refreshes, launches each one (Shipwright and 2ship get the ROM as an argument and extract without asking), answers the other ports' first-run "Generate one now?" prompt and removes one, with HOME and every XDG folder in a temp sandbox and ROM copies from `ROMS`. Screenshots and the ports' `launch.log` go to `$OUT`; the sandbox is deleted at the end (`KEEP=1` keeps it). On NixOS the release AppImages need an FHS environment and `steam-run` has a private `/tmp`, so put the runner's temp folder in your home, under a short path (sway's socket path has a length limit):
+`scripts/manual/e2e.sh` installs the catalog's ports from GitHub with keyboard input (all seven, or those named in `ONLY`, e.g. `ONLY="ghostship paperboat lighthouse"`), refreshes, launches each one (Shipwright, 2ship and Lighthouse get the ROM as an argument and extract without asking), answers up to `ANSWERS` (default 2) of the other ports' first-run prompts and removes the last one, with HOME and every XDG folder in a temp sandbox and ROM copies from `ROMS`. Screenshots and the ports' `launch.log` go to `$OUT`; the sandbox is deleted at the end (`KEEP=1` keeps it). On NixOS the release AppImages need an FHS environment and `steam-run` has a private `/tmp`, so put the runner's temp folder in your home, under a short path (sway's socket path has a length limit):
 
 ```bash
 mkdir -p ~/.cache/ae && TMPDIR=~/.cache/ae RUNNER=steam-run ROMS=/path/to/rom/copies OUT=/tmp/shots \

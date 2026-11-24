@@ -87,6 +87,12 @@ static func monogram(game: String) -> String:
 	return out
 
 
+## The card's short name: the catalog's `monogram` when it has one, else built from the title.
+static func short_name(info: Dictionary) -> String:
+	var given: String = info.get("monogram", "")
+	return given if not given.is_empty() else monogram(info.game)
+
+
 ## `error` split into its title line and the detail below it.
 static func error_parts(error: String) -> Array[String]:
 	var newline := error.find("\n")

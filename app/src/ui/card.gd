@@ -42,7 +42,7 @@ func show_port(info: Dictionary, index: int) -> void:
 	var variant := index % Style.EMBLEM_COLORS.size()
 	_emblem.theme_type_variation = "Emblem%d" % variant
 	_monogram.theme_type_variation = "Monogram%d" % variant
-	_monogram.text = PortState.monogram(info.game)
+	_monogram.text = PortState.short_name(info)
 	_show_art(info.get("art"))
 	# An empty kicker keeps its line, so titles and emblems line up across cards.
 	_kicker.text = title[0] if not title[0].is_empty() else " "

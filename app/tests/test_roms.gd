@@ -1,6 +1,7 @@
 extends "res://tests/case.gd"
 
 const Roms := preload("res://src/roms.gd")
+const Catalog := preload("res://src/catalog.gd")
 
 
 ## Deterministic 1 KiB of ROM-like data in z64 order; `seed` makes different "games".
@@ -307,6 +308,50 @@ func test_prepare_checks_the_sha1_again() -> void:
 	eq(Roms.prepare(match, out), ERR_FILE_CORRUPT, "changed since the scan")
 	check(not FileAccess.file_exists(out), "nothing written")
 	remove(dir)
+
+
+## Ghostship, PaperBoat and Lighthouse hash the raw file and take only big-endian data
+## (docs/research/ports-2.md). With the shipped hash lists, each of them claims a ROM in any
+## byte order (fabricated data standing in for one of its hashes), no other port claims it,
+## and what is written for it is big-endian under its catalog name.
+func test_the_new_ports_match_any_byte_order_and_get_big_endian_data() -> void:
+	var catalog: Array = Catalog.load_default()["ports"]
+	var shipped := {}
+	for port in catalog:
+		shipped[port["id"]] = port["roms"]
+	var seed := 20
+	for id in ["ghostship", "paperboat", "lighthouse"]:
+		var port := Catalog.find(catalog, id)
+		for order in ["z64", "v64", "n64"]:
+			seed += 1
+			var data := _rom(seed)
+			var dir := temp_dir("roms-%s-%s" % [id, order])
+			var roms := dir.path_join("roms")
+			DirAccess.make_dir_recursive_absolute(roms)
+			var raw := data if order == "z64" else _swap(data, order)
+			_zip(roms.path_join("game.zip"), {"game." + order: raw})
+			var none: Dictionary = Roms.scan(roms, shipped, {})["matches"]
+			for other in none:
+				check(not none[other]["found"], "%s: unknown data claims no port" % other)
+			var hashes := shipped.duplicate()
+			var list: Array = port["roms"].duplicate(true)
+			list[-1]["sha1"] = Roms.sha1_of(data)
+			hashes[id] = list
+			var matches: Dictionary = Roms.scan(roms, hashes, {})["matches"]
+			for other in matches:
+				eq(
+					matches[other]["found"],
+					other == id,
+					"%s %s: claimed by %s only" % [id, order, id]
+				)
+			eq(matches[id]["label"], list[-1]["label"], "%s %s: labelled" % [id, order])
+			eq(matches[id]["order"], order, "%s %s: order seen" % [id, order])
+			var out := dir.path_join("data").path_join(port["rom_file"])
+			eq(Roms.prepare(matches[id], out), OK, "%s %s: prepared" % [id, order])
+			var written := FileAccess.get_file_as_bytes(out)
+			eq(written, data, "%s %s: written big-endian" % [id, order])
+			eq(Roms.detect_order(written), "z64", "%s %s: z64 header" % [id, order])
+			remove(dir)
 
 
 func test_expand_dir() -> void:

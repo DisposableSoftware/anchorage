@@ -7,11 +7,12 @@
 # after `nix build`, through the headless runner:
 #   ROMS=/path/to/rom/copies OUT=/tmp/shots HEADLESS_RES=1920x1080 HEADLESS_SCALE=1 \
 #     scripts/manual/headless.sh scripts/manual/e2e.sh
-# Keyboard keys drive the app (wtype): install SpaghettiKart, then 2Ship, Starship and
-# Ship of Harkinian queued behind it, refresh, then launch each port for up to
-# LAUNCH_SECONDS (default 90): answer its first-run "Generate one now?" prompt with a
+# Keyboard keys drive the app (wtype): install the first port of ONLY (default: all seven,
+# in catalog order; e.g. ONLY="ghostship paperboat lighthouse"), queue the others behind
+# it, refresh, then launch each one for up to LAUNCH_SECONDS (default 90): answer up to
+# ANSWERS (default 2) of its first-run prompts ("Generate one now?") with Return or a
 # click on Yes (inside the headless sway only), look for its window and its generated
-# archive, stop it, then remove one port.
+# archive, stop it, then remove the last one.
 # The release AppImages need a standard /lib64 loader: on NixOS set RUNNER=steam-run,
 # which runs Anchorage (and so the ports it starts) in an FHS environment, as on SteamOS.
 # Screenshots, Anchorage's log and each port's launch.log go to $OUT; everything else
@@ -22,6 +23,11 @@ cd "$(dirname "$0")/../.." || exit 1
 [ -d "${ROMS:-}" ] || { echo "set ROMS to a folder of ROM files to copy" >&2; exit 2; }
 require_no_instance
 
+# The catalog's ports in card order, and the ones this run installs and starts.
+ALL=(soh 2ship starship spaghettikart ghostship paperboat lighthouse)
+read -r -a RUN <<<"${ONLY:-${ALL[*]}}"
+index() { local i; for i in "${!ALL[@]}"; do [ "${ALL[$i]}" = "$1" ] && echo "$i"; done; }
+
 T=$(mktemp -d "${TMPDIR:-/tmp}/anchorage-e2e.XXXXXX")
 OUT=${OUT:-$T/shots}
 mkdir -p "$OUT" "$T/home" "$T/config/anchorage" "$T/data" "$T/state" "$T/cache" "$T/tmp" "$T/roms"
@@ -30,7 +36,7 @@ stop_sandbox() {
   cleanup
   # The ports and their dialogs have SHIP_HOME in the sandbox; everything else started
   # here has the sandbox path on its command line (Anchorage gets it as a user argument).
-  for p in soh 2ship starship spaghettikart; do stop_port "$p" 2>/dev/null; done
+  for p in "${ALL[@]}"; do stop_port "$p" 2>/dev/null; done
   pkill -f -- "$T/" 2>/dev/null
   sleep 1
   pkill -9 -f -- "$T/" 2>/dev/null
@@ -66,16 +72,31 @@ exe() { case $1 in
   2ship) echo "$PORTS/2ship/current/2ship.appimage" ;;
   starship) echo "$PORTS/starship/current/starship.appimage" ;;
   spaghettikart) echo "$PORTS/spaghettikart/current/spaghetti.appimage" ;;
+  ghostship) echo "$PORTS/ghostship/current/ghostship.appimage" ;;
+  paperboat) echo "$PORTS/paperboat/current/Paperboat.AppImage" ;;
+  lighthouse) echo "$PORTS/lighthouse/current/lighthouse.appimage" ;;
 esac; }
 archive() { case $1 in
   soh) echo oot.o2r ;; 2ship) echo mm.o2r ;; starship) echo sf64.o2r ;; spaghettikart) echo mk64.o2r ;;
+  ghostship) echo sm64.o2r ;; paperboat) echo pm64.o2r ;; lighthouse) echo bk.o2r ;;
 esac; }
 rom_file() { case $1 in
   soh) echo oot.z64 ;; 2ship) echo mm.z64 ;; starship) echo sf64.z64 ;; spaghettikart) echo mk64.z64 ;;
+  ghostship) echo sm64.z64 ;; paperboat) echo pm64.z64 ;; lighthouse) echo bk.z64 ;;
+esac; }
+extra_files() { case $1 in
+  starship) echo gamecontrollerdb.txt config.yml assets ;;
+  spaghettikart | ghostship | paperboat) echo gamecontrollerdb.txt ;;
 esac; }
 other_windows() { sway_wins | jq -r "[.[] | select(.class != \"$APP\") | \"\(.class) \(.size[0])x\(.size[1])\"] | join(\", \")"; }
-# home: focus Anchorage and put the focus on card N (0-based).
-card() { focus_app; sleep 0.3; keys -k Left -k Left -k Left; local i; for ((i = 0; i < $1; i++)); do keys -k Right; done; }
+# home: focus Anchorage and put the focus on the card of port ID.
+card() {
+  local i n
+  focus_app; sleep 0.3
+  for ((i = 1; i < ${#ALL[@]}; i++)); do keys -k Left; done
+  n=$(index "$1")
+  for ((i = 0; i < n; i++)); do keys -k Right; done
+}
 
 LOG=$T/anchorage.log launch "$XDG_CONFIG_HOME" -- "--sandbox=$T/"
 [ "$(win_count)" -gt 0 ] || { echo "FAIL  Anchorage did not open"; exit 1; }
@@ -84,35 +105,38 @@ check "update check at start stored its time (PORT-5)" 0 $?
 sleep 1
 full 01-start
 
-echo "== install SpaghettiKart"
-card 3; keys -k Return
-sleep 2; full 02-kart-downloading
-wait_until 300 "[ -x '$(exe spaghettikart)' ]"
-check "SpaghettiKart installed and executable (PORT-3)" 0 $?
-sleep 2; full 03-kart-installed
+first=${RUN[0]}
+echo "== install $first"
+card "$first"; keys -k Return
+sleep 2; full 02-first-downloading
+wait_until 300 "[ -x '$(exe "$first")' ]"
+check "$first installed and executable (PORT-3)" 0 $?
+sleep 2; full 03-first-installed
 
-echo "== install 2Ship, queue Starship and SoH behind it"
-card 1; keys -k Return
-sleep 1; keys -k Right -k Return
-keys -k Left -k Left -k Return
-sleep 1; full 04-queue
-wait_until 900 "[ -x '$(exe 2ship)' ] && [ -x '$(exe starship)' ] && [ -x '$(exe soh)' ]"
-check "2Ship, Starship and SoH installed (PORT-12 queue)" 0 $?
+echo "== queue the others: ${RUN[*]:1}"
+all_there="true"
+for id in "${RUN[@]:1}"; do
+  card "$id"; keys -k Return; sleep 1
+  all_there="$all_there && [ -x '$(exe "$id")' ]"
+done
+full 04-queue
+wait_until 1200 "$all_there"
+check "${RUN[*]:1} installed (PORT-12 queue)" 0 $?
 sleep 3; full 05-all-installed
-for id in soh 2ship starship spaghettikart; do
+for id in "${RUN[@]}"; do
   stat -c '%a %s %n' "$(exe "$id")"
   check "$id executable is 755" 755 "$(stat -c %a "$(exe "$id")")"
   check "$id leaves no download/ (PORT-3)" no "$([ -d "$PORTS/$id/download" ] && echo yes || echo no)"
-done
-for f in spaghettikart/data/gamecontrollerdb.txt starship/data/gamecontrollerdb.txt \
-  starship/data/config.yml starship/data/assets; do
-  check "$f in the data folder (PORT-10)" yes "$([ -e "$PORTS/$f" ] && echo yes || echo no)"
+  for f in $(extra_files "$id"); do
+    check "$id/data/$f in the data folder (PORT-10)" yes \
+      "$([ -e "$PORTS/$id/data/$f" ] && echo yes || echo no)"
+  done
 done
 grep -E '\.(installed|latest)' "$STATE"
 
 echo "== refresh"
 before=$(grep last_check "$STATE")
-sleep 1; card 0; keys -k F5
+sleep 1; card "$first"; keys -k F5
 wait_until 30 "[ \"\$(grep last_check '$STATE')\" != '$before' ]"
 check "refresh checked again (PORT-5)" 0 $?
 sleep 1; full 06-refreshed
@@ -139,9 +163,9 @@ click() { # click X Y, in output pixels
   sleep 0.2; command wlrctl pointer click left; sleep 0.5
 }
 # Answers the ports' first-run "No O2R files found. Generate one now?" with Yes: a zenity
-# dialog (SpaghettiKart) or the port's own popup in the middle of its window. The first
-# try focuses the window and presses Return, the second clicks where Yes is (offsets read
-# from screenshots at 1920x1080, scale 1).
+# dialog (SpaghettiKart) or the port's own popup in the middle of its window. Even tries
+# focus the window and press Return, odd ones click where Yes is (offsets read from
+# screenshots at 1920x1080, scale 1).
 answer_yes() { # answer_yes TRY
   local target dx dy
   target=$(sway_wins | jq -r '[.[] | select(.class == "zenity")][0] // empty | .class')
@@ -152,7 +176,7 @@ answer_yes() { # answer_yes TRY
   fi
   [ -n "$target" ] || return
   swaymsg "[app_id=\"$target\"] focus" >/dev/null; sleep 0.5
-  if [ "$1" = 0 ]; then
+  if [ $(($1 % 2)) = 0 ]; then
     wtype -k Shift_L; sleep 0.3; wtype -k Return
   else
     set -- $(sway_wins | jq -r "[.[] | select(.class == \"$target\")][0]
@@ -163,15 +187,23 @@ answer_yes() { # answer_yes TRY
 
 echo "== launch"
 n=0
-for id in spaghettikart 2ship starship soh; do
-  case $id in soh) i=0 ;; 2ship) i=1 ;; starship) i=2 ;; spaghettikart) i=3 ;; esac
+for id in "${RUN[@]}"; do
   pre=$(printf '%02d' $((7 + n * 4)))
   rm -f "$PORTS/$id/launch.log"
-  card $i; keys -k Return
+  card "$id"; keys -k Return
   wait_until 20 "[ -s '$PORTS/$id/launch.log' ]"
   check "$id spawned, output in launch.log (PORT-8)" 0 $?
-  placed=$([ -f "$PORTS/$id/data/$(rom_file "$id")" ] && echo yes || echo no)
-  echo "      ROM placed before the start: $placed (PORT-9)"
+  rom=$PORTS/$id/data/$(rom_file "$id")
+  if [ -f "$rom" ]; then
+    sum=$(sha1sum "$rom" | cut -c1-40)
+    label=$(jq -r --arg id "$id" --arg s "$sum" \
+      '.ports[] | select(.id == $id) | .roms[] | select(.sha1 == $s) | .label' app/data/ports.json)
+    echo "      ROM placed before the start: $(rom_file "$id") $sum ${label:-NOT IN THE LIST} (PORT-9)"
+    check "$id got a ROM from its own list, big-endian" "yes 80371240" \
+      "$([ -n "$label" ] && echo yes || echo no) $(head -c4 "$rom" | od -An -tx1 | tr -d ' \n')"
+  else
+    echo "      ROM placed before the start: no (PORT-9)"
+  fi
   for p in $(port_pids "$id"); do
     echo "      command line: $(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null | sed "s|$T|<sandbox>|g")"
   done
@@ -179,9 +211,19 @@ for id in spaghettikart 2ship starship soh; do
   seen=""; answered=0
   for ((s = 0; s < ${LAUNCH_SECONDS:-90}; s += 5)); do
     w=$(other_windows); [ -n "$w" ] && seen=$w
-    [ -f "$PORTS/$id/data/$(archive "$id")" ] && break
+    if [ -f "$PORTS/$id/data/$(archive "$id")" ]; then
+      # Wait for the archive to stop growing: it exists from the start of the writing.
+      size=-1
+      for ((k = 0; k < 24; k++)); do
+        now=$(stat -c %s "$PORTS/$id/data/$(archive "$id")" 2>/dev/null || echo 0)
+        [ "$now" = "$size" ] && break
+        size=$now; sleep 5
+      done
+      echo "      archive settled at $size bytes"
+      break
+    fi
     [ -z "$(port_pids "$id")" ] && break
-    if [ -n "$w" ] && [ $answered -lt 2 ] && [ $s -ge 10 ]; then
+    if [ -n "$w" ] && [ $answered -lt "${ANSWERS:-2}" ] && [ $s -ge 10 ]; then
       full "$pre-$id-b-prompt$answered"
       answer_yes $answered; answered=$((answered + 1))
     fi
@@ -204,13 +246,14 @@ for id in spaghettikart 2ship starship soh; do
   n=$((n + 1))
 done
 
-echo "== remove SpaghettiKart"
-card 3; keys o; keys -k Down -k Down -k Return
-sleep 0.5; full 20-remove-dialog
+last=${RUN[-1]}
+echo "== remove $last"
+card "$last"; keys o; keys -k Down -k Down -k Return
+sleep 0.5; full 40-remove-dialog
 keys -k Right -k Return
-sleep 2; full 21-removed
-check "program deleted (PORT-7)" no "$([ -d "$PORTS/spaghettikart/current" ] && echo yes || echo no)"
-check "data kept (PORT-7)" yes "$([ -d "$PORTS/spaghettikart/data" ] && echo yes || echo no)"
+sleep 2; full 41-removed
+check "program deleted (PORT-7)" no "$([ -d "$PORTS/$last/current" ] && echo yes || echo no)"
+check "data kept (PORT-7)" yes "$([ -d "$PORTS/$last/data" ] && echo yes || echo no)"
 du -sh "$PORTS"/*/ 2>/dev/null
 echo "$FAILS failed"
 exit $((FAILS > 0))

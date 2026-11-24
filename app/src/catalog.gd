@@ -26,6 +26,8 @@ extends RefCounted
 ##                 an argument while the port has no archive: PORT-16)
 ##   first_run     a short note for the detail panel until the port has made its archive,
 ##                 lines split by \n (optional, default "": PORT-17)
+##   monogram      the card's short name when the one built from `game` is not the usual
+##                 one (e.g. "PM64"), at most MONOGRAM_MAX characters (optional, default "")
 ##   rom_file      file name of the written ROM, a big-endian ".z64"
 ##   roms          Array of {label, sha1}: the accepted ROMs. sha1 is 40 lowercase hex
 ##                 characters of the big-endian data. Order is priority (ROM-7); several
@@ -48,6 +50,7 @@ const PATH := "res://data/ports.json"
 const ART_KEYS := ["url", "author", "source", "style"]
 const ART_SOURCE := "https://www.steamgriddb.com/"
 const CWD_VALUES := ["data", "current"]
+const MONOGRAM_MAX := 5
 const ROM_PLACES := ["data_dir", "cwd", "argv"]
 const STRING_KEYS := ["id", "name", "game", "description", "repo", "asset_suffix", "rom_file"]
 
@@ -120,6 +123,14 @@ static func validate(raw: Variant) -> PackedStringArray:
 		out.append("rom_place must be one of %s" % str(ROM_PLACES))
 	if raw.has("first_run") and not raw["first_run"] is String:
 		out.append("first_run must be a string")
+	if (
+		raw.has("monogram")
+		and not (
+			raw["monogram"] is String
+			and (raw["monogram"] as String).strip_edges().length() in range(1, MONOGRAM_MAX + 1)
+		)
+	):
+		out.append("monogram must be 1 to %d characters" % MONOGRAM_MAX)
 	_check_string_list(raw, "archive", true, out)
 	_check_string_list(raw, "extra_files", false, out)
 	var launch: Variant = raw.get("launch")
@@ -192,6 +203,7 @@ static func _normalise(raw: Dictionary) -> Dictionary:
 	port["asset_suffix"] = (port["asset_suffix"] as String).to_lower()
 	if not port.has("first_run"):
 		port["first_run"] = ""
+	port["monogram"] = (port.get("monogram", "") as String).strip_edges()
 	if not port.has("extra_files"):
 		port["extra_files"] = []
 	if not port["launch"].has("args"):

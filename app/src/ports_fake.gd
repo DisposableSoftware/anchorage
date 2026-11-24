@@ -25,7 +25,7 @@ extends Node
 ## A port that is not installed has no game files either, so it shows its note too.
 ##
 ## The first two ports have placeholder cover art, drawn in code (never a real image), and
-## the other two show their monogram, so a screenshot has both looks (ART-5, ART-6).
+## the others show their monogram, so a screenshot has both looks (ART-5, ART-6).
 
 signal changed(id: String)
 signal launched(id: String)
@@ -88,6 +88,10 @@ const SEARCH_SECONDS := 1.5
 const SHIP_NOTE := (
 	"The first launch makes the game files from your ROM\nIf it"
 	+ " then asks to run the game, close it and press Play again"
+)
+const QUESTIONS_NOTE := (
+	"The first launch needs a mouse or keyboard once (the trackpad works) to answer its"
+	+ " questions\nLater launches do not"
 )
 
 const DEMO := [
@@ -152,12 +156,45 @@ const DEMO := [
 		"A PC port of Mario Kart 64 with widescreen, high frame rates and custom tracks.",
 		"latest": "1.0.0",
 		"rom": "Mario Kart 64 (USA).z64",
+		"first_run": QUESTIONS_NOTE,
+		"wanted": ["US"],
+	},
+	{
+		"id": "ghostship",
+		"name": "Ghostship",
+		"game": "Super Mario 64",
+		"description": "A PC port of Super Mario 64 with widescreen, mods and alternate assets.",
+		"latest": "3.0.0",
+		"rom": "Super Mario 64 (USA).z64",
 		"first_run":
 		(
-			"The first launch needs a mouse or keyboard once (the trackpad works) to answer its"
-			+ " questions\nLater launches do not"
+			"The first launch needs a mouse or keyboard once (the trackpad works): answer Yes"
+			+ " twice\nLater launches do not"
 		),
+		"wanted": ["US", "JP"],
+	},
+	{
+		"id": "paperboat",
+		"name": "PaperBoat",
+		"game": "Paper Mario",
+		"monogram": "PM64",
+		"description": "A PC port of Paper Mario built on the Paper Mario DX decompilation.",
+		"latest": "1.0.3",
+		"rom": "Paper Mario (USA).z64",
+		"first_run": QUESTIONS_NOTE,
 		"wanted": ["US"],
+	},
+	{
+		"id": "lighthouse",
+		"name": "Lighthouse",
+		"game": "Banjo-Kazooie",
+		"monogram": "BK",
+		"description":
+		"A PC port of Banjo-Kazooie with online multiplayer, romhacks and a randomizer.",
+		"latest": "1.2.2",
+		"rom": "Banjo-Kazooie (USA) (Rev 1).z64",
+		"first_run": SHIP_NOTE,
+		"wanted": ["US 1.0", "US 1.1", "PAL", "JP"],
 	},
 ]
 
@@ -194,6 +231,7 @@ func _init(scenario := "showcase") -> void:
 			"id": demo.id,
 			"name": demo.name,
 			"game": demo.game,
+			"monogram": demo.get("monogram", ""),
 			"description": demo.description,
 			"installed": false,
 			"installed_version": "",

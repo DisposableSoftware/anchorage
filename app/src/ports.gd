@@ -155,6 +155,7 @@ func info(id: String) -> Dictionary:
 		"id": id,
 		"name": port["name"],
 		"game": port["game"],
+		"monogram": port.get("monogram", ""),
 		"description": port["description"],
 		"installed": installed,
 		"installed_version": version if not (installed and version.is_empty()) else "Unknown",

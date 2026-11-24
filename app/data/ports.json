@@ -111,6 +111,81 @@
       "roms": [
         { "label": "US", "sha1": "579c48e211ae952530ffc8738709f078d5dd215e" }
       ]
+    },
+    {
+      "id": "ghostship",
+      "name": "Ghostship",
+      "game": "Super Mario 64",
+      "description": "The PC port of Super Mario 64, with widescreen, mods and alternate assets.",
+      "repo": "HarbourMasters/Ghostship",
+      "art": {
+        "url": "https://cdn2.steamgriddb.com/grid/cde1d59c5e9400b69a4854735d590888.png",
+        "author": "Corgana",
+        "source": "https://www.steamgriddb.com/grid/30304",
+        "style": "alternate"
+      },
+      "asset_suffix": "-linux.zip",
+      "archive": ["sm64.o2r"],
+      "launch": { "executable": "ghostship.appimage", "cwd": "data", "args": [] },
+      "extra_files": ["gamecontrollerdb.txt"],
+      "rom_place": "data_dir",
+      "rom_file": "sm64.z64",
+      "first_run": "The first launch needs a mouse or keyboard once (the trackpad works): answer Yes twice\nLater launches do not",
+      "roms": [
+        { "label": "US", "sha1": "9bef1128717f958171a4afac3ed78ee2bb4e86ce" },
+        { "label": "JP", "sha1": "8a20a5c83d6ceb0f0506cfc9fa20d8f438cafe51" }
+      ]
+    },
+    {
+      "id": "paperboat",
+      "name": "PaperBoat",
+      "game": "Paper Mario",
+      "monogram": "PM64",
+      "description": "The PC port of Paper Mario, built on the Paper Mario DX decompilation, with mod support.",
+      "repo": "HarbourMasters/PaperBoat",
+      "art": {
+        "url": "https://cdn2.steamgriddb.com/grid/bc8147ca69573b8a699c18e7ddbcfb48.png",
+        "author": "Corgana",
+        "source": "https://www.steamgriddb.com/grid/30301",
+        "style": "alternate"
+      },
+      "asset_suffix": "-linux.zip",
+      "archive": ["pm64.o2r"],
+      "launch": { "executable": "Paperboat.AppImage", "cwd": "data", "args": [] },
+      "extra_files": ["gamecontrollerdb.txt"],
+      "rom_place": "data_dir",
+      "rom_file": "pm64.z64",
+      "first_run": "The first launch needs a mouse or keyboard once (the trackpad works) to answer its questions\nLater launches do not",
+      "roms": [
+        { "label": "US", "sha1": "3837f44cda784b466c9a2d99df70d77c322b97a0" }
+      ]
+    },
+    {
+      "id": "lighthouse",
+      "name": "Lighthouse",
+      "game": "Banjo-Kazooie",
+      "monogram": "BK",
+      "description": "The PC port of Banjo-Kazooie, with online multiplayer, romhacks, language packs and a randomizer.",
+      "repo": "HarbourMasters/Lighthouse",
+      "art": {
+        "url": "https://cdn2.steamgriddb.com/grid/0b9dcc39ddecd3359566b59d3c9a6b9c.png",
+        "author": "Corgana",
+        "source": "https://www.steamgriddb.com/grid/30295",
+        "style": "alternate"
+      },
+      "asset_suffix": ".appimage",
+      "archive": ["bk.o2r"],
+      "launch": { "executable": "lighthouse.appimage", "cwd": "data", "args": [] },
+      "extra_files": [],
+      "rom_place": "argv",
+      "rom_file": "bk.z64",
+      "first_run": "The first launch makes the game files from your ROM\nIf it then asks to run the game, close it and press Play again",
+      "roms": [
+        { "label": "US 1.0", "sha1": "1fe1632098865f639e22c11b9a81ee8f29c75d7a" },
+        { "label": "US 1.1", "sha1": "ded6ee166e740ad1bc810fd678a84b48e245ab80" },
+        { "label": "PAL", "sha1": "bb359a75941df74bf7290212c89fbc6e2c5601fe" },
+        { "label": "JP", "sha1": "90726d7e7cd5bf6cdfd38f45c9acbf4d45bd9fd8" }
+      ]
     }
   ]
 }
