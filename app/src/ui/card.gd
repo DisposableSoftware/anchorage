@@ -26,6 +26,7 @@ var selected := false:
 @onready var _progress: ProgressBar = %Progress
 @onready var _badge: PanelContainer = %Badge
 @onready var _badge_text: Label = %BadgeText
+@onready var _new_badge: PanelContainer = %NewBadge
 
 
 func _ready() -> void:
@@ -52,6 +53,7 @@ func show_port(info: Dictionary, index: int) -> void:
 	_badge.theme_type_variation = "Badge_" + state
 	_badge_text.theme_type_variation = "BadgeText_" + state
 	_badge_text.text = PortState.badge(info)
+	_new_badge.visible = info.get("is_new", false)
 	_progress.visible = PortState.cancellable(info)
 	_progress.indeterminate = info.busy.progress < 0.0
 	_progress.value = maxf(info.busy.progress, 0.0) * 100.0
@@ -72,6 +74,11 @@ func _show_art(texture: Variant) -> void:
 
 func badge_text() -> String:
 	return _badge_text.text
+
+
+## PORT-23: the `New` badge of a port a catalog fetch added, until it was focused.
+func shows_new() -> bool:
+	return _new_badge.visible
 
 
 func _restyle() -> void:

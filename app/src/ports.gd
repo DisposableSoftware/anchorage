@@ -17,9 +17,13 @@ signal rom_folder_changed
 signal folder_listed(path: String, listing: Dictionary)
 ## `search_info()` changed (ROM-14).
 signal search_changed
+## A catalog fetch added ports (they are at the end of `list()` already) or found entries
+## that need a newer Anchorage: `notice()` says which (PORT-23).
+signal notice_changed
 
 const RomFolders := preload("res://src/rom_folders.gd")
 const Catalog := preload("res://src/catalog.gd")
+const CatalogUpdate := preload("res://src/catalog_update.gd")
 const Releases := preload("res://src/releases.gd")
 const Installer := preload("res://src/installer.gd")
 const State := preload("res://src/state.gd")
@@ -47,8 +51,15 @@ var media_dir := RomFolders.MEDIA
 var mounts_file := RomFolders.MOUNTS_FILE
 ## `[ports] check_updates` (CONF-9).
 var check_updates := true
-## Catalog entries; empty means res://data/ports.json.
+## Catalog entries; empty means res://data/ports.json. After `_ready` it is the merged list
+## in use (PORT-20).
 var catalog: Array = []
+## The `version` of `catalog` when it is given; read from the file otherwise.
+var catalog_version := 0
+## Where the catalog is fetched from; empty means `CatalogUpdate.url()` (PORT-18).
+var catalog_url := ""
+## The fetched catalog's cache; empty means $XDG_CACHE_HOME/anchorage/catalog.json (PORT-21).
+var catalog_cache := ""
 ## Something with http.gd's methods; null means a new http.gd child.
 var http: Object = null
 ## The same for cover art (ART-3). Null means a new http.gd child, unless `http` was given:
@@ -98,6 +109,15 @@ var _runs := {}
 var _poll_left := 0.0
 var _art := {}
 var _art_loader: RefCounted
+var _art_http_given := false
+## PORT-23: the last catalog notice, "" before there is one.
+var _notice := ""
+## The highest catalog version merged so far (PORT-20).
+var _version_in_use := 0
+## The HTTP object the catalog is fetched with: `http`, or one that may reach 127.0.0.1
+## for the ANCHORAGE_CATALOG_URL test hook.
+var _catalog_http: Object
+var _http_given := false
 
 
 func _ready() -> void:
@@ -110,10 +130,15 @@ func _ready() -> void:
 		for error in loaded["errors"]:
 			push_warning(error)
 		catalog = loaded["ports"]
-	for port in catalog:
-		_ports[port["id"]] = port
-		_ids.append(port["id"])
-	var injected := http != null
+		catalog_version = loaded["version"]
+	_version_in_use = catalog_version
+	if catalog_url.is_empty():
+		catalog_url = CatalogUpdate.url()
+	if catalog_cache.is_empty():
+		catalog_cache = CatalogUpdate.default_cache()
+	_use_catalog(catalog)
+	_merge_cached()
+	_http_given = http != null
 	if http == null:
 		http = Http.new()
 		add_child(http)
@@ -123,9 +148,8 @@ func _ready() -> void:
 	Installer.cleanup_stale(root)
 	set_process(false)
 	_pick_folder()
-	_start_art(injected)
-	if Releases.check_due(_state.last_check(), _now(), check_updates):
-		_check()
+	_start_art(_http_given)
+	_check(false)
 
 
 func _exit_tree() -> void:
@@ -171,7 +195,22 @@ func info(id: String) -> Dictionary:
 		"first_run": port.get("first_run", "") if not Launcher.extracted(root, port) else "",
 		"art": _art.get(id),
 		"error": _errors.get(id, ""),
+		"is_new": id in _state.catalog()["new"],
 	}
+
+
+## PORT-23: what the last catalog fetch brought, e.g. "2 new ports: Foo, Bar".
+func notice() -> String:
+	return _notice
+
+
+## PORT-23: the port's card has been focused, so it is no longer new.
+func mark_seen(id: String) -> void:
+	var marked: Array = _state.catalog()["new"]
+	if _ports.has(id) and id in marked:
+		marked.erase(id)
+		_state.set_catalog({"new": marked})
+		changed.emit(id)
 
 
 func install(id: String) -> void:
@@ -253,9 +292,10 @@ func cancel(id: String) -> void:
 		_end_job(_active)
 
 
-## HOME-6: always checks for updates (PORT-5) and rescans the ROM folder (ROM-5).
+## HOME-6: always fetches the catalog (PORT-18), checks for updates (PORT-5) and rescans
+## the ROM folder (ROM-5).
 func refresh() -> void:
-	_check()
+	_check(true)
 	_scan()
 
 
@@ -489,14 +529,23 @@ func _emit_all() -> void:
 ## ART-3: in the background, one file at a time, on its own HTTP object so it never waits
 ## for or blocks a port download.
 func _start_art(http_was_given: bool) -> void:
+	_art_http_given = http_was_given
+	_fetch_art(_ids)
+
+
+func _fetch_art(ids: Array) -> void:
 	var items := []
-	for port in catalog:
+	for id in ids:
+		var port: Dictionary = _ports[id]
 		if port.has("art"):
-			items.append({"id": port["id"], "url": port["art"]["url"]})
+			items.append({"id": id, "url": port["art"]["url"]})
 	if items.is_empty():
 		return
+	if _art_loader != null:
+		_art_loader.fetch(items, _on_art)
+		return
 	if art_http == null:
-		if http_was_given:
+		if _art_http_given:
 			art_http = http
 		else:
 			art_http = Http.new()
@@ -707,11 +756,34 @@ func _on_scanned(result: Dictionary) -> void:
 		_scan()
 
 
-## PORT-5: asks GitHub about every port; a failed answer marks that port offline.
-func _check() -> void:
+## PORT-18, PORT-5: fetches the catalog, then asks GitHub about every port; a failed answer
+## marks that port offline. At start (`manual` false) each runs only when due; `refresh`
+## runs both.
+func _check(manual: bool) -> void:
 	if _checking:
 		return
+	var updates := Releases.check_due(_state.last_check(), _now(), check_updates, manual)
+	var last_fetch: int = _state.catalog()["last_check"]
+	var fetch := Releases.check_due(last_fetch, _now(), check_updates, manual)
+	if not (updates or fetch):
+		return
 	_checking = true
+	if not fetch:
+		_check_releases()
+		return
+	CatalogUpdate.fetch(
+		_catalog_client(),
+		catalog_url,
+		func(result: Dictionary) -> void:
+			_on_catalog(result)
+			if updates:
+				_check_releases()
+			else:
+				_checking = false
+	)
+
+
+func _check_releases() -> void:
 	Releases.check_all(http, _state, catalog, _now(), _on_checked)
 
 
@@ -720,6 +792,97 @@ func _on_checked(results: Dictionary) -> void:
 	for id in results:
 		_offline[id] = not results[id]["ok"] and results[id].get("offline", false)
 	_emit_all()
+
+
+# The catalog (PORT-18 .. PORT-23) ----------------------------------------------------
+
+
+func _use_catalog(ports: Array) -> void:
+	catalog = ports
+	_ports = {}
+	_ids = []
+	for port in catalog:
+		_ports[port["id"]] = port
+		_ids.append(port["id"])
+
+
+## PORT-21: the last fetched catalog, before any network. Dropping a port the newer
+## catalog no longer lists happens only here, at start, and never to an installed one.
+func _merge_cached() -> void:
+	var cached := CatalogUpdate.read_cache(catalog_cache)
+	if not cached["ok"]:
+		if FileAccess.file_exists(catalog_cache):
+			push_warning("%s ignored: %s" % [catalog_cache, "; ".join(cached["errors"])])
+		return
+	var merged := Catalog.merge(
+		catalog, _version_in_use, cached["ports"], cached["version"], _installed
+	)
+	_version_in_use = maxi(_version_in_use, cached["version"])
+	_use_catalog(merged["ports"])
+
+
+func _catalog_client() -> Object:
+	if _http_given or not catalog_url.begins_with("http://"):
+		return http
+	if _catalog_http == null:
+		_catalog_http = Http.new()
+		_catalog_http.allow_http = true
+		add_child(_catalog_http)
+	return _catalog_http
+
+
+## PORT-19, PORT-20, PORT-23: a fetched catalog is cached and merged; ports are only ever
+## appended here, and the ones added are new until focused. A failed fetch changes nothing.
+func _on_catalog(result: Dictionary) -> void:
+	if not result["ok"]:
+		push_warning("The port catalog was not updated: %s" % result["error"])
+		return
+	var fetched: Dictionary = result["catalog"]
+	for error in fetched["errors"]:
+		push_warning(error)
+	CatalogUpdate.write_cache(catalog_cache, result["text"])
+	var marks: Dictionary = _state.catalog()
+	var merged := Catalog.merge(
+		catalog,
+		_version_in_use,
+		fetched["ports"],
+		fetched["version"],
+		func(_id: String) -> bool: return true
+	)
+	_version_in_use = maxi(_version_in_use, fetched["version"])
+	_use_catalog(merged["ports"])
+	var added: Array = merged["added"]
+	var changed_ids: Array = added + merged["replaced"]
+	for id in merged["replaced"]:
+		if not _ports[id].has("art"):
+			_art.erase(id)
+	if not changed_ids.is_empty():
+		_fetch_art(changed_ids)
+		_scan()
+	var newer := 0
+	if fetched["version"] > marks["version"]:
+		for id in fetched["newer"]:
+			if not _ports.has(id):
+				newer += 1
+	(
+		_state
+		. set_catalog(
+			{
+				"last_check": _now(),
+				"version": maxi(marks["version"], fetched["version"]),
+				"new": marks["new"] + added,
+			}
+		)
+	)
+	var names := []
+	for id in added:
+		names.append(_ports[id]["name"])
+	var text := CatalogUpdate.notice(names, newer)
+	for id in merged["replaced"]:
+		changed.emit(id)
+	if not text.is_empty():
+		_notice = text
+		notice_changed.emit()
 
 
 ## Runs `work` on the worker pool (inline when not `threaded`) and hands its result to

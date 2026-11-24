@@ -65,7 +65,9 @@ static func parse_latest(port: Dictionary, data: Variant) -> Dictionary:
 	}
 
 
-## PORT-13: only release assets of the catalog's own repo, over https from github.com.
+## PORT-13, PORT-22: only release assets of the entry's own repo, over https from github.com.
+## `port` is an entry of the merged catalog (built-in and fetched), so a repo in neither
+## catalog, or another entry's repo, never gets a download through.
 static func url_allowed(port: Dictionary, url: String) -> bool:
 	var prefix := "https://github.com/%s/releases/download/" % port["repo"]
 	if not url.to_lower().begins_with(prefix.to_lower()):

@@ -17,6 +17,9 @@ extends Node
 ##                notes (PORT-17), with the first card focused
 ##   rom-config   as showcase, with the ROM folder set in config.ini (ROM-12)
 ##   no-card      as showcase, with no SD card or drive (ROM-14)
+##   new-ports    as showcase; 1 s in (or on `add_new_ports` when `simulate` is off) a
+##                catalog fetch adds NEW_DEMO at the end, with its notice and `New` badge
+##                (PORT-23)
 ##
 ## The ROM folder chooser (ROM-11) browses a small made-up tree (TREE, ROM_COUNTS) under
 ## /home/deck and two drives; the SD card search (ROM-14) answers SEARCH_RESULTS after
@@ -33,6 +36,7 @@ signal exited(id: String)
 signal rom_folder_changed
 signal folder_listed(path: String, listing: Dictionary)
 signal search_changed
+signal notice_changed
 
 const SCENARIOS := [
 	"showcase",
@@ -47,7 +51,20 @@ const SCENARIOS := [
 	"first-run",
 	"rom-config",
 	"no-card",
+	"new-ports",
 ]
+const NEW_DELAY := 1.0
+## The port the `new-ports` scenario's catalog fetch adds.
+const NEW_DEMO := {
+	"id": "township",
+	"name": "Township",
+	"game": "Animal Forest",
+	"description": "A PC port of Animal Forest with widescreen and high frame rates.",
+	"latest": "1.0.0",
+	"rom": "Animal Forest (Japan).z64",
+	"first_run": "The first launch makes the game files from your ROM",
+	"wanted": ["JP 1.0"],
+}
 const ART_PORTS := ["soh", "2ship"]
 const ART_SIZE := Vector2i(920, 430)
 const ART_DELAY := 2.0
@@ -213,35 +230,16 @@ var _locked := false
 var _cards := true
 var _search := {"status": "idle", "results": []}
 var _search_left := -1.0
+var _new_wait := -1.0
+var _notice := ""
 
 
 func _init(scenario := "showcase") -> void:
 	for demo in DEMO:
-		_ids.append(demo.id)
-		_info[demo.id] = {
-			"id": demo.id,
-			"name": demo.name,
-			"game": demo.game,
-			"monogram": demo.get("monogram", ""),
-			"description": demo.description,
-			"installed": false,
-			"installed_version": "",
-			"latest_version": demo.latest,
-			"update_available": false,
-			"offline": false,
-			"rom":
-			{
-				"found": true,
-				"label": demo.rom,
-				"path": ROM_FOLDER.path_join(demo.rom),
-				"wanted": demo.wanted
-			},
-			"busy": {"action": "", "progress": -1.0, "detail": ""},
-			"running": false,
-			"first_run": demo.first_run,
-			"error": "",
-		}
+		_add(demo)
 	_apply_scenario(scenario if scenario in SCENARIOS else "showcase")
+	if scenario == "new-ports":
+		_new_wait = NEW_DELAY
 	for id in _ids:
 		_extracted[id] = _info[id].installed and scenario != "first-run"
 	if scenario == "rom-config":
@@ -253,6 +251,57 @@ func _init(scenario := "showcase") -> void:
 		_art_wait = ART_DELAY
 	else:
 		deliver_art(false)
+
+
+func _add(demo: Dictionary) -> void:
+	_ids.append(demo.id)
+	_info[demo.id] = {
+		"id": demo.id,
+		"name": demo.name,
+		"game": demo.game,
+		"monogram": demo.get("monogram", ""),
+		"description": demo.description,
+		"installed": false,
+		"installed_version": "",
+		"latest_version": demo.latest,
+		"update_available": false,
+		"offline": false,
+		"rom":
+		{
+			"found": true,
+			"label": demo.rom,
+			"path": ROM_FOLDER.path_join(demo.rom),
+			"wanted": demo.wanted
+		},
+		"busy": {"action": "", "progress": -1.0, "detail": ""},
+		"running": false,
+		"first_run": demo.first_run,
+		"error": "",
+		"is_new": false,
+	}
+
+
+## PORT-23: what a catalog fetch that adds NEW_DEMO does: the port goes at the end of
+## `list()`, is new, and `notice_changed` fires.
+func add_new_ports() -> void:
+	_new_wait = -1.0
+	if _info.has(NEW_DEMO.id):
+		return
+	_add(NEW_DEMO)
+	_info[NEW_DEMO.id].is_new = true
+	_notice = "1 new port: %s" % NEW_DEMO.name
+	notice_changed.emit()
+
+
+func notice() -> String:
+	return _notice
+
+
+func mark_seen(id: String) -> void:
+	if _info.has(id) and _info[id].is_new:
+		calls.append(["mark_seen", id])
+		_info[id].is_new = false
+		changed.emit(id)
 
 
 ## Gives the art ports their texture (and says so) at once instead of after ART_DELAY.
@@ -293,7 +342,7 @@ static func _demo_art(index: int) -> Texture2D:
 func _apply_scenario(scenario: String) -> void:
 	var first: String = _ids[0]
 	match scenario:
-		"showcase", "art-late", "rom-config", "no-card":
+		"showcase", "art-late", "rom-config", "no-card", "new-ports":
 			_set_installed("soh", "9.3.1")
 			_set_installed("2ship", "5.0.0")
 			_set_busy("starship", "install", 0.42, "33.6 MB of 80 MB")
@@ -549,6 +598,10 @@ func _process(delta: float) -> void:
 		_search_left -= delta
 		if _search_left <= 0.0:
 			finish_search()
+	if _new_wait > 0.0:
+		_new_wait -= delta
+		if _new_wait <= 0.0:
+			add_new_ports()
 	for id in _ids:
 		var port: Dictionary = _info[id]
 		if _jobs.has(id) and port.busy.action in ["install", "update"]:

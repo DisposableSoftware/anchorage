@@ -4,6 +4,8 @@ extends Node
 ##
 ##   fetch_json(url, done)
 ##       done({ok, status, data, error}) with the parsed JSON body in `data`.
+##   fetch_text(url, max_bytes, done)
+##       done({ok, status, text, error}); a body over `max_bytes` fails (PORT-19).
 ##   download(url, dest, progress, done, expected_size := 0)
 ##       Streams the body to `dest` (HTTPRequest.download_file), polled once a frame.
 ##       progress(bytes_done, bytes_total) when more arrived; bytes_total is -1 when unknown.
@@ -14,14 +16,17 @@ extends Node
 ## GitHub asset URLs redirect to a CDN, and the API redirects for a moved repo. Redirects are
 ## followed by hand (max_redirects = 0), at most MAX_HOPS, so each hop can be checked against
 ## `Releases.redirect_allowed` (https, GitHub hosts). Tests use `res://tests/fake_http.gd`,
-## which has the same three methods; `test_http.gd` runs this file against a local server.
+## which has the same methods; `test_http.gd` runs this file against a local server.
 
 const Releases := preload("res://src/releases.gd")
 const USER_AGENT := "Anchorage"
 const MAX_HOPS := 5
 const CHUNK_BYTES := 1 << 20
 
-## Lets http:// URLs through, for a local test server. Never set by the app.
+const LOCAL_HTTP := "^http://127\\.0\\.0\\.1:[0-9]{1,5}/"
+
+## Lets http://127.0.0.1 URLs through, for a local test server. The app sets it only for
+## the ANCHORAGE_CATALOG_URL test hook's own HTTP object.
 var allow_http := false
 ## A download that receives nothing for this long fails.
 var stall_seconds := 60.0
@@ -42,32 +47,47 @@ func _ready() -> void:
 
 
 ## Redirects (a moved repo) are followed by hand, like downloads, and checked the same way.
-func fetch_json(url: String, done: Callable, hops := 0) -> void:
+func fetch_json(url: String, done: Callable) -> void:
+	var headers := [
+		"User-Agent: " + USER_AGENT,
+		"Accept: application/vnd.github+json",
+		"X-GitHub-Api-Version: 2022-11-28",
+	]
+	_fetch(url, headers, 0, 0, done, _json_result)
+
+
+## A text body of at most `max_bytes` (PORT-19, the fetched catalog): done({ok, status, text,
+## error}). Redirects are checked as for `fetch_json`.
+func fetch_text(url: String, max_bytes: int, done: Callable) -> void:
+	var headers := ["User-Agent: " + USER_AGENT, "Accept: application/json, text/plain"]
+	_fetch(url, headers, max_bytes, 0, done, _text_result.bind(max_bytes))
+
+
+func _fetch(
+	url: String, headers: Array, max_bytes: int, hops: int, done: Callable, answer: Callable
+) -> void:
 	if not _url_ok(url):
 		done.call({"ok": false, "status": 0, "error": "Refused URL"})
 		return
 	var request := HTTPRequest.new()
 	request.max_redirects = 0
 	request.timeout = timeout_seconds
+	if max_bytes > 0:
+		request.body_size_limit = max_bytes
 	add_child(request)
 	request.request_completed.connect(
-		func(result: int, code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
+		func(result: int, code: int, got: PackedStringArray, body: PackedByteArray) -> void:
 			request.queue_free()
 			if _is_redirect(result, code):
-				var target := _resolve(url, _header(headers, "location"))
+				var target := _resolve(url, _header(got, "location"))
 				if hops >= MAX_HOPS or target.is_empty() or not _redirect_ok(target):
 					done.call({"ok": false, "status": code, "error": "Refused a redirect"})
 				else:
-					fetch_json(target, done, hops + 1)
+					_fetch(target, headers, max_bytes, hops + 1, done, answer)
 				return
-			done.call(_json_result(result, code, body))
+			done.call(answer.call(result, code, body))
 	)
-	var headers := [
-		"User-Agent: " + USER_AGENT,
-		"Accept: application/vnd.github+json",
-		"X-GitHub-Api-Version: 2022-11-28",
-	]
-	var err := request.request(url, headers)
+	var err := request.request(url, PackedStringArray(headers))
 	if err != OK:
 		request.queue_free()
 		done.call({"ok": false, "status": 0, "error": error_string(err)})
@@ -181,11 +201,16 @@ func _free_request() -> void:
 
 
 func _url_ok(url: String) -> bool:
-	return url.begins_with("https://") or (allow_http and url.begins_with("http://"))
+	return url.begins_with("https://") or _local_http(url)
+
+
+## http:// only to a server on this machine, and only with `allow_http`.
+func _local_http(url: String) -> bool:
+	return allow_http and RegEx.create_from_string(LOCAL_HTTP).search(url) != null
 
 
 func _redirect_ok(url: String) -> bool:
-	if allow_http and url.begins_with("http://"):
+	if _local_http(url):
 		return true
 	if redirect_check.is_valid():
 		return redirect_check.call(url)
@@ -225,6 +250,18 @@ static func _json_result(result: int, code: int, body: PackedByteArray) -> Dicti
 	if json.parse(body.get_string_from_utf8()) != OK:
 		return {"ok": false, "status": code, "error": "GitHub sent unreadable data"}
 	return {"ok": true, "status": code, "data": json.data, "error": ""}
+
+
+static func _text_result(
+	result: int, code: int, body: PackedByteArray, max_bytes: int
+) -> Dictionary:
+	if result == HTTPRequest.RESULT_BODY_SIZE_LIMIT_EXCEEDED or body.size() > max_bytes:
+		return {"ok": false, "status": code, "error": "The answer is too large"}
+	if result != HTTPRequest.RESULT_SUCCESS:
+		return {"ok": false, "status": 0, "error": _result_text(result)}
+	if code != 200:
+		return {"ok": false, "status": code, "error": "HTTP %d" % code}
+	return {"ok": true, "status": code, "text": body.get_string_from_utf8(), "error": ""}
 
 
 static func _result_text(result: int) -> String:

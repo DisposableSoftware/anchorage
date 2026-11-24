@@ -10,6 +10,7 @@ const ChooserScene := preload("res://scenes/rom_folder.tscn")
 const Keys := preload("res://src/keys.gd")
 const PortState := preload("res://src/ui/port_state.gd")
 const Style := preload("res://src/theme.gd")
+const Toast := preload("res://src/ui/toast.gd")
 ## Cards that share the row's width; a longer row scrolls sideways (HOME-1).
 const FULL_ROW := 4
 ## How much of a longer row is in view, in cards: four and part of the fifth.
@@ -24,6 +25,7 @@ var _cards: Array[Control] = []
 var _current: Control
 ## The ROM folder chooser while it is open (ROM-11).
 var _chooser: Control
+var _toast: Control
 
 @onready var _cards_scroll: ScrollContainer = %CardsScroll
 @onready var _cards_box: HBoxContainer = %Cards
@@ -52,14 +54,11 @@ var _chooser: Control
 
 func _ready() -> void:
 	_scrim.color = get_theme_color("scrim", "Palette")
-	var ids: Array = ports.list()
-	for i in ids.size():
-		var card := CardScene.instantiate()
-		_cards_box.add_child(card)
-		card.show_port(ports.info(ids[i]), i)
-		card.focus_entered.connect(_on_card_focused.bind(card))
-		card.activated.connect(_on_card_activated)
-		_cards.append(card)
+	for id in ports.list():
+		_add_card(id)
+	_toast = Toast.new()
+	add_child(_toast)
+	ports.notice_changed.connect(_on_notice)
 	ports.changed.connect(_on_changed)
 	ports.launched.connect(_on_launched)
 	ports.exited.connect(_on_exited)
@@ -86,6 +85,36 @@ func _ready() -> void:
 		if ports.info(card.port_id).running:
 			_show_playing(card)
 	_refresh_view()
+
+
+func _add_card(id: String) -> Control:
+	var card := CardScene.instantiate()
+	_cards_box.add_child(card)
+	card.show_port(ports.info(id), _cards.size())
+	card.focus_entered.connect(_on_card_focused.bind(card))
+	card.activated.connect(_on_card_activated)
+	_cards.append(card)
+	return card
+
+
+## PORT-23: a catalog fetch appended ports. Their cards go at the end of the row, and the
+## notice shows for a few seconds.
+func _on_notice() -> void:
+	var added := false
+	for id in ports.list():
+		if card_for(id) == null:
+			var card := _add_card(id)
+			if not _cards.is_empty() and _cards[0].focus_mode == Control.FOCUS_NONE:
+				card.focus_mode = Control.FOCUS_NONE
+			added = true
+	if added:
+		_size_cards()
+		_link_focus(_cards, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP, SIDE_BOTTOM)
+	_toast.show_text(ports.notice())
+
+
+func toast_text() -> String:
+	return _toast.text()
 
 
 ## Chains `row` along `back`/`forward` and pins the cross sides to each control, so the
@@ -286,6 +315,7 @@ func _on_card_focused(card: Control) -> void:
 		return
 	_current = card
 	_scroll_to(card)
+	ports.mark_seen(card.port_id)
 	_refresh_view()
 
 

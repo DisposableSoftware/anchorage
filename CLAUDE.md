@@ -55,34 +55,37 @@ app/src/config.gd        config.ini + keybindings.ini, first-run files          
 app/src/keys.gd          Keys.BINDINGS, key and gamepad tokens, InputMap setup, hint labels   KEY HOME-11
 app/src/palette.gd       the four Catppuccin palettes (the only hex colours)      LOOK-3
 app/src/theme.gd         builds the one Theme: type variations, "Palette" colours, contrast   LOOK-2 LOOK-5 LOOK-6 LOOK-8
-app/src/ports.gd         Ports, the one service screens use: state, queue, checks, scans, launches, art   PORT-5 PORT-6 PORT-9 PORT-12 PORT-14 PORT-17 ROM-4 ROM-5 ROM-9 ART-3
-app/src/ports_fake.gd    stand-in for Ports with demo data and scenarios (tests, screenshots)   PORT-14
-app/src/catalog.gd       reads and checks data/ports.json (its schema is in the header)   PORT-1 PORT-16 PORT-17 ART-1
-app/src/releases.gd      latest release from the GitHub API, asset choice and digest, update-check rule, redirect hosts   PORT-2 PORT-3 PORT-5 PORT-13
-app/src/http.gd          HTTPRequest wrapper: JSON, downloads with progress, redirects followed by hand and checked   PORT-4 PORT-13
+app/src/ports.gd         Ports, the one service screens use: state, queue, checks, scans, launches, art, catalog merge and notice   PORT-5 PORT-6 PORT-9 PORT-12 PORT-14 PORT-17 ROM-4 ROM-5 ROM-9 ART-3 PORT-18 PORT-20 PORT-21 PORT-23
+app/src/ports_fake.gd    stand-in for Ports with demo data and scenarios (tests, screenshots); new-ports adds a port with its notice   PORT-14 PORT-23
+app/src/catalog.gd       reads and checks data/ports.json and fetched catalogs (schema in the header), merge by id   PORT-1 PORT-16 PORT-17 PORT-19 PORT-20 PORT-22 ART-1
+app/src/catalog_update.gd the fetched catalog: URL and ANCHORAGE_CATALOG_URL hook, fetch, cache file, notice text   PORT-18 PORT-19 PORT-21 PORT-23
+app/src/releases.gd      latest release from the GitHub API, asset choice and digest, update-check rule, redirect hosts; assets only from the entry's own repo   PORT-2 PORT-3 PORT-5 PORT-13 PORT-22
+app/src/http.gd          HTTPRequest wrapper: JSON, text with a size limit, downloads with progress, redirects followed by hand and checked   PORT-4 PORT-13 PORT-19
 app/src/installer.gd     download, digest, unpack, swap current/previous (worker), remove, stale cleanup, extra files   PORT-3 PORT-6 PORT-7 PORT-10
 app/src/launcher.gd      child environment, /bin/sh spawn, ROM placement and argument, placed-copy cleanup   PORT-8 PORT-9 PORT-15 PORT-16
-app/src/state.gd         state.ini: installed and latest tags, archive version, placed ROM, last check, ROM scan cache   PORT-11
+app/src/state.gd         state.ini: installed and latest tags, archive version, placed ROM, last check, ROM scan cache, catalog check time and new ports   PORT-11 PORT-23
 app/src/roms.gd          ROM scan (ScanJob thread, abort), zip sizes, SHA1 identification, big-endian prepare, real paths   ROM
 app/src/rom_folders.gd   ROM folder detection (EmuDeck, RetroDECK, defaults, mounts), SD card search (SearchJob), chooser listings   ROM-10 ROM-14 ROM-15 ROM-16
 app/scenes/rom_folder.tscn + app/src/ui/rom_folder.gd   the ROM folder chooser: starting points, folders, search, config.ini notice   ROM-11 ROM-12 ROM-14
 app/src/art.gd           cover art: download one at a time, cache by URL hash, size and type checks, decode   ART-3 ART-4 ART-6
-app/src/ui/home.gd       home screen logic: focus, accept, menu, dialog, Playing, hints   HOME
-app/src/ui/card.gd       a card: emblem, titles, badge, progress, focus/selection look   HOME-2 HOME-12
+app/src/ui/home.gd       home screen logic: focus, accept, menu, dialog, Playing, hints, cards for fetched ports and their toast   HOME PORT-23
+app/src/ui/card.gd       a card: emblem, titles, badge, New badge, progress, focus/selection look   HOME-2 HOME-12 PORT-23
+app/src/ui/toast.gd      a short notice at the top that hides itself (the catalog notice)   PORT-23
 app/src/ui/detail.gd     detail panel: description or first-launch note, versions, ROM status, progress, errors   HOME-3 HOME-8 HOME-9 PORT-17
 app/src/ui/hint_bar.gd   the hint bar from the live InputMap                      HOME-11
 app/src/ui/port_state.gd state, badge text and primary action of one info() dict  HOME-2 HOME-4
 app/fonts/               Inter (variable) and its licence (OFL 1.1)               LOOK-6
 app/data/                config.example.ini + keybindings.example.ini (first-run files)   CONF-2
-app/data/ports.json      the port catalog                                         PORT-1
+app/data/ports.json      the port catalog (schema, version, ports); docs/adding-a-port.md says how to add one   PORT-1 PORT-18
 app/tests/               run.gd (runner; awaits tests that await; TESTS=name runs one file), case.gd (base), test_*.gd; test_spec.gd checks spec <-> code
 app/tests/test_home_row.gd the cards row at 1280x720, 1280x800, 1920x1080: seven cards scroll with focus; every first-run note fits the detail panel   HOME-1 PORT-17
-app/tests/test_http.gd   http.gd against a local TCPServer: redirects, stall, cancel, size limit, JSON   PORT-4 PORT-13
+app/tests/test_http.gd   http.gd against a local TCPServer: redirects, stall, cancel, size limit, JSON, text, local http only   PORT-4 PORT-13 PORT-19
+app/tests/test_catalog_update.gd the fetched catalog: strict checks, hostile entries, argv not shell, merge, cache, hour, notice, New badge, repos   PORT-18 .. PORT-23
 app/tests/test_art.gd    art.gd with fake HTTP; art_catalog.json is its test catalog   ART
 app/tests/test_rom_folders.gd, test_rom_folder.gd   ROM folder detection and search over fake trees; Ports' folder API and the chooser screen   ROM-10 .. ROM-16
-app/tests/fake_http.gd   http.gd stand-in that answers from memory and local files
+app/tests/fake_http.gd   http.gd stand-in that answers from memory and local files (json, text, files)
 scripts/test.sh          runs app/tests headless with every XDG folder in a temp dir; fails on script, Unicode and engine errors (allowlist for the tests that break input on purpose)
-scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway); art.sh fetches the real cover art (ART), e2e.sh installs and starts the real ports
+scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway); art.sh fetches the real cover art (ART), e2e.sh installs and starts the real ports, catalog.sh serves a catalog from 127.0.0.1 (PORT-18 .. PORT-23)
 scripts/check-no-roms.sh   refuses ROM-like names, N64 ROM headers and files over 5 MiB (PROD-14)
 scripts/release-check.sh recommended version bump since the last v* tag (spec delta)
 scripts/release.sh       bump, commit "Anchorage X.Y.Z", tag, draft notes (no push)
@@ -98,7 +101,7 @@ app/icon.svg             Godot project and window icon: a copy of the app icon (
 tools/steam-art/         generate.py draws the icons and Steam art as SVG; shell.nix pins its tools   INT-27 INT-42
 scripts/render-steam-art.sh runs generate.py and renders data/steam/*.png; --check fails on stale files   INT-27
 nix/                     package.nix, appimage.nix (+ AppRun), nixos-module.nix, hm-module.nix   INT-2x
-docs/                    icon.svg (README icon, a copy of the app icon), screenshots/ (README and metainfo, 1280x720, demo data), research/   INT-41 INT-43
+docs/                    icon.svg (README icon, a copy of the app icon), screenshots/ (README and metainfo, 1280x720, demo data), research/, adding-a-port.md (maintainers: catalog fields, ROM hashes, version, test hook)   INT-41 INT-43 PROD-13
 spec/                    the specification
 ```
 
@@ -135,9 +138,13 @@ Prefer adding a script to `scripts/manual/` (source `lib.sh`, which has the guar
 
 `scripts/manual/steam-install.sh` (`nix flake check` runs it as `checks.x86_64-linux.steam-install`) tests `scripts/install-steamos.sh` without Steam or the network: fake HOMEs and Steam folders, a fake `pgrep` for "Steam is running", and a fake GitHub API and release on 127.0.0.1, which the installer reaches through `ANCHORAGE_API_URL` and `ANCHORAGE_DOWNLOAD_BASE` (test hooks only). It reads the results with ValvePython's `vdf`, never with the installer's own parser. `KEEP=1` keeps the temp dir. The installer reads nothing from stdin (it runs as `curl | bash`), and it uses only bash, curl and coreutils: no python3, jq or xxd. Steam showing the shortcut and its art can only be checked on a Deck. The decisions and sources are in `spec/integration.md`, "Implementation notes: the SteamOS installer".
 
+### Catalog updates
+
+The app fetches `app/data/ports.json` from `main` (`PORT-18`). `ANCHORAGE_CATALOG_URL` (test hook only: `http://127.0.0.1:<port>/...` or `https://raw.githubusercontent.com/...`) points it elsewhere. `scripts/manual/catalog.sh` serves the shipped catalog plus a made-up port, a hostile entry and a future one from 127.0.0.1 and checks the notice, the `New` badge, the cache and the refusals in a sandboxed HOME, with screenshots: `HEADLESS_RES=1280x720 HEADLESS_SCALE=1 OUT=/tmp/shots scripts/manual/headless.sh scripts/manual/catalog.sh`. Maintainers add ports with [docs/adding-a-port.md](docs/adding-a-port.md); a change to `ports.json` on `main` reaches every user, so review it like code.
+
 ### Fake ports and screenshots
 
-`--fake-ports [SCENARIO]` after `--` starts the app with `app/src/ports_fake.gd` instead of the real service (it is also used while `app/src/ports.gd` doesn't exist): `./result/bin/anchorage -- --fake-ports error`, or `godot --path app -- --fake-ports offline`. Scenarios: `showcase` (default: one card per state), `fresh`, `installing`, `updating`, `rom-missing`, `error`, `offline`, `playing`, `art-late`, `first-run` (every port installed without its game files: the first-launch notes), `rom-config` (the ROM folder set in `config.ini`), `no-card` (no SD card or drive); the list and what each sets are at the top of `ports_fake.gd`. Actions in the fake play out over time (a download takes 6 s, a launched port runs 8 s); the scenarios' own busy states stay still, so screenshots repeat.
+`--fake-ports [SCENARIO]` after `--` starts the app with `app/src/ports_fake.gd` instead of the real service (it is also used while `app/src/ports.gd` doesn't exist): `./result/bin/anchorage -- --fake-ports error`, or `godot --path app -- --fake-ports offline`. Scenarios: `showcase` (default: one card per state), `fresh`, `installing`, `updating`, `rom-missing`, `error`, `offline`, `playing`, `art-late`, `first-run` (every port installed without its game files: the first-launch notes), `rom-config` (the ROM folder set in `config.ini`), `no-card` (no SD card or drive), `new-ports` (a catalog fetch adds a port 1 s in: its card, `New` badge and notice); the list and what each sets are at the top of `ports_fake.gd`. Actions in the fake play out over time (a download takes 6 s, a launched port runs 8 s); the scenarios' own busy states stay still, so screenshots repeat.
 
 - `scripts/manual/shots.sh SIZE` takes a screenshot of every scenario, the options menu, the Remove dialog and latte with blue: `HEADLESS_RES=1280x720 HEADLESS_SCALE=1 OUT=/tmp/shots scripts/manual/headless.sh scripts/manual/shots.sh 1280x720`. `FLAVOR` and `ACCENT` change the look for the whole run.
 - `scripts/manual/rom-folder.sh SIZE` takes screenshots of the ROM folder chooser (`ROM-11`, `ROM-12`, `ROM-14`), same usage as `shots.sh`.

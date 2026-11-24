@@ -102,6 +102,18 @@ mouse_filter = 2
 layout_mode = 2
 mouse_filter = 2
 
+[node name="NewBadge" type="PanelContainer" parent="Box/BadgeRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"Badge_busy"
+
+[node name="NewBadgeText" type="Label" parent="Box/BadgeRow/NewBadge"]
+layout_mode = 2
+theme_type_variation = &"BadgeText_busy"
+text = "New"
+
 [node name="Badge" type="PanelContainer" parent="Box/BadgeRow"]
 unique_name_in_owner = true
 layout_mode = 2
