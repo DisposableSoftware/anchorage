@@ -283,7 +283,13 @@ func test_hints_follow_the_live_bindings() -> void:
 	Keys.apply({"accept": ["Space", "Pad:RightShoulder"], "options": ["Pad:Start"]})
 	home.get_node("%HintBar").show_hints([["ui_accept", "Play"], ["options", "Options"]])
 	eq(home.hint_text(), "R1 Space Play · Menu Options", "remapped bindings show")
+	# The same hints again (a download's progress) keep the bar as it is (HOME-13).
+	var items: Array = home.get_node("%Hints").get_children()
+	home.get_node("%HintBar").show_hints([["ui_accept", "Play"], ["options", "Options"]])
+	eq(home.get_node("%Hints").get_children(), items, "not rebuilt when nothing changed")
 	Keys.apply({})
+	home.get_node("%HintBar").show_hints([["ui_accept", "Play"], ["options", "Options"]])
+	eq(home.hint_text(), "A Enter Play · Y O Options", "a changed binding rebuilds it")
 	_done(home)
 
 

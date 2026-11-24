@@ -6,7 +6,7 @@ extends Node
 ##       done({ok, status, data, error}) with the parsed JSON body in `data`.
 ##   download(url, dest, progress, done, expected_size := 0)
 ##       Streams the body to `dest` (HTTPRequest.download_file), polled once a frame.
-##       progress(bytes_done, bytes_total) every frame; bytes_total is -1 when unknown.
+##       progress(bytes_done, bytes_total) when more arrived; bytes_total is -1 when unknown.
 ##       done({ok, status, error, cancelled}). One download at a time.
 ##   cancel_download()
 ##       Stops the running download; `done` still fires, with cancelled = true.
@@ -106,10 +106,10 @@ func _process(delta: float) -> void:
 	var total := _request.get_body_size()
 	if total <= 0:
 		total = _job["expected"] if _job["expected"] > 0 else -1
-	_job["progress"].call(got, total)
 	if got != _last_bytes:
 		_last_bytes = got
 		_stalled = 0.0
+		_job["progress"].call(got, total)
 	else:
 		_stalled += delta
 		if _stalled > stall_seconds:

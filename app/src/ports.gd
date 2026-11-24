@@ -424,6 +424,8 @@ func _on_release(job: Dictionary, result: Dictionary) -> void:
 		installer.update(_ports[id], release, progress, done)
 
 
+## Progress in whole percent, with the bytes shown at that percent, so `changed` fires at
+## most about a hundred times per download instead of for every chunk (HOME-13).
 func _on_progress(job: Dictionary, stage: String, got: int, total: int) -> void:
 	if job["cancelled"] or job["ended"]:
 		return
@@ -431,14 +433,18 @@ func _on_progress(job: Dictionary, stage: String, got: int, total: int) -> void:
 	match stage:
 		"download":
 			if total > 0:
-				busy["progress"] = clampf(float(got) / total, 0.0, 1.0)
-				busy["detail"] = "%s of %s" % [_megabytes(got), _megabytes(total)]
+				var percent := clampi(floori(100.0 * got / total), 0, 100)
+				busy["progress"] = percent / 100.0
+				var shown := int(total * percent / 100.0)
+				busy["detail"] = "%s of %s" % [_megabytes(shown), _megabytes(total)]
 			else:
-				busy["detail"] = _megabytes(got)
+				busy["detail"] = _megabytes(got - got % 1_000_000)
 		"unpack":
 			busy["detail"] = "Unpacking"
 		_:
 			busy["detail"] = "Finishing"
+	if _busy.get(job["id"]) == busy:
+		return
 	_busy[job["id"]] = busy
 	changed.emit(job["id"])
 

@@ -327,6 +327,31 @@ func test_install_fetches_the_latest_release_then_rescans() -> void:
 	_free(ports)
 
 
+## HOME-8, HOME-13: progress is reported in whole percent, and `changed` only fires when
+## what the screen shows changes, not for every chunk (the screen rebuilt every frame).
+func test_download_progress_changes_only_when_the_shown_value_does() -> void:
+	_setup("ports_progress")
+	_publish("alpha", "1.0")
+	_http.chunk = 1
+	var ports := _make()
+	var shown := []
+	ports.changed.connect(
+		func(id: String) -> void:
+			if id == "alpha" and ports.info(id).busy.detail.contains(" of "):
+				shown.append(ports.info(id).busy.duplicate())
+	)
+	ports.install("alpha")
+	check(ports.info("alpha").installed, "installed")
+	check(shown.size() > 10, "progress shown: %d" % shown.size())
+	check(shown.size() <= 101, "at most once per percent, not per chunk: %d" % shown.size())
+	for i in range(1, shown.size()):
+		check(shown[i] != shown[i - 1], "each change shows something new")
+	for busy in shown:
+		var percent: float = busy.progress * 100.0
+		check(absf(percent - roundf(percent)) < 1e-6, "whole percent: %s" % percent)
+	_free(ports)
+
+
 func test_failures_become_could_not_messages() -> void:
 	_setup("ports_fail")
 	var url := _publish("alpha", "2.0")

@@ -4,11 +4,19 @@ extends PanelContainer
 
 const Keys := preload("res://src/keys.gd")
 
+## The hints and their inputs last shown; the same again leaves the bar as it is, since
+## every progress step of a download asks for the hints again (HOME-13).
+var _shown := []
+
 @onready var _hints: HBoxContainer = %Hints
 
 
 ## `hints`: [[action, label], ...], in the order shown.
 func show_hints(hints: Array) -> void:
+	var wanted := hints.map(func(hint: Array) -> Array: return [hint, Keys.hint(hint[0])])
+	if wanted == _shown:
+		return
+	_shown = wanted
 	for child in _hints.get_children():
 		_hints.remove_child(child)
 		child.queue_free()
