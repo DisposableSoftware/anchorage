@@ -21,3 +21,10 @@ The order of approved work: `planned` requirements, and `partial` ones with a kn
 Built requirements that are not fully verified. Clear these before starting new planned work.
 
 None.
+
+## Backlog
+
+Not approved for the current work. Move an item up and give it rows when it is ready.
+
+- **Township** (Animal Crossing, N64): in-progress HarbourMasters port, no release yet. Add to the catalog (`PROD-13`) when it has a Linux release: research its ROM hashes, launch and first-run behaviour, and curate art as for the other ports.
+- **Courage Reborn** (The Legend of Zelda: Twilight Princess): in-progress HarbourMasters port, no release yet. Same steps. Twilight Princess is a GameCube and Wii game, so its ROM folder and file types (ISO, RVZ, WBFS) are not N64's: the ROM scan (`ROM-1`, `ROM-2`) and the `[roms] directory` setting would need per-port folders or extensions first.
