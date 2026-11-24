@@ -19,6 +19,7 @@ A controller-first launcher for the [HarbourMasters](https://github.com/HarbourM
 | `PROD-11` | Scan a configured ROM directory (default `~/Roms/n64`) and match each ROM by hash to the right port. Run the port's own asset extraction. | planned |
 | `PROD-12` | Show the state of each port: not installed, installed, update available, or ROM missing. | planned |
 | `PROD-13` | Ports are data entries (name, GitHub repo, release asset pattern, ROM hashes), so adding a port adds a row, not code. | planned |
+| `PROD-14` | No ROM, game archive or game asset ever enters the repository, its history or a push: `.gitignore` lists them, and `scripts/check-no-roms.sh` (run by the pre-push hook on every push) refuses ROM-like file names, N64 ROM headers under any name, and files over 5 MiB. | done | `scripts/manual/check-no-roms.sh` |
 
 ## Style guide
 

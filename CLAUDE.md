@@ -82,13 +82,14 @@ app/tests/test_rom_folders.gd, test_rom_folder.gd   ROM folder detection and sea
 app/tests/fake_http.gd   http.gd stand-in that answers from memory and local files
 scripts/test.sh          runs app/tests headless with every XDG folder in a temp dir; fails on script, Unicode and engine errors (allowlist for the tests that break input on purpose)
 scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway); art.sh fetches the real cover art (ART), e2e.sh installs and starts the real ports
+scripts/check-no-roms.sh   refuses ROM-like names, N64 ROM headers and files over 5 MiB (PROD-14)
 scripts/release-check.sh recommended version bump since the last v* tag (spec delta)
 scripts/release.sh       bump, commit "Anchorage X.Y.Z", tag, draft notes (no push)
 scripts/build-appimage.sh builds the AppImage into dist/ (git-ignored)             INT-26
 scripts/release-assets.sh stages a release's files in dist/vX.Y.Z/: AppImage, Steam art, icon, pinned install-steamos.sh, SHA256SUMS   INT-28 INT-34
 scripts/install-steamos.sh SteamOS one-command install (curl | bash): AppImage, desktop entry, Steam shortcut and art; bash VDF reader/writer   INT-28 INT-29 INT-33 INT-34
 scripts/manual/steam-install.sh the installer against fake Steam folders and a fake GitHub (steam-install/: fixtures.py, check.py with ValvePython's vdf)   INT-28 INT-29 INT-33 INT-34
-.githooks/pre-push       on a push of main, offers to release
+.githooks/pre-push       on every push refuses ROMs and large files (scripts/check-no-roms.sh, PROD-14); on a push of main, offers to release
 data/                    desktop entry, metainfo, app icon and symbolic icon (drawn by tools/steam-art)   INT-2 INT-41 INT-42
 data/steam/              Steam library art: portrait, wide, hero, logo (SVG + PNG) and icon.png; generated   INT-27
 data/themes/             the style guide's Catppuccin CSS files, for test_palette   LOOK-3

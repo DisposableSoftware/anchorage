@@ -4,3 +4,26 @@
 /app/export_presets.cfg.bak
 /.claude/worktrees/
 /dist/
+
+# Never commit ROMs, game archives or generated game assets.
+*.z64
+*.n64
+*.v64
+*.u64
+*.rom
+*.o2r
+*.otr
+*.iso
+*.rvz
+*.wbfs
+*.gcm
+*.nes
+*.smc
+*.sfc
+*.gba
+*.gbc
+*.nds
+*.3ds
+/roms/
+/Roms/
+/sandbox/
