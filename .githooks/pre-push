@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
 # Enabled with: git config core.hooksPath .githooks
-# On a push of main, recommends a version bump (scripts/release-check.sh) and offers to
-# release: bump, tag, push and create the GitHub release.
-# Skip with NO_RELEASE_CHECK=1 or `git push --no-verify`.
+# On every push: refuses ROMs, game assets and large files (scripts/check-no-roms.sh, PROD-14).
+# On a push of main: says what scripts/release-check.sh recommends, then pushes. It does not
+# release: a release needs the AppImage and its assets, which `/release` builds and attaches.
+# Skip the release note with NO_RELEASE_CHECK=1. `git push --no-verify` skips the whole hook.
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
 pushes_main=0
 zero=0000000000000000000000000000000000000000
-while read -r local_ref local_sha remote_ref remote_sha; do
+while read -r _ local_sha remote_ref remote_sha; do
   [ "$remote_ref" = refs/heads/main ] && pushes_main=1
   [ "$local_sha" = "$zero" ] && continue
-  if [ "$remote_sha" = "$zero" ]; then range=("$local_sha" --not --remotes); else range=("$remote_sha..$local_sha"); fi
+  # A remote commit we do not have (a forced push after the remote moved) cannot make a
+  # range: check everything no remote-tracking ref has instead.
+  if [ "$remote_sha" != "$zero" ] && git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    range=("$remote_sha..$local_sha")
+  else
+    range=("$local_sha" --not --remotes)
+  fi
   scripts/check-no-roms.sh "${range[@]}" || exit 1
 done
 
@@ -19,40 +26,9 @@ done
 
 mapfile -t check < <(scripts/release-check.sh HEAD)
 level=${check[0]:-none}
-[ "$level" = none ] && exit 0
-
-echo "pre-push: commits since the last release suggest a $level bump:" >&2
-printf '  %s\n' "${check[@]:1}" >&2
-if ! { exec 3<>/dev/tty; } 2>/dev/null; then
-  echo "pre-push: no terminal; pushing without a release" >&2
-  exit 0
+if [ "$level" != none ]; then
+  echo "pre-push: the commits since the last release suggest a $level release:" >&2
+  printf '  %s\n' "${check[@]:1}" >&2
+  echo "pre-push: run /release to build the AppImage and publish it" >&2
 fi
-
-printf 'Release? [r]elease %s / [p]atch / [m]inor / [M]ajor / [s]kip, push without one / [a]bort: ' "$level" >&3
-read -r answer <&3
-case $answer in
-  r | R | "") choice=$level ;;
-  p) choice=patch ;;
-  m) choice=minor ;;
-  M) choice=major ;;
-  s) exit 0 ;;
-  *) echo "pre-push: aborted" >&2; exit 1 ;;
-esac
-
-notes=$(mktemp --suffix=.md)
-tag=$(scripts/release.sh "$choice" "$notes") || exit 1
-${GIT_EDITOR:-${VISUAL:-${EDITOR:-vi}}} "$notes" <&3 >&3 2>&3
-
-printf 'Push main and %s, then publish the release? [y/N] ' "$tag" >&3
-read -r answer <&3
-if [ "$answer" != y ]; then
-  echo "pre-push: $tag is committed and tagged locally; nothing pushed. Notes: $notes" >&2
-  exit 1
-fi
-NO_RELEASE_CHECK=1 git push origin main "$tag" &&
-  gh release create "$tag" --title "Anchorage ${tag#v}" -F "$notes" ||
-  { echo "pre-push: release failed; notes are in $notes" >&2; exit 1; }
-rm -f "$notes"
-# The original push named the commit before the bump, which is already pushed now.
-echo "pre-push: released $tag. Git reports this push as failed because the hook pushed instead." >&2
-exit 1
+exit 0

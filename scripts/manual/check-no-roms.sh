@@ -27,4 +27,27 @@ newrepo; echo x >"$T/r/Game.ZIP"; commit
 check "upper-case archive extension" 1 "$(run)"
 newrepo; echo x >"$T/r/oot.o2r"; commit
 check "generated game archive" 1 "$(run)"
+newrepo; head -c 2000 /dev/urandom | gzip -c >"$T/r/game.dat"; commit
+check "gzip under an innocent name" 1 "$(run)"
+newrepo; (cd "$T/r" && printf 'BZh91AY' >Game.z64.bz2); commit
+check "compressed ROM by name" 1 "$(run)"
+newrepo; (cd "$T/r" && printf 'PK\003\004zzzz' >saves.dat); commit
+check "zip under an innocent name" 1 "$(run)"
+newrepo; (cd "$T/r" && printf 'x' >"$(printf 'a\nb.z64')"); commit
+check "newline in a path" 1 "$(run)"
+newrepo; echo x >"$T/r/a b.txt"; commit
+check "a path with a space passes" 0 "$(run)"
+# An unknown range must fail closed, never pass silently.
+newrepo; echo x >"$T/r/a.txt"; commit
+bad=$( (cd "$T/r" && "$here/scripts/check-no-roms.sh" 1234567890123456789012345678901234567890..HEAD >/dev/null 2>&1; echo $?) )
+check "unknown revision range fails closed" 1 "$bad"
+
+# The hook: a forced push whose remote sha is unknown must still check the commits.
+newrepo; printf '\x80\x37\x12\x40rest' >"$T/r/notes.txt"; commit
+head=$(git -C "$T/r" rev-parse HEAD)
+mkdir -p "$T/r/.githooks" "$T/r/scripts"
+cp "$here/.githooks/pre-push" "$T/r/.githooks/pre-push"; cp "$here/scripts/check-no-roms.sh" "$T/r/scripts/"
+cp "$here/scripts/release-check.sh" "$T/r/scripts/"
+hook=$( (cd "$T/r" && echo "refs/heads/main $head refs/heads/main 1234567890123456789012345678901234567890" | NO_RELEASE_CHECK=1 .githooks/pre-push >/dev/null 2>&1; echo $?) )
+check "hook: unknown remote sha still checks, and refuses a ROM" 1 "$hook"
 [ "$fails" = 0 ]
