@@ -43,8 +43,9 @@ the right one. It never downloads ROMs.
 - **Controller first:** everything works with a gamepad alone, with a hint bar that shows
   your current buttons. A keyboard and mouse work too, and every binding can be changed.
 - **Catppuccin theming:** all four flavours and all 14 accents.
-- **Made for Game Mode:** fullscreen at 1280×720 and up, one Steam shortcut with its own
-  artwork, and the ports run as child processes, so quitting a game brings you back.
+- **Made for Game Mode:** fullscreen at 1280×720 and up, laid out for the Steam Deck's
+  16:10 screen as well as 16:9 TVs and monitors, one Steam shortcut with its own artwork,
+  and the ports run as child processes, so quitting a game brings you back.
 
 | | |
 |---|---|
@@ -168,6 +169,10 @@ it from your library; it opens fullscreen on the row of cards.
    you quit the game, and then you are back on the same card.
 3. <kbd>Y</kbd> opens the port's menu: Play, Update, Check for updates, ROM folder and
    Remove. Remove asks first, and keeps your saves and settings.
+4. <kbd>Menu</kbd> (the ☰ button, <kbd>Start</kbd> on other gamepads) opens Anchorage's
+   own menu: Check for updates and new ports, ROM folder and Quit Anchorage.
+5. To quit, choose Quit Anchorage in that menu, or press <kbd>B</kbd> on the cards with
+   nothing to cancel and confirm with Quit (focus starts on Stay).
 
 Anchorage checks for updates when it starts (at most once an hour) and when you press
 <kbd>X</kbd>. A card with `Update available` updates on <kbd>A</kbd>, and its menu still has
@@ -232,12 +237,15 @@ ones.
 |---|---|---|---|
 | `up` `down` `left` `right` | Move | <kbd>D-pad</kbd>, <kbd>Left stick</kbd> | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> |
 | `accept` | Install, update or play; press the focused button | <kbd>A</kbd> | <kbd>Enter</kbd> |
-| `back` | Go back, close a menu, cancel a download | <kbd>B</kbd> | <kbd>Escape</kbd> |
+| `back` | Go back, close a menu, cancel a download; on the cards, ask to quit | <kbd>B</kbd> | <kbd>Escape</kbd> |
 | `options` | Open the port's menu; in the ROM folder chooser, use this folder | <kbd>Y</kbd> | <kbd>O</kbd> |
 | `refresh` | Check for updates and rescan the ROM folder | <kbd>X</kbd> | <kbd>F5</kbd> |
-| `quit` | Quit Anchorage | | <kbd>Ctrl</kbd>+<kbd>Q</kbd> |
+| `menu` | Open the app menu: Check for updates and new ports, ROM folder, Quit Anchorage | <kbd>Menu</kbd> (<kbd>Start</kbd>) | <kbd>F10</kbd> |
+| `quit` | Quit Anchorage at once | | <kbd>Ctrl</kbd>+<kbd>Q</kbd> |
 
-With a mouse, pointing at a card focuses it, and a click does what <kbd>A</kbd> does.
+With a mouse, pointing at a card focuses it, and a click does what <kbd>A</kbd> does. A
+click on a hint in the bar at the bottom does what its button does, so Menu opens the app
+menu.
 
 ## Configuration
 
@@ -284,7 +292,7 @@ check_updates = true
 # keybindings.ini: separate keys with ';', leave empty to unbind
 [keybindings]
 quit = Ctrl+Q;Alt+F4
-refresh = F5;Pad:X;Pad:Start
+refresh = F5;Pad:X;Pad:RightShoulder
 ```
 
 A key is optional `Ctrl+`, `Shift+`, `Alt+` or `Super+` and a Godot key name (`Enter`,
