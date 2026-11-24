@@ -9,6 +9,7 @@ Steam ROM Manager and BoilR write it. Usage: fixtures.py KIND OUT [ARGS...]
   middle OUT EXPECTED APPIMAGE   Anchorage between two others; EXPECTED is the file
                               after --uninstall (the last one renumbered 2 -> 1)
   garbage OUT                 not a VDF file
+  many OUT N                  N ordinary shortcuts, keys 0 to N-1
 """
 
 import struct
@@ -152,6 +153,9 @@ def main():
         data, expected = middle(sys.argv[4])
         with open(sys.argv[3], "wb") as f:
             f.write(expected)
+    elif kind == "many":
+        n = int(sys.argv[3])
+        data = vdf(*(steam_entry(str(k), 0x80000000 | k, f"Game {k}", f'"/games/{k}/run"', f'"/games/{k}"', "N64") for k in range(n)))
     elif kind == "garbage":
         data = b"\x00shortcuts\x00\x00broken\x00\x09\x09nonsense"
     else:

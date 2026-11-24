@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Installs Anchorage on SteamOS from Desktop Mode, or on any x86_64 Linux with Steam:
 #
-#   curl -fsSL https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/scripts/install-steamos.sh | bash
+#   curl -fsSL https://github.com/DisposableSoftware/anchorage/releases/latest/download/install-steamos.sh | bash
 #
 # It downloads the release AppImage to ~/Applications/Anchorage.AppImage, checks it
 # against the release's SHA256SUMS, adds a desktop entry and icon, and adds an
@@ -41,11 +41,15 @@ usage() {
   cat <<'EOF'
 Installs Anchorage (AppImage, desktop entry, Steam shortcut with artwork).
 Usage: install-steamos.sh [--version X.Y.Z] [--dry-run] [--uninstall]
-       curl -fsSL https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/scripts/install-steamos.sh | bash -s -- [options]
+       curl -fsSL https://github.com/DisposableSoftware/anchorage/releases/latest/download/install-steamos.sh | bash -s -- [options]
 EOF
 }
 
 # ---- small helpers ----------------------------------------------------------
+
+file_sig() { # file_sig FILE -> REPLY: size, inode and modification time, or "missing"
+  REPLY=$(stat -c '%s %i %y' -- "$1" 2>/dev/null) || REPLY=missing
+}
 
 sha256() { # sha256 FILE -> REPLY
   local line
@@ -59,8 +63,11 @@ same_sha() { # same_sha FILE HASH: the file exists and has that hash
   [[ $REPLY == "$2" ]]
 }
 
+# A connection that stalls (under 1 KiB/s for a minute) fails instead of hanging.
+CURL_OPTS=(-fL --retry 3 --connect-timeout 20 --speed-limit 1024 --speed-time 60)
+
 fetch() { # fetch URL DEST [progress]
-  local -a opts=(-fL --retry 3 --connect-timeout 20 -o "$2")
+  local -a opts=("${CURL_OPTS[@]}" -o "$2")
   if [[ ${3:-} == progress && -t 2 ]]; then opts+=(--progress-bar); else opts+=(-sS); fi
   curl "${opts[@]}" -- "$1"
 }
@@ -299,9 +306,12 @@ keys_sequential() { # the shortcuts are keyed 0, 1, 2, ... in order
 
 # ---- Steam ------------------------------------------------------------------
 
-find_steam_users() { # STEAM_USERS: userdata/<id> folders, FLATPAK_STEAM: 1 if one is Flatpak's
+# STEAM_USERS: userdata/<id> folders, FLATPAK_STEAM: 1 if one is Flatpak's. A folder without
+# config/ is an account Steam has not set up (it makes config/ at the first login): it goes
+# to NO_CONFIG instead, and gets nothing.
+find_steam_users() {
   local r real u id seen=" "
-  STEAM_USERS=() FLATPAK_STEAM=
+  STEAM_USERS=() NO_CONFIG=() FLATPAK_STEAM=
   for r in "$HOME/.local/share/Steam" "$HOME/.steam/steam" "$HOME/.steam/root" \
     "$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam" \
     "$HOME/.var/app/com.valvesoftware.Steam/data/Steam"; do
@@ -313,6 +323,10 @@ find_steam_users() { # STEAM_USERS: userdata/<id> folders, FLATPAK_STEAM: 1 if o
       u=${u%/}
       id=${u##*/}
       [[ $id =~ ^[0-9]+$ && $id != 0 ]] || continue
+      if [[ ! -d $u/config ]]; then
+        NO_CONFIG+=("$u")
+        continue
+      fi
       STEAM_USERS+=("$u")
       [[ $real == "$HOME/.var/app/com.valvesoftware.Steam/"* ]] && FLATPAK_STEAM=1
     done
@@ -343,6 +357,8 @@ steam_plan() {
   local vdf=$1/config/shortcuts.vdf grid=$1/config/grid exe startdir key i max head
   exe="\"$APPIMAGE\"" startdir="\"$APPDIR\""
   ED_S=() ED_E=() ED_X=() SC_ID=
+  file_sig "$vdf"
+  PLAN_SIG=$REPLY
   if [[ ! -s $vdf ]]; then
     shortcut_id "$exe" "$APP_NAME"
     SC_ID=$REPLY PLAN=create N=0
@@ -352,6 +368,7 @@ steam_plan() {
     ed_add 0 0 "$head$REPLY\\x08\\x08"
     return 0
   fi
+  info "reading the shortcuts of account ${1##*/}"
   if ! vdf_parse "$vdf"; then
     PLAN=skip
     warn "Could not read $vdf ($VDF_ERR). Its shortcut was not added; the file was not changed."
@@ -404,7 +421,10 @@ steam_plan() {
 steam_unplan() {
   local vdf=$1/config/shortcuts.vdf i k=0 seq='' x
   ED_S=() ED_E=() ED_X=() RM_IDS=() PLAN=none
+  file_sig "$vdf"
+  PLAN_SIG=$REPLY
   [[ -s $vdf ]] || return 0
+  info "reading the shortcuts of account ${1##*/}"
   if ! vdf_parse "$vdf"; then
     PLAN=skip
     warn "Could not read $vdf ($VDF_ERR); it was not changed."
@@ -435,20 +455,46 @@ steam_unplan() {
   ((${#RM_IDS[@]} == 0)) || PLAN=remove
 }
 
+# The plan steam_plan or steam_unplan made (the edits, N, SC_ID and PLAN) as code for eval,
+# so a file that has not changed since (same PLAN_SIG) is not read again: the reader is
+# slow (seconds for 1000 shortcuts).
+plan_save() { # plan_save -> REPLY
+  local arrays
+  arrays=$(declare -p ED_S ED_E ED_X)
+  printf -v REPLY '%s\nN=%q SC_ID=%q PLAN=%q' "${arrays//declare -a /declare -ga }" "$N" "${SC_ID:-}" "$PLAN"
+}
+
+# plan_again USER SIG CODE STEP: the saved plan when USER's shortcuts.vdf still has SIG,
+# else the plan made again by STEP (steam_plan or steam_unplan).
+plan_again() {
+  file_sig "$1/config/shortcuts.vdf"
+  if [[ $REPLY == "$2" ]]; then
+    eval "$3"
+  else
+    "$4" "$1"
+  fi
+}
+
 vdf_commit() { # vdf_commit FILE: writes the planned edits, with a backup; checks the result
-  local vdf=$1 new=$1.anchorage-new backup=
+  local vdf=$1 new=$1.anchorage-new backup='' old i
   if [[ -e $vdf ]]; then
     backup=$vdf.anchorage-backup-$(date +%Y%m%d-%H%M%S)
     cp -p -- "$vdf" "$backup"
   fi
+  NEW=$new
   vdf_write "$vdf" "$new"
+  ((N < 65536)) || info "checking the new $vdf"
   if ! vdf_parse "$new"; then
     rm -f -- "$new"
     die "The new $vdf did not read back ($VDF_ERR). The file was not changed."
   fi
   if [[ -n $backup ]]; then chmod --reference="$backup" -- "$new"; fi
   mv -f -- "$new" "$vdf"
+  NEW=
   [[ -z $backup ]] || info "backup: $backup"
+  # The names sort by time: keep the three newest.
+  old=("$vdf".anchorage-backup-*)
+  for ((i = 0; i < ${#old[@]} - 3; i++)); do rm -f -- "${old[i]}"; done
 }
 
 # ---- release ----------------------------------------------------------------
@@ -462,7 +508,7 @@ resolve_release() { # VERSION, TAG
   else
     url=$API/releases/latest
   fi
-  json=$(curl -fsSL --retry 3 --connect-timeout 20 -H 'Accept: application/vnd.github+json' -- "$url") ||
+  json=$(curl "${CURL_OPTS[@]}" -sS -H 'Accept: application/vnd.github+json' -- "$url") ||
     die "Could not read the release from $url.${want:+ Is $want a released version?}"
   [[ $json =~ \"tag_name\"[[:space:]]*:[[:space:]]*\"v([0-9]+\.[0-9]+\.[0-9]+)\" ]] ||
     die "The release at $url has no vX.Y.Z tag."
@@ -523,6 +569,7 @@ $MARKER
 install_appimage() {
   local want=${SUM[$APPIMAGE_ASSET]} part=$APPDIR/.Anchorage.AppImage.part
   if same_sha "$APPIMAGE" "$want"; then
+    OWN[$APPIMAGE]=$want
     if [[ -x $APPIMAGE ]]; then
       info "$APPIMAGE is already $VERSION"
     else
@@ -548,6 +595,7 @@ install_appimage() {
   chmod 755 -- "$part"
   mv -f -- "$part" "$APPIMAGE"
   PART=
+  OWN[$APPIMAGE]=$want
   info "installed $APPIMAGE (checksum verified)"
 }
 
@@ -559,9 +607,11 @@ install_file() { # install_file SRC DEST LABEL: copies when the content differs
   CHANGED=1
   if [[ -n $DRY ]]; then info "would write $2"; return 0; fi
   mkdir -p -- "${2%/*}"
-  cp -f -- "$1" "$2.anchorage-new"
-  chmod 644 -- "$2.anchorage-new"
-  mv -f -- "$2.anchorage-new" "$2"
+  NEW=$2.anchorage-new
+  cp -f -- "$1" "$NEW"
+  chmod 644 -- "$NEW"
+  mv -f -- "$NEW" "$2"
+  NEW=
   info "wrote $2"
 }
 
@@ -580,20 +630,32 @@ install_desktop() {
       install_file "$REPLY" "$ICON" "the icon"
     fi
   fi
+  OWN[$ICON]=${SUM[$ICON_ASSET]}
 }
 
-install_art() { # install_art USER ID: the five images, where they differ
-  local grid=$1/config/grid i name dest n=0
+# install_art USER ID: the five images, where they differ. An image that is neither the
+# release's nor the one this script wrote before is the user's (set in Steam): kept.
+install_art() {
+  local grid=$1/config/grid i name dest want n=0
   for i in "${!ART_ASSETS[@]}"; do
-    name=${ART_ASSETS[i]}
+    name=${ART_ASSETS[i]} want=${SUM[${ART_ASSETS[i]}]}
     dest=$grid/$2${ART_SUFFIXES[i]}.png
-    same_sha "$dest" "${SUM[$name]}" && continue
+    if same_sha "$dest" "$want"; then
+      OWN[$dest]=$want
+      continue
+    fi
+    if [[ -e $dest ]] && ! { [[ -n ${OWN[$dest]:-} ]] && same_sha "$dest" "${OWN[$dest]}"; }; then
+      unset 'OWN[$dest]'
+      info "account ${1##*/}: kept $dest: this script did not write it (set in Steam?)"
+      continue
+    fi
     CHANGED=1 n=$((n + 1))
     [[ -z $DRY ]] || continue
     asset "$name"
     mkdir -p -- "$grid"
     cp -f -- "$REPLY" "$dest"
     chmod 644 -- "$dest"
+    OWN[$dest]=$want
   done
   if ((n == 0)); then
     info "account ${1##*/}: artwork up to date"
@@ -605,7 +667,7 @@ install_art() { # install_art USER ID: the five images, where they differ
 }
 
 do_install() {
-  local u i art_missing users_planned=() plans=() ids=() write=
+  local u i art_missing users_planned=() plans=() ids=() sigs=() saved=() write=
   step "Finding the release"
   resolve_release
   APPIMAGE_ASSET=Anchorage-$VERSION-x86_64.AppImage
@@ -620,6 +682,7 @@ do_install() {
 
   step "Checking Steam"
   find_steam_users
+  note_no_config
   if ((${#STEAM_USERS[@]} == 0)); then
     info "no Steam accounts found (looked in ~/.local/share/Steam, ~/.steam and Flatpak Steam)"
   fi
@@ -628,6 +691,9 @@ do_install() {
     users_planned+=("$u")
     plans+=("$PLAN")
     ids+=("${SC_ID:-}")
+    sigs+=("$PLAN_SIG")
+    plan_save
+    saved+=("$REPLY")
     case $PLAN in
       create | add | update) write=1 ;;
     esac
@@ -638,6 +704,7 @@ do_install() {
   step "Installing Anchorage $VERSION"
   install_appimage
   install_desktop
+  own_save
 
   step "Adding the Steam shortcut"
   ((${#users_planned[@]} > 0)) || info "skipped: no Steam accounts"
@@ -653,7 +720,7 @@ do_install() {
           die "Steam was started while Anchorage was being installed, so the shortcut was not added.
 Exit Steam, then run the same command again: it only adds what is missing."
         fi
-        steam_plan "$u" # the same plan again: H and the edits belong to the last user parsed
+        plan_again "$u" "${sigs[i]}" "${saved[i]}" steam_plan
         vdf_commit "$u/config/shortcuts.vdf"
         case ${plans[i]} in
           update) info "account ${u##*/}: shortcut updated" ;;
@@ -662,6 +729,7 @@ Exit Steam, then run the same command again: it only adds what is missing."
       fi
     fi
     install_art "$u" "${ids[i]}"
+    own_save
   done
   if [[ -n $FLATPAK_STEAM ]]; then
     info "Flatpak Steam can only start the AppImage once it may read ~/Applications:"
@@ -695,14 +763,18 @@ plan_text() {
 }
 
 do_uninstall() {
-  local u i id suf write='' users_planned=() plans=() idlists=() rm_ids=()
+  local u i id suf write='' users_planned=() plans=() idlists=() rm_ids=() sigs=() saved=()
   step "Checking Steam"
   find_steam_users
+  note_no_config
   for u in "${STEAM_USERS[@]}"; do
     steam_unplan "$u"
     users_planned+=("$u")
     plans+=("$PLAN")
     idlists+=("${RM_IDS[*]:-}")
+    sigs+=("$PLAN_SIG")
+    plan_save
+    saved+=("$REPLY")
     [[ $PLAN != remove ]] || write=1
     if [[ $PLAN == none ]]; then
       info "account ${u##*/}: no Anchorage shortcut"
@@ -722,7 +794,7 @@ do_uninstall() {
         info "account ${u##*/}: would remove the shortcut from $u/config/shortcuts.vdf"
       else
         steam_running && die "Steam was started during the uninstall. Exit Steam, then run it again."
-        steam_unplan "$u"
+        plan_again "$u" "${sigs[i]}" "${saved[i]}" steam_unplan
         vdf_commit "$u/config/shortcuts.vdf"
         info "account ${u##*/}: shortcut removed"
       fi
@@ -730,22 +802,23 @@ do_uninstall() {
     read -ra rm_ids <<<"${idlists[i]}"
     for id in "${rm_ids[@]}"; do
       for suf in "${ART_SUFFIXES[@]}"; do
-        QUIET=1 remove_file "$u/config/grid/$id$suf.png"
+        QUIET=1 remove_own "$u/config/grid/$id$suf.png"
       done
       if [[ -n $DRY ]]; then
-        info "account ${u##*/}: would remove the artwork $u/config/grid/$id*.png"
+        info "account ${u##*/}: would remove the artwork it wrote, $u/config/grid/$id*.png"
       else
-        info "account ${u##*/}: removed the artwork $u/config/grid/$id*.png"
+        info "account ${u##*/}: removed the artwork it wrote, $u/config/grid/$id*.png"
       fi
     done
   done
-  remove_file "$APPIMAGE"
+  remove_own "$APPIMAGE"
   if [[ -f $DESKTOP ]] && grep -qxF -- "$MARKER" "$DESKTOP"; then
     remove_file "$DESKTOP"
   elif [[ -f $DESKTOP ]]; then
     info "kept $DESKTOP: this script did not write it"
   fi
-  remove_file "$ICON"
+  remove_own "$ICON"
+  own_save
   say ""
   if [[ -n $DRY ]]; then
     say "Dry run: nothing was changed."
@@ -767,8 +840,62 @@ remove_file() {
   [[ -n ${QUIET:-} ]] || info "removed $1"
 }
 
+# remove_own PATH: removes it only while it is the file this script wrote (OWN).
+remove_own() {
+  if [[ -e $1 || -L $1 ]]; then
+    if [[ -n ${OWN[$1]:-} ]] && same_sha "$1" "${OWN[$1]}"; then
+      remove_file "$1"
+    else
+      info "kept $1: this script did not write it"
+    fi
+  fi
+  unset 'OWN[$1]'
+}
+
+note_no_config() {
+  local u
+  for u in "${NO_CONFIG[@]}"; do
+    info "account ${u##*/}: skipped (no config folder: Steam has not set this account up)"
+  done
+}
+
+# ---- the files this script wrote (INT-33) -----------------------------------
+# MANIFEST lists them as sha256sum does (hash, two spaces, path), with the hash they had
+# when written: only those are replaced (artwork) or removed (--uninstall).
+
+own_load() {
+  local hash path
+  declare -gA OWN=()
+  [[ -f $MANIFEST ]] || return 0
+  while read -r hash path; do
+    [[ $hash =~ ^[0-9a-f]{64}$ && $path == /* ]] && OWN[$path]=$hash
+  done <"$MANIFEST"
+  return 0
+}
+
+own_save() { # writes MANIFEST from OWN when it differs; removes it when OWN is empty
+  local p text=''
+  local -a paths=()
+  [[ -z $DRY ]] || return 0
+  if ((${#OWN[@]} == 0)); then
+    [[ ! -e $MANIFEST ]] || rm -f -- "$MANIFEST"
+    rmdir -- "${MANIFEST%/*}" 2>/dev/null || true
+    return 0
+  fi
+  mapfile -t paths < <(printf '%s\n' "${!OWN[@]}" | sort)
+  for p in "${paths[@]}"; do text+="${OWN[$p]}  $p"$'\n'; done
+  printf '%s' "$text" >"$TMP/files.sha256"
+  [[ -f $MANIFEST ]] && cmp -s -- "$TMP/files.sha256" "$MANIFEST" && return 0
+  mkdir -p -- "${MANIFEST%/*}"
+  NEW=$MANIFEST.anchorage-new
+  cp -f -- "$TMP/files.sha256" "$NEW"
+  mv -f -- "$NEW" "$MANIFEST"
+  NEW=
+}
+
 cleanup() {
   [[ -z ${PART:-} ]] || rm -f -- "$PART"
+  [[ -z ${NEW:-} ]] || rm -f -- "$NEW"
   [[ -z ${TMP:-} ]] || rm -rf -- "$TMP"
 }
 
@@ -776,7 +903,7 @@ main() {
   # Under `curl | bash`, bash reads this script from standard input: nothing else may.
   exec </dev/null
   local mode=install t
-  OPT_VERSION='' DRY='' CHANGED='' FAILED='' PART='' TMP=''
+  OPT_VERSION='' DRY='' CHANGED='' FAILED='' PART='' NEW='' TMP=''
   while (($# > 0)); do
     case $1 in
       --version) (($# >= 2)) || die "--version needs a version, like --version 1.2.0"; OPT_VERSION=$2; shift ;;
@@ -791,7 +918,7 @@ main() {
   : "${HOME:?HOME is not set}"
   [[ $HOME == / ]] || HOME=${HOME%/}
   [[ $(id -u) != 0 ]] || die "Run this as your own user (deck on a Steam Deck), not as root."
-  for t in od dd sha256sum mktemp readlink cmp grep; do
+  for t in od dd sha256sum mktemp readlink cmp grep stat sort; do
     command -v "$t" >/dev/null 2>&1 || die "This needs $t, which is missing."
   done
   if [[ $mode == install ]]; then
@@ -803,9 +930,13 @@ main() {
   DATA=${XDG_DATA_HOME:-$HOME/.local/share}
   DESKTOP=$DATA/applications/$APP_ID.desktop
   ICON=$DATA/icons/hicolor/scalable/apps/$APP_ID.svg
+  STATE=${XDG_STATE_HOME:-$HOME/.local/state}
+  [[ $STATE == /* ]] || STATE=$HOME/.local/state
+  MANIFEST=$STATE/anchorage-installer/files.sha256
   [[ $APPIMAGE != *$'\n'* ]] || die "HOME contains a newline."
   TMP=$(mktemp -d)
   trap cleanup EXIT
+  own_load
   [[ -z $DRY ]] || say "Dry run: nothing will be changed."
   if [[ $mode == uninstall ]]; then do_uninstall; else do_install; fi
   [[ -z $FAILED ]] || die "Some Steam accounts were skipped (see the warnings above)."

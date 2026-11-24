@@ -281,6 +281,99 @@ check count "$V5/shortcuts.vdf" 2
 [[ -f $H5/.local/share/applications/$ID.desktop ]] || fail "uninstall: removed a desktop entry it did not write"
 ok "uninstall of a shortcut in the middle renumbers the next one and keeps its bytes; keeps a foreign desktop entry"
 
+echo "# an account folder without config/ (INT-28, INT-33)"
+H8=$T/home8
+steam_home "$H8" 5
+mkdir -p "$H8/.local/share/Steam/userdata/77/760/remote"
+run noconfig "$H8"
+expect_ok "account without config"
+grep -q 'account 77: skipped' "$LOG" || fail "account without config: no note"
+[[ ! -e $H8/.local/share/Steam/userdata/77/config ]] || fail "account without config: config created"
+check ours "$H8/.local/share/Steam/userdata/5/config/shortcuts.vdf" "$H8/Applications/Anchorage.AppImage" \
+  "$H8/.local/share/Steam/userdata/5/config/grid" "$(art 1.3.0)" 0
+ok "an account folder without config/ is skipped with a note; the others get the shortcut"
+
+echo "# the user's own artwork and files, backups (INT-33)"
+H10=$T/home10
+steam_home "$H10" 10
+G10=$H10/.local/share/Steam/userdata/10/config/grid
+run art-1.2 "$H10" --version 1.2.0
+expect_ok "art 1.2.0"
+STATE10=$H10/.local/state/anchorage-installer/files.sha256
+[[ -f $STATE10 ]] || fail "no list of written files"
+id10=$(py "$HERE/check.py" appid "\"$H10/Applications/Anchorage.AppImage\"" Anchorage)
+echo mine >"$G10/${id10}p.png"
+run art-1.3 "$H10" --version 1.3.0
+expect_ok "art 1.3.0"
+[[ $(cat "$G10/${id10}p.png") == mine ]] || fail "update replaced the user's portrait"
+grep -q "kept .*${id10}p.png" "$LOG" || fail "update: no note about the kept portrait"
+cmp -s "$G10/${id10}_hero.png" "$(art 1.3.0)/steam-hero.png" || fail "update: hero is not 1.3.0's"
+before=$(tree_state "$H10")
+run art-again "$H10" --version 1.3.0
+expect_ok "art again"
+[[ $(tree_state "$H10") == "$before" ]] || fail "rerun with the user's art: files changed"
+for t in 20200101-000001 20200101-000002 20200101-000003 20200101-000004; do
+  echo old >"$H10/.local/share/Steam/userdata/10/config/shortcuts.vdf.anchorage-backup-$t"
+done
+run art-uninstall "$H10" --uninstall
+expect_ok "art uninstall"
+[[ $(cat "$G10/${id10}p.png") == mine ]] || fail "uninstall removed the user's portrait"
+[[ ! -e $G10/${id10}_hero.png && ! -e $H10/Applications/Anchorage.AppImage && ! -e $STATE10 ]] ||
+  fail "uninstall left its own files"
+mapfile -t backups < <(find "$H10/.local/share/Steam/userdata/10/config" -name 'shortcuts.vdf.anchorage-backup-*' | sort)
+[[ ${#backups[@]} == 3 && ${backups[0]} == *20200101-000003 && ${backups[1]} == *20200101-000004 ]] ||
+  fail "backups: ${backups[*]}"
+ok "artwork the user set is kept on update and uninstall; at most three backups are kept"
+
+H11=$T/home11
+steam_home "$H11" 11
+run own-files "$H11"
+expect_ok "own files"
+echo "my own build" >"$H11/Applications/Anchorage.AppImage"
+echo "<svg/>" >"$H11/.local/share/icons/hicolor/scalable/apps/$ID.svg"
+run own-uninstall "$H11" --uninstall
+expect_ok "own files uninstall"
+[[ $(cat "$H11/Applications/Anchorage.AppImage") == "my own build" ]] || fail "uninstall removed an AppImage it did not write"
+[[ -f $H11/.local/share/icons/hicolor/scalable/apps/$ID.svg ]] || fail "uninstall removed an icon it did not write"
+grep -q 'kept ~/Applications/Anchorage.AppImage' "$LOG" || fail "own files: no note"
+check count "$H11/.local/share/Steam/userdata/11/config/shortcuts.vdf" 0
+ok "uninstall keeps an AppImage and icon that are not the ones it wrote, and still removes the shortcut"
+
+echo "# a large shortcuts.vdf (INT-33)"
+H9=$T/home9
+steam_home "$H9" 9
+V9=$H9/.local/share/Steam/userdata/9/config
+py "$HERE/fixtures.py" many "$V9/shortcuts.vdf" 1000
+cp "$V9/shortcuts.vdf" "$T/many.vdf"
+start=$(date +%s)
+run many "$H9"
+expect_ok "1000 shortcuts"
+echo "    1000 shortcuts: $(($(date +%s) - start)) s"
+grep -q 'reading the shortcuts of account 9' "$LOG" || fail "1000 shortcuts: no progress line"
+check appended "$T/many.vdf" "$V9/shortcuts.vdf" 1000
+# Ctrl-C while it checks the new file (uninstall): no temp file is left. Job control gives
+# the run its own process group, which a background job would otherwise not get.
+mkdir -p "$T/int"
+LOG=$T/interrupt.log
+set +e -m
+# shellcheck disable=SC2016 # expanded by the inner bash
+env -i HOME="$H9" PATH="$BASE_PATH" LANG=C.UTF-8 TMPDIR="$T/int" \
+  ANCHORAGE_API_URL="$URL/api" ANCHORAGE_DOWNLOAD_BASE="$URL/download" \
+  bash -c 'bash -s -- --uninstall <"$1"' _ "$REPO/scripts/install-steamos.sh" >"$LOG" 2>&1 &
+pid=$!
+for _ in $(seq 600); do
+  [[ -e $V9/shortcuts.vdf.anchorage-new ]] && break
+  sleep 0.05
+done
+[[ -e $V9/shortcuts.vdf.anchorage-new ]] || fail "interrupt: the new file never appeared"
+kill -INT -- "-$pid"
+wait "$pid"
+set -e +m
+[[ ! -e $V9/shortcuts.vdf.anchorage-new ]] || fail "interrupt: left shortcuts.vdf.anchorage-new"
+[[ -z $(ls -A "$T/int") ]] || fail "interrupt: left its temp dir"
+cmp -s "$T/many.vdf" "$V9/shortcuts.vdf" && fail "interrupt: the uninstall had already finished"
+ok "1000 shortcuts: a progress line, appended byte for byte; Ctrl-C leaves no temp file"
+
 echo "# failures"
 H6=$T/home6
 steam_home "$H6" 1 2
@@ -301,7 +394,7 @@ expect_fail "checksum mismatch" "does not match the checksum"
 [[ ! -e $H7/.local/share/Steam/userdata/1/config/shortcuts.vdf ]] || fail "checksum: shortcut added"
 
 mkdir -p "$T/nocurl"
-for t in od dd sha256sum mktemp readlink cmp grep sed id uname cp mv rm mkdir chmod date cat head; do
+for t in od dd sha256sum mktemp readlink cmp grep stat sort sed id uname cp mv rm mkdir chmod date cat head; do
   ln -s "$(command -v "$t")" "$T/nocurl/$t"
 done
 LOG=$T/nocurl.log
