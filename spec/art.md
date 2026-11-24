@@ -1,6 +1,6 @@
 # Cover art
 
-Each port card can show cover art from [SteamGridDB](https://www.steamgriddb.com). The art is chosen once, by hand, so the four cards look like one set; Anchorage only downloads the chosen files.
+Each port card can show cover art from [SteamGridDB](https://www.steamgriddb.com). The art is chosen once, by hand, so the cards look like one set; Anchorage only downloads the chosen files.
 
 ## Requirements
 
