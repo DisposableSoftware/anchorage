@@ -131,6 +131,16 @@ func test_redirects_stay_on_github() -> void:
 	check(not Releases.redirect_allowed("https://github.com.evil.example/x"), "suffix trick")
 	check(not Releases.redirect_allowed("https://github.com:444@evil.example/x"), "userinfo")
 	check(not Releases.redirect_allowed(""), "empty")
+	# HTTPRequest connects to the host before a '#', so these must not pass as GitHub's.
+	check(not Releases.redirect_allowed("https://evil.example#.github.com/x"), "fragment trick")
+	check(
+		not Releases.redirect_allowed("https://github.com#@evil.example/x"), "fragment + userinfo"
+	)
+	check(not Releases.redirect_allowed("https://evil.example\\.github.com/x"), "backslash")
+	check(not Releases.redirect_allowed("https://evil.example%2f.github.com/x"), "escaped slash")
+	check(not Releases.redirect_allowed("https://evil.example?.github.com/x"), "query trick")
+	check(not Releases.redirect_allowed("https://github.com"), "no path")
+	check(Releases.redirect_allowed("https://api.github.com/repositories/1/releases"), "moved repo")
 
 
 func test_update_available_is_a_difference_of_tags() -> void:

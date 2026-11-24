@@ -61,12 +61,17 @@ static func url_allowed(port: Dictionary, url: String) -> bool:
 	return not (rest.contains(" ") or rest.contains("\n"))
 
 
-## Where a download may be redirected to: https on GitHub's hosts.
+## Where a download or an API call may be redirected to: https on GitHub's hosts. The part
+## before the path must be a plain host name: no user info, port, '#', '?', '\' or '%', so a
+## URL parser can't read a different host out of it than this check does.
 static func redirect_allowed(url: String) -> bool:
 	if not url.to_lower().begins_with("https://"):
 		return false
-	var host := url.substr(8).split("/")[0].split("?")[0].to_lower()
-	if host.contains("@") or host.contains(":") or host.is_empty():
+	var slash := url.find("/", 8)
+	if slash < 0:
+		return false
+	var host := url.substr(8, slash - 8).to_lower()
+	if not RegEx.create_from_string("^[a-z0-9.-]+$").search(host):
 		return false
 	for allowed in REDIRECT_HOSTS:
 		if host == allowed or host.ends_with("." + allowed):
