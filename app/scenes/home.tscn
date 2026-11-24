@@ -288,6 +288,12 @@ layout_mode = 2
 text = "Play"
 alignment = 0
 
+[node name="UpdateButton" type="Button" parent="MenuLayer/Menu/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Update"
+alignment = 0
+
 [node name="CheckButton" type="Button" parent="MenuLayer/Menu/Box"]
 unique_name_in_owner = true
 layout_mode = 2

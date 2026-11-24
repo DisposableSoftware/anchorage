@@ -192,6 +192,30 @@ func test_options_menu_lists_what_the_port_allows() -> void:
 	_done(home)
 
 
+## A port short of its ROM shows ROM missing even with an update out, so accept only hints;
+## the update is in the options (HOME-4, HOME-5).
+func test_the_options_menu_offers_an_update_also_without_a_rom() -> void:
+	var home := _make("rom-missing")
+	home.ports._info["soh"].update_available = true
+	home.ports._info["soh"].installed_version = "9.3.0"
+	_press(home, KEY_O)
+	var update: Button = home.get_node("%UpdateButton")
+	check(update.visible, "Update in the menu")
+	eq(_focus(home), home.get_node("%PlayButton"), "focus still starts on Play")
+	_press(home, KEY_DOWN)
+	eq(_focus(home), update, "Update comes after Play")
+	_press(home, KEY_ENTER)
+	eq(_calls(home), [["update", "soh"]], "it updates")
+	eq(home.mode, home.Mode.HOME, "and closes the menu")
+	_done(home)
+	home = _make("showcase")
+	_press(home, KEY_O)
+	check(not home.get_node("%UpdateButton").visible, "no Update when there is none")
+	_press(home, KEY_DOWN)
+	eq(_focus(home), home.get_node("%CheckButton"), "the hidden button is skipped")
+	_done(home)
+
+
 func test_refresh_checks_and_rescans() -> void:
 	var home := _make()
 	_press(home, KEY_F5)
