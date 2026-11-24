@@ -12,10 +12,11 @@ The order of approved work: `planned` requirements, and `partial` ones with a kn
 3. **Real-world check:** install each port from GitHub in a sandbox, prepare ROMs from the sandbox copy, launch as far as the machine allows.
 4. **AppImage for SteamOS:** `INT-25`, `INT-26`, `PORT-15`. Anchorage must run as an AppImage on SteamOS, so this is part of the MVP.
 5. **Cover art:** `ART-1` to `ART-7`. The catalog curation waits for the user's SteamGridDB API key (`STEAMGRIDDB_API_KEY`); the loader and card layout can be built first.
-6. **More ports (catalog only, `PROD-13`):** Lighthouse (Banjo-Kazooie), PaperBoat (Paper Mario 64) and Ghostship (Super Mario 64) have Linux releases. Each needs its ROM hashes, launch quirks, first-run behaviour and cover art researched, as was done for the first four.
-7. **Steam install and artwork:** `INT-27` to `INT-29` and `INT-33`: custom Steam artwork (starting with concepts the user chooses from) and `scripts/install-steamos.sh`, plus the README `curl` install command (`INT-34`). Needs the release AppImage. Untestable on a real Deck from here.
-8. **Polish to the family's quality bar:** `INT-42`, `INT-43`, icon, metainfo screenshots, README with screenshots, `docs/`, man-page-equivalent docs, a code review pass.
-9. Later: `CONF-4` on Hyprland and gamescope.
+6. **ROM folder chooser:** `ROM-10` to `ROM-13`. Today the folder can only be set in `config.ini`, which a controller-only user cannot do.
+7. **More ports (catalog only, `PROD-13`):** Lighthouse (Banjo-Kazooie), PaperBoat (Paper Mario 64) and Ghostship (Super Mario 64) have Linux releases. Each needs its ROM hashes, launch quirks, first-run behaviour and cover art researched, as was done for the first four.
+8. **Steam install and artwork:** `INT-27` to `INT-29` and `INT-33`: custom Steam artwork (starting with concepts the user chooses from) and `scripts/install-steamos.sh`, plus the README `curl` install command (`INT-34`). Needs the release AppImage. Untestable on a real Deck from here.
+9. **Polish to the family's quality bar:** `INT-42`, `INT-43`, icon, metainfo screenshots, README with screenshots, `docs/`, man-page-equivalent docs, a code review pass.
+10. Later: `CONF-4` on Hyprland and gamescope.
 
 ## Verification backlog
 
