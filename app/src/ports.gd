@@ -59,6 +59,9 @@ var _roms := {}
 var _scan_status := ""
 var _scan_job: RefCounted
 var _scan_again := false
+## Launches asked for while a scan ran: they start with its result (the first scan at start
+## has no ROMs yet).
+var _launch_after_scan: Array[String] = []
 var _checking := false
 ## Installs and updates waiting for the one download at a time (PORT-12), and the
 ## running one: {action, id, installer, cancelled, ended}.
@@ -101,6 +104,7 @@ func _exit_tree() -> void:
 	_queue.clear()
 	if _scan_job != null:
 		_scan_job.finished.disconnect(_on_scanned)
+		_scan_job.abort()
 		_scan_job.join()
 		_scan_job = null
 	if not _active.is_empty() and _active.get("installer") != null:
@@ -130,6 +134,7 @@ func info(id: String) -> Dictionary:
 		"rom": _rom_info(port),
 		"busy": _busy.get(id, IDLE).duplicate(),
 		"running": _runs.has(id),
+		"first_run": port.get("first_run", "") if not Launcher.extracted(root, port) else "",
 		"art": _art.get(id),
 		"error": _errors.get(id, ""),
 	}
@@ -150,24 +155,54 @@ func remove(id: String) -> void:
 	if not _ports.has(id) or _is_busy(id) or not _installed(id):
 		return
 	_errors.erase(id)
-	var result := Installer.remove(root, id)
-	if result["ok"]:
-		_state.clear_installed(id)
-	else:
-		_errors[id] = _error_text("remove", id, result["error"])
+	_busy[id] = {"action": "remove", "progress": -1.0, "detail": ""}
 	changed.emit(id)
+	_offload(
+		Installer.remove.bind(root, id),
+		func(result: Dictionary) -> void:
+			_busy.erase(id)
+			if result["ok"]:
+				_state.clear_installed(id)
+			else:
+				_errors[id] = _error_text("remove", id, result["error"])
+			changed.emit(id),
+		{"ok": false, "error": "Deleting stopped with an internal error"}
+	)
 
 
 func launch(id: String) -> void:
 	if not _ports.has(id) or _is_busy(id) or not _installed(id):
 		return
 	_errors.erase(id)
+	if _scan_job != null:
+		_busy[id] = {"action": "launch", "progress": -1.0, "detail": "Looking for ROMs"}
+		_launch_after_scan.append(id)
+		changed.emit(id)
+		return
+	_prepare_launch(id)
+
+
+## Places the ROM and the extra files on the worker pool, then starts the port (PORT-9).
+func _prepare_launch(id: String) -> void:
 	_busy[id] = {"action": "launch", "progress": -1.0, "detail": "Getting ready"}
 	changed.emit(id)
 	var port: Dictionary = _ports[id]
 	_offload(
-		Launcher.prepare.bind(root, port, _roms.get(id, {})),
-		func(result: Dictionary) -> void: _on_prepared(id, result)
+		Launcher.prepare.bind(
+			root,
+			port,
+			_roms.get(id, {}),
+			_archive_current(id),
+			_state.placed_rom(id),
+			Roms.expand_dir(roms_dir)
+		),
+		func(result: Dictionary) -> void: _on_prepared(id, result),
+		{
+			"ok": false,
+			"error": "Getting ready stopped with an internal error",
+			"placed": "",
+			"args": []
+		}
 	)
 
 
@@ -208,11 +243,21 @@ func poll() -> void:
 		if OS.is_process_running(run["pid"]):
 			if not run["settled"] and elapsed >= settle_seconds:
 				run["settled"] = true
-				Installer.cleanup_previous(root, id)
+				_offload(Installer.cleanup_previous.bind(root, id), func(_r: Variant) -> void: pass)
 			continue
 		var code := OS.get_process_exit_code(run["pid"])
 		_runs.erase(id)
-		Launcher.after_exit(root, _ports[id])
+		var after := Launcher.after_exit(
+			root,
+			_ports[id],
+			_state.placed_rom(id),
+			Roms.expand_dir(roms_dir),
+			run["unix"],
+			run["settled"]
+		)
+		if after["archive_current"]:
+			_state.set_archive_version(id, _state.installed_version(id))
+		_state.set_placed_rom(id, after["placed"])
 		if code != 0 and elapsed < settle_seconds:
 			var detail := "It stopped after %d s with exit code %d." % [ceili(elapsed), code]
 			var line := Launcher.last_line(Launcher.log_path(root, id))
@@ -250,6 +295,16 @@ func _error_text(action: String, id: String, detail: String) -> String:
 
 ## ROM-9: the matched file, or what the port takes and where Anchorage looked. A port
 ## whose archive exists needs no ROM.
+## PORT-9: the archive was made (or kept) by the installed version, so no ROM is needed.
+func _archive_current(id: String) -> bool:
+	var version: String = _state.installed_version(id)
+	return (
+		not version.is_empty()
+		and _state.archive_version(id) == version
+		and Launcher.extracted(root, _ports[id])
+	)
+
+
 func _rom_info(port: Dictionary) -> Dictionary:
 	var wanted: Array[String] = []
 	for rom in port["roms"]:
@@ -260,7 +315,7 @@ func _rom_info(port: Dictionary) -> Dictionary:
 		var entry: String = match.get("entry", "")
 		var label: String = entry.get_file() if not entry.is_empty() else match["path"].get_file()
 		return {"found": true, "label": label, "path": match["path"], "wanted": wanted}
-	if Launcher.extracted(root, port):
+	if _archive_current(port["id"]):
 		return {
 			"found": true, "label": "Not needed, already extracted", "path": "", "wanted": wanted
 		}
@@ -369,6 +424,8 @@ func _on_release(job: Dictionary, result: Dictionary) -> void:
 		installer.update(_ports[id], release, progress, done)
 
 
+## Progress in whole percent, with the bytes shown at that percent, so `changed` fires at
+## most about a hundred times per download instead of for every chunk (HOME-13).
 func _on_progress(job: Dictionary, stage: String, got: int, total: int) -> void:
 	if job["cancelled"] or job["ended"]:
 		return
@@ -376,14 +433,18 @@ func _on_progress(job: Dictionary, stage: String, got: int, total: int) -> void:
 	match stage:
 		"download":
 			if total > 0:
-				busy["progress"] = clampf(float(got) / total, 0.0, 1.0)
-				busy["detail"] = "%s of %s" % [_megabytes(got), _megabytes(total)]
+				var percent := clampi(floori(100.0 * got / total), 0, 100)
+				busy["progress"] = percent / 100.0
+				var shown := int(total * percent / 100.0)
+				busy["detail"] = "%s of %s" % [_megabytes(shown), _megabytes(total)]
 			else:
-				busy["detail"] = _megabytes(got)
+				busy["detail"] = _megabytes(got - got % 1_000_000)
 		"unpack":
 			busy["detail"] = "Unpacking"
 		_:
 			busy["detail"] = "Finishing"
+	if _busy.get(job["id"]) == busy:
+		return
 	_busy[job["id"]] = busy
 	changed.emit(job["id"])
 
@@ -431,13 +492,19 @@ func _on_prepared(id: String, result: Dictionary) -> void:
 		_errors[id] = _error_text("launch", id, result["error"])
 		changed.emit(id)
 		return
-	var started := Launcher.start(root, _ports[id])
+	_state.set_placed_rom(id, result["placed"])
+	var started := Launcher.start(root, _ports[id], {}, result["args"])
 	_busy.erase(id)
 	if started["pid"] <= 0:
 		_errors[id] = _error_text("launch", id, started["error"])
 		changed.emit(id)
 		return
-	_runs[id] = {"pid": started["pid"], "started": Time.get_ticks_msec(), "settled": false}
+	_runs[id] = {
+		"pid": started["pid"],
+		"started": Time.get_ticks_msec(),
+		"unix": int(Time.get_unix_time_from_system()),
+		"settled": false,
+	}
 	_poll_left = POLL_SECONDS
 	set_process(true)
 	changed.emit(id)
@@ -472,6 +539,10 @@ func _on_scanned(result: Dictionary) -> void:
 	if _scan_status == "ok" and result["cache"] != _state.rom_cache():
 		_state.set_rom_cache(result["cache"])
 	_emit_all()
+	var waiting := _launch_after_scan
+	_launch_after_scan = []
+	for id in waiting:
+		_prepare_launch(id)
 	if _scan_again:
 		_scan_again = false
 		_scan()
@@ -493,19 +564,26 @@ func _on_checked(results: Dictionary) -> void:
 
 
 ## Runs `work` on the worker pool (inline when not `threaded`) and hands its result to
-## `finished` on the main thread.
-func _offload(work: Callable, finished: Callable) -> void:
+## `finished` on the main thread. A task that ends without a result of the fallback's type
+## (a script error inside it) hands over `fallback`, so nothing stays busy forever.
+func _offload(work: Callable, finished: Callable, fallback: Variant = null) -> void:
 	if not threaded or not is_inside_tree():
-		finished.call(work.call())
+		finished.call(_or_fallback(work.call(), fallback))
 		return
 	var box := {}
 	var task := WorkerThreadPool.add_task(func() -> void: box["result"] = work.call())
-	_wait_for(task, box, finished)
+	_wait_for(task, box, finished, fallback)
 
 
-func _wait_for(task: int, box: Dictionary, finished: Callable) -> void:
+func _wait_for(task: int, box: Dictionary, finished: Callable, fallback: Variant) -> void:
 	if WorkerThreadPool.is_task_completed(task):
 		WorkerThreadPool.wait_for_task_completion(task)
-		finished.call(box["result"])
+		finished.call(_or_fallback(box.get("result"), fallback))
 		return
-	get_tree().create_timer(0.05).timeout.connect(_wait_for.bind(task, box, finished))
+	get_tree().create_timer(0.05).timeout.connect(_wait_for.bind(task, box, finished, fallback))
+
+
+static func _or_fallback(result: Variant, fallback: Variant) -> Variant:
+	if fallback != null and typeof(result) != typeof(fallback):
+		return fallback
+	return result

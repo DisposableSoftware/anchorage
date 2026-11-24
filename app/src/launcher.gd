@@ -1,15 +1,19 @@
 extends RefCounted
-## Starting a port (PORT-8, PORT-9, PORT-15). `Ports` calls these; nothing here keeps state.
+## Starting a port (PORT-8, PORT-9, PORT-15, PORT-16). `Ports` calls these and keeps what
+## they return in state.ini; nothing here keeps state.
 ##
-##   Launcher.prepare(root, port, rom) -> {ok, error, placed}
-##       Before a launch, on a worker thread: copies missing extra files (PORT-9) and writes
-##       the ROM (`rom` is a `Roms.scan` match) where the port looks for it, unless the
-##       port's archive already exists, in which case a placed copy is deleted.
-##   Launcher.start(root, port, base_env := {}) -> {pid, error}
+##   Launcher.prepare(root, port, rom, archive_current, placed, roms_dir)
+##           -> {ok, error, placed, args}
+##       Before a launch, on a worker thread: copies missing extra files (PORT-9) and,
+##       unless the archive is current, writes the ROM (`rom` is a `Roms.scan` match) where
+##       the port looks for it. `placed` in and out is the copy Anchorage wrote ("" when
+##       none); `args` is the ROM path for a `rom_place: argv` port while it has no archive.
+##   Launcher.start(root, port, base_env := {}, extra_args := []) -> {pid, error}
 ##       Spawns the port through /bin/sh: working directory, environment and output to
 ##       `launch.log` (OS.create_process takes neither a directory nor an environment).
-##   Launcher.after_exit(root, port)
-##       Deletes the placed ROM once the archive exists.
+##   Launcher.after_exit(root, port, placed, roms_dir, started, settled)
+##           -> {archive_current, placed}
+##       After a run: whether the run made or kept the archive, and then deletes the copy.
 ##
 ## `root` is the ports folder (user://ports, globalized) and `port` a catalog entry.
 
@@ -54,12 +58,24 @@ static func log_path(root: String, id: String) -> String:
 	return Installer.port_dir(root, id).path_join(LOG_NAME)
 
 
-## Where the ROM is written for the port (catalog `rom_place` and `rom_file`).
+## Where the ROM is written for the port (catalog `rom_place` and `rom_file`): the working
+## directory for "cwd", else the data folder ("data_dir", and "argv", PORT-16).
 static func rom_target(root: String, port: Dictionary) -> String:
 	var dir := Installer.data_dir(root, port["id"])
 	if port["rom_place"] == "cwd":
 		dir = working_dir(root, port)
 	return dir.path_join(port["rom_file"])
+
+
+## The newest modification time (unix seconds) of the port's archives, 0 when none exists.
+static func archive_time(root: String, port: Dictionary) -> int:
+	var data := Installer.data_dir(root, port["id"])
+	var newest := 0
+	for archive in port["archive"]:
+		var path := data.path_join(archive)
+		if FileAccess.file_exists(path):
+			newest = maxi(newest, FileAccess.get_modified_time(path))
+	return newest
 
 
 ## True when any of the port's generated archives is in its data folder.
@@ -139,7 +155,14 @@ static func current_environment() -> Dictionary:
 	if file != null:
 		var raw := file.get_buffer(4 << 20)
 		file.close()
-		for item in raw.get_string_from_utf8().split(String.chr(0), false):
+		# Split the bytes, not a decoded string: decoding stops being exact at the first NUL.
+		var start := 0
+		while start < raw.size():
+			var end := raw.find(0, start)
+			if end < 0:
+				end = raw.size()
+			var item := raw.slice(start, end).get_string_from_utf8()
+			start = end + 1
 			var eq := item.find("=")
 			if eq > 0:
 				env[item.left(eq)] = item.substr(eq + 1)
@@ -151,34 +174,59 @@ static func current_environment() -> Dictionary:
 	return env
 
 
-## PORT-9, before a launch. Only touches files, so it can run on a worker thread.
-static func prepare(root: String, port: Dictionary, rom: Dictionary) -> Dictionary:
+## PORT-9, PORT-16, before a launch. Only touches files, so it can run on a worker thread.
+## `archive_current`: the archive was made by the installed version, so no ROM is needed.
+## `placed`: the copy Anchorage wrote before (state.ini). `roms_dir`: the ROM folder.
+static func prepare(
+	root: String,
+	port: Dictionary,
+	rom: Dictionary,
+	archive_current := false,
+	placed := "",
+	roms_dir := ""
+) -> Dictionary:
 	var id: String = port["id"]
 	var data := Installer.data_dir(root, id)
+	var out := {"ok": true, "error": "", "placed": "", "args": []}
 	if DirAccess.make_dir_recursive_absolute(data) != OK:
-		return {"ok": false, "error": "Could not create %s" % data, "placed": ""}
+		return {"ok": false, "error": "Could not create %s" % data, "placed": placed, "args": []}
 	var error := Installer.copy_extra_files(port, Installer.current_dir(root, id), data, true)
 	if not error.is_empty():
-		return {"ok": false, "error": error, "placed": ""}
+		return {"ok": false, "error": error, "placed": placed, "args": []}
 	var target := rom_target(root, port)
-	if extracted(root, port):
-		DirAccess.remove_absolute(target)
-		return {"ok": true, "error": "", "placed": ""}
-	if not rom.get("found", false) or str(rom.get("path", "")).is_empty():
-		return {"ok": true, "error": "", "placed": ""}
-	var err := Roms.prepare(rom, target)
-	if err != OK:
-		return {
-			"ok": false,
-			"error": "Could not write the ROM to %s: %s" % [target, error_string(err)],
-			"placed": "",
-		}
-	return {"ok": true, "error": "", "placed": target}
+	var ours := placed == target and FileAccess.file_exists(target)
+	if archive_current:
+		if ours:
+			delete_placed(target, port, root, roms_dir)
+		return out
+	var rom_path := ""
+	if FileAccess.file_exists(target) and not ours:
+		# Not written by Anchorage (the user's own copy): left alone, and used.
+		rom_path = target
+	elif rom.get("found", false) and not str(rom.get("path", "")).is_empty():
+		var err := Roms.prepare(rom, target)
+		if err == ERR_FILE_CORRUPT:
+			var name: String = rom["path"].get_file()
+			out["ok"] = false
+			out["error"] = "%s changed since it was scanned. Refresh and try again." % name
+		elif err != OK:
+			out["ok"] = false
+			out["error"] = "Could not write the ROM to %s: %s" % [target, error_string(err)]
+		else:
+			ours = true
+			rom_path = target
+	elif ours:
+		rom_path = target
+	out["placed"] = target if ours else ""
+	if port["rom_place"] == "argv" and not rom_path.is_empty() and archive_time(root, port) == 0:
+		out["args"] = [rom_path]
+	return out
 
 
 ## Spawns the port. `base_env` is what the child would inherit (tests pass one); empty
-## means Anchorage's own. {pid, error}: pid is 0 when it could not start.
-static func start(root: String, port: Dictionary, base_env := {}) -> Dictionary:
+## means Anchorage's own. `extra_args` go after the catalog's (the ROM, PORT-16).
+## {pid, error}: pid is 0 when it could not start.
+static func start(root: String, port: Dictionary, base_env := {}, extra_args := []) -> Dictionary:
 	var program := executable(root, port)
 	if not FileAccess.file_exists(program):
 		return {"pid": 0, "error": "%s is missing" % program}
@@ -193,7 +241,7 @@ static func start(root: String, port: Dictionary, base_env := {}) -> Dictionary:
 		cwd,
 		log_path(root, port["id"]),
 		program,
-		port["launch"]["args"]
+		port["launch"]["args"] + extra_args
 	)
 	var pid := OS.create_process(SHELL, args)
 	if pid <= 0:
@@ -201,10 +249,31 @@ static func start(root: String, port: Dictionary, base_env := {}) -> Dictionary:
 	return {"pid": pid, "error": ""}
 
 
-## PORT-9: once the archive exists, the ROM copy is not needed.
-static func after_exit(root: String, port: Dictionary) -> void:
-	if extracted(root, port):
-		DirAccess.remove_absolute(rom_target(root, port))
+## PORT-9, after a run that started at `started` (unix seconds) and, if `settled`, kept
+## going for the settle time. The archive is now the installed version's when the run ended
+## with it there and either settled or wrote it; then the placed copy is deleted.
+## {archive_current, placed}: `placed` is what is left of Anchorage's copy.
+static func after_exit(
+	root: String, port: Dictionary, placed: String, roms_dir: String, started: int, settled: bool
+) -> Dictionary:
+	var made := archive_time(root, port)
+	if made == 0 or not (settled or made >= started):
+		return {"archive_current": false, "placed": placed}
+	if not placed.is_empty() and not delete_placed(placed, port, root, roms_dir):
+		return {"archive_current": true, "placed": placed}
+	return {"archive_current": true, "placed": ""}
+
+
+## Deletes the ROM copy at `path` when it is the one Anchorage writes for the port, and it
+## does not resolve into the ROM folder (ROM-6). True when it is gone.
+static func delete_placed(path: String, port: Dictionary, root: String, roms_dir: String) -> bool:
+	if path != rom_target(root, port):
+		return false
+	if not roms_dir.is_empty() and Roms.same_folder(path, roms_dir.path_join("x")):
+		return false
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	return not FileAccess.file_exists(path)
 
 
 ## The last non-empty line of a log, at most 200 characters, for an error's detail.

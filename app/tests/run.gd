@@ -18,6 +18,10 @@ func _run() -> void:
 		func(f: String): return f.begins_with("test_") and f.ends_with(".gd")
 	)
 	files.sort()
+	# TESTS=test_http runs only the files whose name contains it.
+	var only := OS.get_environment("TESTS")
+	if not only.is_empty():
+		files = files.filter(func(f: String) -> bool: return f.contains(only))
 	for file in files:
 		var script := load("res://tests/" + file) as GDScript
 		if script == null:
@@ -37,7 +41,8 @@ func _run() -> void:
 				continue
 			var test: RefCounted = script.new()
 			test.current = "%s::%s" % [file.get_basename(), method.name]
-			test.call(method.name)
+			# A test that awaits (test_http.gd) is waited for; the others return at once.
+			await test.call(method.name)
 			if test.failures.is_empty():
 				passed += 1
 				print("PASS  %s" % test.current)

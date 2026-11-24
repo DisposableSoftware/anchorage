@@ -11,6 +11,33 @@ const Installer := preload("res://src/installer.gd")
 const State := preload("res://src/state.gd")
 const Roms := preload("res://src/roms.gd")
 const NOW := 1_800_000_000
+## Engine classes and singletons that reach the network, the disk, processes or threads, or
+## that could reach them by name.
+const FORBIDDEN := [
+	"HTTPRequest",
+	"HTTPClient",
+	"StreamPeer\\w*",
+	"TCPServer",
+	"PacketPeer\\w*",
+	"FileAccess",
+	"DirAccess",
+	"ZIPReader",
+	"ZIPPacker",
+	"OS",
+	"Thread",
+	"WorkerThreadPool",
+	"Mutex",
+	"Semaphore",
+	"ClassDB",
+	"Expression",
+	"ResourceLoader",
+	"ResourceSaver",
+	"ProjectSettings",
+]
+## What a screen may load: scenes, other screens and the pure helpers.
+const LOADABLE := (
+	"^res://(scenes/[a-z_]+\\.tscn|src/ui/[a-z_]+\\.gd" + "|src/(keys|theme|palette)\\.gd)$"
+)
 
 
 ## Holds downloads until `release_one`, so a test can look while one runs.
@@ -177,13 +204,45 @@ func test_ports_has_every_method_and_signal_the_screens_use() -> void:
 	ports.free()
 
 
+## What in `source` breaks PORT-14. Comments are skipped, names are whole words whatever the
+## spacing, and every load must be of a screen file or a pure helper.
+static func _forbidden(source: String) -> Array:
+	var found := []
+	var code := RegEx.create_from_string("#[^\\n]*").sub(source, "", true)
+	var words := RegEx.create_from_string("\\b(%s)\\b" % "|".join(FORBIDDEN))
+	for m in words.search_all(code):
+		found.append(m.get_string(1))
+	if code.contains("user://"):
+		found.append("user://")
+	var loads := RegEx.create_from_string("\\b(?:pre)?load\\s*\\(\\s*([^)]*)\\)")
+	for m in loads.search_all(code):
+		var arg := m.get_string(1).strip_edges()
+		var path := arg.substr(1, arg.length() - 2) if arg.begins_with('"') else arg
+		if not (arg.begins_with('"') and RegEx.create_from_string(LOADABLE).search(path)):
+			found.append("load(%s)" % arg)
+	return found
+
+
 func test_screens_never_touch_the_network_the_disk_or_processes() -> void:
 	for file in DirAccess.get_files_at("res://src/ui"):
 		if not file.ends_with(".gd"):
 			continue
 		var text := FileAccess.get_file_as_string("res://src/ui/" + file)
-		for word in ["HTTPRequest", "FileAccess", "DirAccess", "OS.", "Thread", "user://"]:
-			check(not text.contains(word), "%s uses %s (PORT-14)" % [file, word])
+		eq(_forbidden(text), [], "%s (PORT-14)" % file)
+	# Ways around a plain substring search, which the old check let through.
+	for sample in [
+		"var dir = DirAccess .open(path)",
+		"OS\n\t.execute('rm', [])",
+		'const I := preload("res://src/installer.gd")',
+		'var h = load("res://src/http.gd").new()',
+		"var name := 'res://src/' + 'roms.gd'\nload(name)",
+		'ClassDB.instantiate("HTTP" + "Request")',
+		"var t := Thread.new()",
+		'var p := "user://ports"',
+	]:
+		check(not _forbidden(sample).is_empty(), "caught: %s" % sample)
+	eq(_forbidden("# OS.execute in a comment\nvar x := 1"), [], "comments do not count")
+	eq(_forbidden('const K := preload("res://src/keys.gd")'), [], "pure helpers may be loaded")
 
 
 func test_the_start_check_obeys_check_updates_and_the_hour() -> void:
@@ -268,6 +327,31 @@ func test_install_fetches_the_latest_release_then_rescans() -> void:
 	_free(ports)
 
 
+## HOME-8, HOME-13: progress is reported in whole percent, and `changed` only fires when
+## what the screen shows changes, not for every chunk (the screen rebuilt every frame).
+func test_download_progress_changes_only_when_the_shown_value_does() -> void:
+	_setup("ports_progress")
+	_publish("alpha", "1.0")
+	_http.chunk = 1
+	var ports := _make()
+	var shown := []
+	ports.changed.connect(
+		func(id: String) -> void:
+			if id == "alpha" and ports.info(id).busy.detail.contains(" of "):
+				shown.append(ports.info(id).busy.duplicate())
+	)
+	ports.install("alpha")
+	check(ports.info("alpha").installed, "installed")
+	check(shown.size() > 10, "progress shown: %d" % shown.size())
+	check(shown.size() <= 101, "at most once per percent, not per chunk: %d" % shown.size())
+	for i in range(1, shown.size()):
+		check(shown[i] != shown[i - 1], "each change shows something new")
+	for busy in shown:
+		var percent: float = busy.progress * 100.0
+		check(absf(percent - roundf(percent)) < 1e-6, "whole percent: %s" % percent)
+	_free(ports)
+
+
 func test_failures_become_could_not_messages() -> void:
 	_setup("ports_fail")
 	var url := _publish("alpha", "2.0")
@@ -335,6 +419,54 @@ func test_launch_places_the_rom_runs_and_comes_back() -> void:
 	eq(ports.info("alpha").error, "", "a clean exit is no error")
 	check(FileAccess.file_exists(data.path_join("alpha.o2r")), "the fake port extracted")
 	check(not FileAccess.file_exists(data.path_join("alpha.z64")), "placed ROM deleted (PORT-9)")
+	var state := State.load_from(_dir.path_join("state/state.ini"))
+	eq(state.archive_version("alpha"), "1.0", "the version that made the archive is remembered")
+	eq(state.placed_rom("alpha"), "", "and no copy is left to remember")
+	check(ports._archive_current("alpha"), "the archive is current: no ROM needed now")
+	# After an update the port rebuilds its archive, so it needs the ROM again (PORT-9, ROM-9).
+	_publish("alpha", "2.0", 0.3)
+	ports.update("alpha")
+	check(not ports._archive_current("alpha"), "after the update the ROM is wanted again")
+	var seen := []
+	ports.launched.connect(
+		func(_id: String) -> void: seen.append(FileAccess.file_exists(data.path_join("alpha.z64")))
+	)
+	ports.launch("alpha")
+	eq(seen, [true], "the ROM is placed again although an archive exists")
+	_wait_exit(ports, "alpha")
+	state = State.load_from(_dir.path_join("state/state.ini"))
+	eq(state.archive_version("alpha"), "2.0", "the new version made it")
+	check(not FileAccess.file_exists(data.path_join("alpha.z64")), "and the copy is gone again")
+	_free(ports)
+
+
+## A launch while the ROM scan runs (the one at start has no ROMs yet) waits for it, so the
+## ROM is placed (PORT-9, ROM-4).
+func test_a_launch_during_a_scan_waits_for_its_result() -> void:
+	_setup("ports_launch_scan")
+	_put_rom()
+	_publish("alpha", "1.0")
+	var ports := _make()
+	ports.install("alpha")
+	ports.get_parent().remove_child(ports)
+	ports.free()
+	ports = _make(false, true)
+	var placed := []
+	var data := _dir.path_join("ports/alpha/data")
+	ports.launched.connect(
+		func(_id: String) -> void:
+			placed.append(FileAccess.file_exists(data.path_join("alpha.z64")))
+	)
+	check(ports._scan_job != null, "the start scan runs")
+	ports.launch("alpha")
+	eq(ports.info("alpha").busy.detail, "Looking for ROMs", "the launch waits for the scan")
+	var tree := Engine.get_main_loop() as SceneTree
+	for _i in 200:
+		if not placed.is_empty():
+			break
+		await tree.process_frame
+	eq(placed, [true], "launched once, with the ROM in place")
+	_wait_exit(ports, "alpha")
 	_free(ports)
 
 
@@ -405,6 +537,29 @@ func test_remove_keeps_data_and_forgets_the_version() -> void:
 	_free(ports)
 
 
+## HOME-13: deleting a port runs on the worker pool; meanwhile it shows as removing.
+func test_remove_runs_off_the_main_thread() -> void:
+	_setup("ports_remove_async")
+	_publish("alpha", "1.0")
+	var ports := _make(false, true)
+	var tree := Engine.get_main_loop() as SceneTree
+	ports.install("alpha")
+	for _i in 200:
+		if ports.info("alpha").installed and ports.info("alpha").busy.action == "":
+			break
+		await tree.process_frame
+	check(ports.info("alpha").installed, "installed")
+	ports.remove("alpha")
+	eq(ports.info("alpha").busy.action, "remove", "busy removing while the worker deletes")
+	for _i in 200:
+		if ports.info("alpha").busy.action == "":
+			break
+		await tree.process_frame
+	check(not ports.info("alpha").installed, "removed")
+	eq(ports.info("alpha").error, "", "no error")
+	_free(ports)
+
+
 func test_rom_status_names_what_is_wanted_and_where_it_looked() -> void:
 	_setup("ports_rom")
 	var ports := _make()
@@ -419,7 +574,12 @@ func test_rom_status_names_what_is_wanted_and_where_it_looked() -> void:
 	var data := _dir.path_join("ports/alpha/data")
 	DirAccess.make_dir_recursive_absolute(data)
 	FileAccess.open(data.path_join("alpha.o2r"), FileAccess.WRITE).close()
-	check(ports.info("alpha").rom.found, "an extracted port needs no ROM (ROM-9)")
+	check(not ports.info("alpha").rom.found, "an archive no installed version made needs the ROM")
+	ports._state.set_installed("alpha", "1.0")
+	ports._state.set_archive_version("alpha", "1.0")
+	check(ports.info("alpha").rom.found, "an archive of the installed version needs none (ROM-9)")
+	ports._state.set_installed("alpha", "2.0")
+	check(not ports.info("alpha").rom.found, "after an update the ROM is wanted again")
 	_free(ports)
 
 
@@ -446,4 +606,23 @@ func test_the_scan_runs_on_a_thread_and_its_cache_is_saved() -> void:
 	eq(ports.info("alpha").rom.label, "ROM folder not found", "an unmounted card")
 	cache = State.load_from(_dir.path_join("state/state.ini")).rom_cache()
 	eq(cache.size(), 1, "keeps the cache for when it is back")
+	_free(ports)
+
+
+## A worker task that ends without a result (a script error inside it) must still hand
+## `finished` something, or the port stays busy forever.
+func test_a_worker_task_without_a_result_still_finishes() -> void:
+	_setup("ports_offload")
+	var ports := _make(false, true)
+	var got := []
+	ports._offload(
+		func() -> Variant: return null,
+		func(r: Dictionary) -> void: got.append(r),
+		{"ok": false, "error": "fallback"}
+	)
+	for _i in 100:
+		if not got.is_empty():
+			break
+		await (Engine.get_main_loop() as SceneTree).process_frame
+	eq(got, [{"ok": false, "error": "fallback"}], "the fallback result arrives")
 	_free(ports)

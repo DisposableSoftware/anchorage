@@ -23,6 +23,8 @@ class ScanJob:
 	var _thread: Thread
 	var _delivered := false
 	var _self_ref: RefCounted
+	var _lock := Mutex.new()
+	var _abort := false
 
 	func start(
 		dir: String, hashes: Dictionary, cache: Dictionary, max_size: int = MAX_ROM_SIZE
@@ -31,12 +33,25 @@ class ScanJob:
 		_thread = Thread.new()
 		_thread.start(_run.bind(dir, hashes, cache.duplicate(true), max_size))
 
+	## Asks the scan to stop at the next file or zip entry; `finished` still comes, with
+	## status "aborted". Call it before `join` when the app quits.
+	func abort() -> void:
+		_lock.lock()
+		_abort = true
+		_lock.unlock()
+
 	## Waits for the worker. Emits `finished` here if the main loop has not delivered it yet.
 	func join() -> void:
 		_deliver()
 
+	func _stopped() -> bool:
+		_lock.lock()
+		var stop := _abort
+		_lock.unlock()
+		return stop
+
 	func _run(dir: String, hashes: Dictionary, cache: Dictionary, max_size: int) -> void:
-		result = load("res://src/roms.gd").scan(dir, hashes, cache, max_size)
+		result = load("res://src/roms.gd").scan(dir, hashes, cache, max_size, _stopped)
 		_deliver.call_deferred()
 
 	func _deliver() -> void:
@@ -104,8 +119,14 @@ static func sha1_of(data: PackedByteArray) -> String:
 ## array marks a file with nothing usable). Entries over `max_size` are skipped.
 ## Returns {status: "ok"|"missing", dir, matches: {port id -> {found, path, entry, label, sha1,
 ## order}}, cache: the updated cache (only files seen in this scan), hashed, cache_hits}.
+## `stop` (optional) is asked between files and zip entries; when it returns true the scan
+## ends with status "aborted" (ROM-4: quitting never waits for a whole folder).
 static func scan(
-	dir: String, hashes: Dictionary, cache: Dictionary, max_size: int = MAX_ROM_SIZE
+	dir: String,
+	hashes: Dictionary,
+	cache: Dictionary,
+	max_size: int = MAX_ROM_SIZE,
+	stop := Callable()
 ) -> Dictionary:
 	var result := {
 		"status": "ok",
@@ -131,8 +152,11 @@ static func scan(
 	for name in names:
 		if not name.get_extension().to_lower() in FILE_EXTENSIONS:
 			continue
+		if stop.is_valid() and stop.call():
+			result["status"] = "aborted"
+			break
 		var path := dir.path_join(name)
-		for candidate in _identify_file(path, result, cache, max_size):
+		for candidate in _identify_file(path, result, cache, max_size, stop):
 			for port in hashes:
 				var list: Array = hashes[port]
 				for i in list.size():
@@ -159,18 +183,23 @@ static func scan(
 
 
 ## Writes the ROM of a `scan` match as big-endian data to `dest_path`, through a temp file in
-## the same folder. Refuses to write next to the source file.
+## the same folder. Refuses to write into the source file's folder (ROM-6), compared by real
+## path. ERR_FILE_CORRUPT when the data no longer has the SHA1 the scan found (the file
+## changed since).
 static func prepare(match: Dictionary, dest_path: String) -> Error:
 	if not match.get("found", false):
 		return ERR_INVALID_PARAMETER
 	var src_path: String = match["path"]
-	if dest_path.get_base_dir() == src_path.get_base_dir():
+	if same_folder(dest_path, src_path):
 		return ERR_INVALID_PARAMETER
-	var data := _read_source(src_path, match.get("entry", ""))
+	var data := _read_source(src_path, match.get("entry", ""), MAX_ROM_SIZE)
 	if data.is_empty():
 		return ERR_FILE_CANT_READ
 	var order := String(match.get("order", detect_order(data)))
 	data = to_z64(data, order)
+	var expected := String(match.get("sha1", ""))
+	if not expected.is_empty() and sha1_of(data) != expected.to_lower():
+		return ERR_FILE_CORRUPT
 	var err := DirAccess.make_dir_recursive_absolute(dest_path.get_base_dir())
 	if err != OK:
 		return err
@@ -188,6 +217,78 @@ static func prepare(match: Dictionary, dest_path: String) -> Error:
 	if err != OK:
 		DirAccess.remove_absolute(temp)
 	return err
+
+
+## True when the two paths' folders are one folder, after links and `..` are resolved.
+static func same_folder(a: String, b: String) -> bool:
+	return real_path(a.get_base_dir()) == real_path(b.get_base_dir())
+
+
+## `path` (absolute) with `.`, `..` and symbolic links resolved, as far as it exists. Godot
+## has no realpath, so links are followed one part at a time (at most 40 of them).
+static func real_path(path: String) -> String:
+	var parts := Array(path.simplify_path().split("/", false))
+	var out := ""
+	var hops := 0
+	var i := 0
+	while i < parts.size():
+		var parent: String = out if not out.is_empty() else "/"
+		var next: String = out + "/" + parts[i]
+		var access := DirAccess.open(parent)
+		if access != null and hops < 40 and access.is_link(next):
+			hops += 1
+			var target := access.read_link(next)
+			if not target.begins_with("/"):
+				target = parent.path_join(target)
+			var rest := "/".join(parts.slice(i + 1))
+			parts = Array((target + "/" + rest).simplify_path().split("/", false))
+			out = ""
+			i = 0
+			continue
+		out = next
+		i += 1
+	return out if not out.is_empty() else "/"
+
+
+## Uncompressed size of every entry of a zip, by name, from its central directory, so an
+## entry can be skipped without being read. Empty when it is not a readable zip. Zip64
+## entries report 0xFFFFFFFF, which is over every limit here.
+static func zip_sizes(path: String) -> Dictionary:
+	var sizes := {}
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return sizes
+	var length := file.get_length()
+	var tail_size := mini(length, 65557)
+	file.seek(length - tail_size)
+	var tail := file.get_buffer(tail_size)
+	var eocd := -1
+	for i in range(tail.size() - 22, -1, -1):
+		if tail.decode_u32(i) == 0x06054b50:
+			eocd = i
+			break
+	if eocd < 0:
+		file.close()
+		return sizes
+	var count := tail.decode_u16(eocd + 10)
+	var dir_size := tail.decode_u32(eocd + 12)
+	var dir_offset := tail.decode_u32(eocd + 16)
+	if dir_offset + dir_size > length:
+		file.close()
+		return sizes
+	file.seek(dir_offset)
+	var central := file.get_buffer(dir_size)
+	file.close()
+	var pos := 0
+	for _i in count:
+		if pos + 46 > central.size() or central.decode_u32(pos) != 0x02014b50:
+			break
+		var name_length := central.decode_u16(pos + 28)
+		var skip := name_length + central.decode_u16(pos + 30) + central.decode_u16(pos + 32)
+		var name := central.slice(pos + 46, pos + 46 + name_length).get_string_from_utf8()
+		sizes[name] = central.decode_u32(pos + 24)
+		pos += 46 + skip
+	return sizes
 
 
 static func _empty_matches(hashes: Dictionary) -> Dictionary:
@@ -216,9 +317,10 @@ static func _cache_key(path: String) -> String:
 	return "%s|%d|%d" % [path, size, FileAccess.get_modified_time(path)]
 
 
-## The usable ROM entries of one file, from the cache when its key is unchanged.
+## The usable ROM entries of one file, from the cache when its key is unchanged. A file or
+## zip entry over `max_size` is skipped before it is read.
 static func _identify_file(
-	path: String, result: Dictionary, cache: Dictionary, max_size: int
+	path: String, result: Dictionary, cache: Dictionary, max_size: int, stop: Callable
 ) -> Array:
 	var key := _cache_key(path)
 	if cache.has(key):
@@ -227,9 +329,12 @@ static func _identify_file(
 		return cache[key]
 	var entries: Array = []
 	if path.get_extension().to_lower() == "zip":
-		entries = _identify_zip(path, result, max_size)
+		var zipped: Variant = _identify_zip(path, result, max_size, stop)
+		if zipped == null:
+			return []
+		entries = zipped
 	else:
-		var candidate := _identify_data(FileAccess.get_file_as_bytes(path), "", max_size)
+		var candidate := _identify_data(_read_file(path, max_size), "", max_size)
 		if not candidate.is_empty():
 			result["hashed"] += 1
 			entries.append(candidate)
@@ -237,20 +342,40 @@ static func _identify_file(
 	return entries
 
 
-static func _identify_zip(path: String, result: Dictionary, max_size: int) -> Array:
+## The candidates of a zip, or null when `stop` cut it short (then nothing is cached).
+static func _identify_zip(
+	path: String, result: Dictionary, max_size: int, stop: Callable
+) -> Variant:
 	var entries: Array = []
 	var zip := ZIPReader.new()
 	if zip.open(path) != OK:
 		return entries
+	var sizes := zip_sizes(path)
 	for entry in zip.get_files():
 		if entry.ends_with("/") or not entry.get_extension().to_lower() in ROM_EXTENSIONS:
 			continue
+		if int(sizes.get(entry, max_size + 1)) > max_size:
+			continue
+		if stop.is_valid() and stop.call():
+			result["status"] = "aborted"
+			zip.close()
+			return null
 		var candidate := _identify_data(zip.read_file(entry), entry, max_size)
 		if not candidate.is_empty():
 			result["hashed"] += 1
 			entries.append(candidate)
 	zip.close()
 	return entries
+
+
+## The whole file, or nothing when it is larger than `max_size`.
+static func _read_file(path: String, max_size: int) -> PackedByteArray:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null or file.get_length() > max_size:
+		return PackedByteArray()
+	var data := file.get_buffer(file.get_length())
+	file.close()
+	return data
 
 
 ## {sha1, entry, order} for ROM data, or {} when it is too large or has no ROM header.
@@ -263,9 +388,11 @@ static func _identify_data(data: PackedByteArray, entry: String, max_size: int) 
 	return {"sha1": sha1_of(to_z64(data, order)), "entry": entry, "order": order}
 
 
-static func _read_source(path: String, entry: String) -> PackedByteArray:
+static func _read_source(path: String, entry: String, max_size: int) -> PackedByteArray:
 	if entry.is_empty():
-		return FileAccess.get_file_as_bytes(path)
+		return _read_file(path, max_size)
+	if int(zip_sizes(path).get(entry, max_size + 1)) > max_size:
+		return PackedByteArray()
 	var zip := ZIPReader.new()
 	if zip.open(path) != OK:
 		return PackedByteArray()

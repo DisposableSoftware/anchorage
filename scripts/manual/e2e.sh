@@ -1,6 +1,6 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i bash -p wtype wlrctl jq grim procps
-# Spec: PORT-3, PORT-5, PORT-6, PORT-8, PORT-9, PORT-10, PORT-12, PORT-15, ROM-5, HOME-8,
+# Spec: PORT-3, PORT-5, PORT-6, PORT-8, PORT-9, PORT-10, PORT-12, PORT-15, PORT-16, ROM-5, HOME-8,
 # HOME-10, HOME-13.
 # End to end with the real network and real ports, fully sandboxed: HOME and every XDG
 # folder are temp folders, the ROMs are copies, and the ports run only from there. Run
@@ -172,6 +172,9 @@ for id in spaghettikart 2ship starship soh; do
   check "$id spawned, output in launch.log (PORT-8)" 0 $?
   placed=$([ -f "$PORTS/$id/data/$(rom_file "$id")" ] && echo yes || echo no)
   echo "      ROM placed before the start: $placed (PORT-9)"
+  for p in $(port_pids "$id"); do
+    echo "      command line: $(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null | sed "s|$T|<sandbox>|g")"
+  done
   sleep 1; full "$pre-$id-a-playing"
   seen=""; answered=0
   for ((s = 0; s < ${LAUNCH_SECONDS:-90}; s += 5)); do

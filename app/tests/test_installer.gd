@@ -179,6 +179,34 @@ func test_a_size_that_does_not_match_the_release_fails() -> void:
 	remove(_dir)
 
 
+func _sha256(path: String) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	ctx.update(FileAccess.get_file_as_bytes(path))
+	return ctx.finish().hex_encode()
+
+
+func test_the_sha256_digest_is_checked_when_the_release_has_one() -> void:
+	_setup("inst_digest")
+	_install_old()
+	var zip := _good_zip()
+	_http.files[ZIP_URL] = zip
+	var release := _release(zip)
+	release["asset"]["sha256"] = "0".repeat(64)
+	var result := _run("update", _port(), release)
+	check(not result["ok"], "a wrong digest fails (PORT-3)")
+	check("SHA-256" in result["error"], "says why: %s" % result["error"])
+	check(_old_is_intact(), "the old version stays")
+	check(not DirAccess.dir_exists_absolute(Installer.download_dir(_root, "starship")), "cleaned")
+	release["asset"]["sha256"] = _sha256(zip)
+	result = _run("update", _port(), release)
+	check(result["ok"], "the right digest installs: %s" % result["error"])
+	release["asset"].erase("sha256")
+	result = _run("update", _port(), release)
+	check(result["ok"], "no digest (Starship v2.0.0): the size is enough")
+	remove(_dir)
+
+
 func test_hostile_zip_entries_are_rejected_before_anything_is_written() -> void:
 	for bad in ["../evil.txt", "/abs/evil.txt", "a/../../evil.txt", "..\\evil.txt", "C:/evil.txt"]:
 		_setup("inst_evil")
@@ -341,23 +369,15 @@ func test_extra_folders_are_copied_to_data_and_replaced_on_update() -> void:
 	remove(_dir)
 
 
-func test_copy_extra_files_only_missing_keeps_what_is_there() -> void:
-	_setup("inst_missing")
-	var from := _dir.path_join("from")
-	DirAccess.make_dir_recursive_absolute(from.path_join("assets/x"))
-	for path in ["config.yml", "assets/x/y.yaml"]:
-		var file := FileAccess.open(from.path_join(path), FileAccess.WRITE)
-		file.store_string("new")
-		file.close()
-	var data := _dir.path_join("data")
-	DirAccess.make_dir_recursive_absolute(data)
-	var mine := FileAccess.open(data.path_join("config.yml"), FileAccess.WRITE)
-	mine.store_string("mine")
-	mine.close()
-	var port := {"extra_files": ["config.yml", "assets"]}
-	eq(Installer.copy_extra_files(port, from, data, true), "", "no error")
-	eq(_text(data.path_join("config.yml")), "mine", "present file kept")
-	eq(_text(data.path_join("assets/x/y.yaml")), "new", "missing folder copied")
+func test_a_zip_entry_over_the_limit_is_refused_before_it_is_read() -> void:
+	_setup("inst_entry_limit")
+	var zip := _dir.path_join("big.zip")
+	_zip(zip, {"small.txt": "x", "big.bin": "y".repeat(5000)})
+	var dest := _dir.path_join("dest")
+	var error := Installer.extract_zip(zip, dest, 1000)
+	eq(error, "The zip entry “big.bin” is too large to unpack", "refused by its listed size")
+	check(not DirAccess.dir_exists_absolute(dest), "nothing written")
+	eq(Installer.extract_zip(zip, dest), "", "under the default limit it unpacks")
 	remove(_dir)
 
 
@@ -426,6 +446,24 @@ func test_remove_deletes_the_program_but_not_the_data() -> void:
 	remove(_dir)
 
 
+## A remove that stops part-way (here previous/ can't be deleted; a kill is the same) must
+## not leave previous/ without current/, which cleanup_stale would put back as current/
+## while state.ini still names the newer version (PORT-7, PORT-12).
+func test_a_remove_that_stops_part_way_never_brings_back_the_old_version() -> void:
+	_setup("inst_remove_order")
+	_install_old()
+	var previous := Installer.previous_dir(_root, "starship")
+	DirAccess.make_dir_recursive_absolute(previous.path_join("locked"))
+	FileAccess.open(previous.path_join("locked/file"), FileAccess.WRITE).close()
+	FileAccess.set_unix_permissions(previous.path_join("locked"), 365)  # r-xr-xr-x
+	var result := Installer.remove(_root, "starship")
+	FileAccess.set_unix_permissions(previous.path_join("locked"), 493)
+	check(not result["ok"], "the remove reports the failure")
+	Installer.cleanup_stale(_root)
+	check(_old_is_intact(), "current/ is still the installed version: previous/ goes first")
+	remove(_dir)
+
+
 func test_cleanup_stale_removes_download_folders_and_finishes_a_killed_swap() -> void:
 	_setup("inst_stale")
 	var junk := Installer.download_dir(_root, "a").path_join("staging/deep")
@@ -460,3 +498,18 @@ func test_rm_rf_does_not_follow_links() -> void:
 	check(not DirAccess.dir_exists_absolute(victim), "victim removed")
 	check(FileAccess.file_exists(outside.path_join("keep")), "link target kept")
 	remove(_dir)
+
+
+## A worker task that ends without a result (a script error inside it) must still hand
+## `finished` something, or the install stays at "Unpacking" forever.
+func test_a_worker_task_without_a_result_still_finishes() -> void:
+	var installer := Installer.new("/nonexistent", FakeHttp.new())
+	var got := []
+	installer._offload(
+		func() -> Variant: return null, func(r: String) -> void: got.append(r), "fallback"
+	)
+	for _i in 100:
+		if not got.is_empty():
+			break
+		await (Engine.get_main_loop() as SceneTree).process_frame
+	eq(got, ["fallback"], "the fallback result arrives")

@@ -24,6 +24,7 @@ var _current: Control
 @onready var _menu_title: Label = %MenuTitle
 @onready var _menu_game: Label = %MenuGame
 @onready var _play_button: Button = %PlayButton
+@onready var _update_button: Button = %UpdateButton
 @onready var _check_button: Button = %CheckButton
 @onready var _remove_button: Button = %RemoveButton
 @onready var _confirm_layer: Control = %ConfirmLayer
@@ -52,17 +53,24 @@ func _ready() -> void:
 	ports.launched.connect(_on_launched)
 	ports.exited.connect(_on_exited)
 	_play_button.pressed.connect(_on_play)
+	_update_button.pressed.connect(_on_update)
 	_check_button.pressed.connect(_on_check)
 	_remove_button.pressed.connect(_on_remove)
 	_cancel_button.pressed.connect(_close)
 	_confirm_button.pressed.connect(_on_confirm_remove)
-	for button in [_play_button, _check_button, _remove_button, _cancel_button, _confirm_button]:
+	for button in [
+		_play_button, _update_button, _check_button, _remove_button, _cancel_button, _confirm_button
+	]:
 		button.mouse_entered.connect(button.grab_focus)
 	if _cards.is_empty():
 		return
 	_link_focus(_cards, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP, SIDE_BOTTOM)
 	_link_focus(
-		[_play_button, _check_button, _remove_button], SIDE_TOP, SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT
+		[_play_button, _update_button, _check_button, _remove_button],
+		SIDE_TOP,
+		SIDE_BOTTOM,
+		SIDE_LEFT,
+		SIDE_RIGHT
 	)
 	_link_focus([_cancel_button, _confirm_button], SIDE_LEFT, SIDE_RIGHT, SIDE_TOP, SIDE_BOTTOM)
 	_current = _cards[0]
@@ -226,6 +234,7 @@ func _open_menu() -> void:
 	_menu_title.text = info.name
 	_menu_game.text = info.game
 	_play_button.visible = info.installed and idle
+	_update_button.visible = info.installed and idle and info.update_available
 	_remove_button.visible = info.installed and idle
 	_set_modal(Mode.MENU, _menu_layer)
 	(_play_button if _play_button.visible else _check_button).grab_focus()
@@ -235,6 +244,12 @@ func _on_play() -> void:
 	var id: String = _current.port_id
 	_close()
 	ports.launch(id)
+
+
+func _on_update() -> void:
+	var id: String = _current.port_id
+	_close()
+	ports.update(id)
 
 
 func _on_check() -> void:

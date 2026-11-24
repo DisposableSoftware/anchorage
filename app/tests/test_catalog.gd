@@ -59,6 +59,28 @@ func test_starship_runs_in_its_data_folder_with_what_its_extractor_reads() -> vo
 	eq(kart["extra_files"], ["gamecontrollerdb.txt"], "extra files")
 
 
+func test_first_launch_rom_place_and_note_per_port() -> void:
+	var ports: Array = Catalog.load_default()["ports"]
+	for id in ["soh", "2ship"]:
+		eq(Catalog.find(ports, id)["rom_place"], "argv", "%s gets the ROM as an argument" % id)
+	for id in ["starship", "spaghettikart"]:
+		eq(Catalog.find(ports, id)["rom_place"], "cwd", "%s finds it in its working dir" % id)
+	for port in ports:
+		var note: String = port.get("first_run", "")
+		check(not note.is_empty(), "%s has a first_run note (PORT-17)" % port["id"])
+		for line in note.split("\n"):
+			check(not line.ends_with("."), "%s: no full stop at the end: %s" % [port["id"], line])
+			check(line.length() <= 100, "%s: short lines: %s" % [port["id"], line])
+		var needs_mouse: bool = port["id"] in ["starship", "spaghettikart"]
+		eq(note.contains("mouse"), needs_mouse, "%s names the mouse only when needed" % port["id"])
+		eq(note.contains("Play again"), not needs_mouse, "%s: press Play again" % port["id"])
+	var odd := _entry()
+	odd["first_run"] = 5
+	check(not _parse([odd])["errors"].is_empty(), "first_run must be text")
+	odd.erase("first_run")
+	eq(_parse([odd])["ports"][0]["first_run"], "", "first_run is optional")
+
+
 func test_every_entry_has_every_field() -> void:
 	for port in Catalog.load_default()["ports"]:
 		for key in Catalog.STRING_KEYS:

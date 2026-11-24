@@ -55,27 +55,30 @@ app/src/config.gd        config.ini + keybindings.ini, first-run files          
 app/src/keys.gd          Keys.BINDINGS, key and gamepad tokens, InputMap setup, hint labels   KEY HOME-11
 app/src/palette.gd       the four Catppuccin palettes (the only hex colours)      LOOK-3
 app/src/theme.gd         builds the one Theme: type variations, "Palette" colours, contrast   LOOK-2 LOOK-5 LOOK-6 LOOK-8
-app/src/ports.gd         Ports, the one service screens use: state, queue, checks, scans, launches   PORT-5 PORT-6 PORT-12 PORT-14 ROM-4 ROM-5 ROM-9
+app/src/ports.gd         Ports, the one service screens use: state, queue, checks, scans, launches, art   PORT-5 PORT-6 PORT-9 PORT-12 PORT-14 PORT-17 ROM-4 ROM-5 ROM-9 ART-3
 app/src/ports_fake.gd    stand-in for Ports with demo data and scenarios (tests, screenshots)   PORT-14
-app/src/catalog.gd       reads and checks data/ports.json (its schema is in the header)   PORT-1
-app/src/releases.gd      latest release from the GitHub API, asset choice, update-check rule   PORT-2 PORT-5 PORT-13
-app/src/http.gd          HTTPRequest wrapper: JSON, downloads with progress, checked redirects   PORT-4 PORT-13
-app/src/installer.gd     download, unpack, swap current/previous, remove, stale cleanup, extra files   PORT-3 PORT-6 PORT-7 PORT-10
-app/src/launcher.gd      child environment, /bin/sh spawn, ROM placement before launch   PORT-8 PORT-9 PORT-15
-app/src/state.gd         state.ini: installed and latest tags, last check, ROM scan cache   PORT-11
-app/src/roms.gd          ROM scan (ScanJob thread), SHA1 identification, big-endian prepare   ROM
+app/src/catalog.gd       reads and checks data/ports.json (its schema is in the header)   PORT-1 PORT-16 PORT-17 ART-1
+app/src/releases.gd      latest release from the GitHub API, asset choice and digest, update-check rule, redirect hosts   PORT-2 PORT-3 PORT-5 PORT-13
+app/src/http.gd          HTTPRequest wrapper: JSON, downloads with progress, redirects followed by hand and checked   PORT-4 PORT-13
+app/src/installer.gd     download, digest, unpack, swap current/previous (worker), remove, stale cleanup, extra files   PORT-3 PORT-6 PORT-7 PORT-10
+app/src/launcher.gd      child environment, /bin/sh spawn, ROM placement and argument, placed-copy cleanup   PORT-8 PORT-9 PORT-15 PORT-16
+app/src/state.gd         state.ini: installed and latest tags, archive version, placed ROM, last check, ROM scan cache   PORT-11
+app/src/roms.gd          ROM scan (ScanJob thread, abort), zip sizes, SHA1 identification, big-endian prepare, real paths   ROM
+app/src/art.gd           cover art: download one at a time, cache by URL hash, size and type checks, decode   ART-3 ART-4 ART-6
 app/src/ui/home.gd       home screen logic: focus, accept, menu, dialog, Playing, hints   HOME
 app/src/ui/card.gd       a card: emblem, titles, badge, progress, focus/selection look   HOME-2 HOME-12
-app/src/ui/detail.gd     detail panel: versions, ROM status, progress, errors      HOME-3 HOME-8 HOME-9
+app/src/ui/detail.gd     detail panel: description or first-launch note, versions, ROM status, progress, errors   HOME-3 HOME-8 HOME-9 PORT-17
 app/src/ui/hint_bar.gd   the hint bar from the live InputMap                      HOME-11
 app/src/ui/port_state.gd state, badge text and primary action of one info() dict  HOME-2 HOME-4
 app/fonts/               Inter (variable) and its licence (OFL 1.1)               LOOK-6
 app/data/                config.example.ini + keybindings.example.ini (first-run files)   CONF-2
 app/data/ports.json      the port catalog                                         PORT-1
-app/tests/               run.gd (runner), case.gd (base), test_*.gd; test_spec.gd checks spec <-> code
+app/tests/               run.gd (runner; awaits tests that await; TESTS=name runs one file), case.gd (base), test_*.gd; test_spec.gd checks spec <-> code
+app/tests/test_http.gd   http.gd against a local TCPServer: redirects, stall, cancel, size limit, JSON   PORT-4 PORT-13
+app/tests/test_art.gd    art.gd with fake HTTP; art_catalog.json is its test catalog   ART
 app/tests/fake_http.gd   http.gd stand-in that answers from memory and local files
-scripts/test.sh          runs app/tests headless, fails on script errors
-scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway)
+scripts/test.sh          runs app/tests headless with every XDG folder in a temp dir; fails on script, Unicode and engine errors (allowlist for the tests that break input on purpose)
+scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway); art.sh fetches the real cover art (ART), e2e.sh installs and starts the real ports
 scripts/release-check.sh recommended version bump since the last v* tag (spec delta)
 scripts/release.sh       bump, commit "Anchorage X.Y.Z", tag, draft notes (no push)
 scripts/build-appimage.sh builds the AppImage into dist/ (git-ignored)             INT-26
@@ -98,7 +101,7 @@ spec/                    the specification
 - Build screens from `Control` nodes and drive them through focus (`grab_focus`, `focus_neighbor_*`) and the `ui_*` actions, so the gamepad works. Never read raw joypad events in a screen. Add an action to `Keys.BINDINGS` instead (`PROD-5`).
 - Never block the main thread: `HTTPRequest` and threads for network and disk work, `await` for waiting.
 - Scene (`.tscn`) edits by hand are fine and keep diffs small. If the editor rewrites a file, check that `git diff` shows only the intended change.
-- Godot prints script errors and keeps going. `scripts/test.sh` treats "SCRIPT ERROR" and "Parse Error" in the output as a failure, so a green run means none.
+- Godot prints script and engine errors and keeps going. `scripts/test.sh` treats "SCRIPT ERROR", "Parse Error", "Unicode parsing error" and engine "ERROR:" lines in the output as a failure, so a green run means none. A test that feeds Godot broken input on purpose goes on the `ALLOWED` list in `scripts/test.sh`, by its name.
 - A test file is `app/tests/test_*.gd`, extending `res://tests/case.gd`; each `test_*` method runs separately. Use `eq` and `check`. Use `temp_dir` for files and `repo_file` to read from `spec/` or `data/`.
 - The runner starts the tests on the first frame, so a test can add a scene to `(Engine.get_main_loop() as SceneTree).root` and drive it with `get_viewport().push_input(event)` (see `test_home.gd`). Free what you add before the test returns.
 - Colours come from the theme: `theme_type_variation` for styles, `get_theme_color(name, "Palette")` for a palette colour. No hex or numeric `Color(...)` outside `palette.gd` (`test_theme` checks).
@@ -121,7 +124,7 @@ Prefer adding a script to `scripts/manual/` (source `lib.sh`, which has the guar
 
 ### Fake ports and screenshots
 
-`--fake-ports [SCENARIO]` after `--` starts the app with `app/src/ports_fake.gd` instead of the real service (it is also used while `app/src/ports.gd` doesn't exist): `./result/bin/anchorage -- --fake-ports error`, or `godot --path app -- --fake-ports offline`. Scenarios: `showcase` (default: one card per state), `fresh`, `installing`, `updating`, `rom-missing`, `error`, `offline`, `playing`; the list and what each sets are at the top of `ports_fake.gd`. Actions in the fake play out over time (a download takes 6 s, a launched port runs 8 s); the scenarios' own busy states stay still, so screenshots repeat.
+`--fake-ports [SCENARIO]` after `--` starts the app with `app/src/ports_fake.gd` instead of the real service (it is also used while `app/src/ports.gd` doesn't exist): `./result/bin/anchorage -- --fake-ports error`, or `godot --path app -- --fake-ports offline`. Scenarios: `showcase` (default: one card per state), `fresh`, `installing`, `updating`, `rom-missing`, `error`, `offline`, `playing`, `art-late`, `first-run` (every port installed without its game files: the first-launch notes); the list and what each sets are at the top of `ports_fake.gd`. Actions in the fake play out over time (a download takes 6 s, a launched port runs 8 s); the scenarios' own busy states stay still, so screenshots repeat.
 
 - `scripts/manual/shots.sh SIZE` takes a screenshot of every scenario, the options menu, the Remove dialog and latte with blue: `HEADLESS_RES=1280x720 HEADLESS_SCALE=1 OUT=/tmp/shots scripts/manual/headless.sh scripts/manual/shots.sh 1280x720`. `FLAVOR` and `ACCENT` change the look for the whole run.
 - `scripts/manual/home.sh` (1280×720) drives focus with keys and finds the focus ring by its colour, including while a download runs.
@@ -143,7 +146,7 @@ Run checks with `./scripts/manual/headless.sh ./scripts/manual/<name>.sh`. It st
 
 ### End to end (real network, real ports)
 
-`scripts/manual/e2e.sh` installs all four ports from GitHub with keyboard input, refreshes, launches each one, answers its first-run "Generate one now?" prompt and removes one, with HOME and every XDG folder in a temp sandbox and ROM copies from `ROMS`. Screenshots and the ports' `launch.log` go to `$OUT`; the sandbox is deleted at the end (`KEEP=1` keeps it). On NixOS the release AppImages need an FHS environment and `steam-run` has a private `/tmp`, so put the runner's temp folder in your home, under a short path (sway's socket path has a length limit):
+`scripts/manual/e2e.sh` installs all four ports from GitHub with keyboard input, refreshes, launches each one (Shipwright and 2ship get the ROM as an argument and extract without asking), answers the other ports' first-run "Generate one now?" prompt and removes one, with HOME and every XDG folder in a temp sandbox and ROM copies from `ROMS`. Screenshots and the ports' `launch.log` go to `$OUT`; the sandbox is deleted at the end (`KEEP=1` keeps it). On NixOS the release AppImages need an FHS environment and `steam-run` has a private `/tmp`, so put the runner's temp folder in your home, under a short path (sway's socket path has a length limit):
 
 ```bash
 mkdir -p ~/.cache/ae && TMPDIR=~/.cache/ae RUNNER=steam-run ROMS=/path/to/rom/copies OUT=/tmp/shots \

@@ -6,10 +6,12 @@ extends RefCounted
 ##
 ## File layout (plain INI, read by `ini.gd`):
 ##   [ports]    <id>.installed = <tag>      <id>.latest = <tag>
+##              <id>.archive = <tag that made the archive>   <id>.rom_placed = <path>
 ##   [updates]  last_check = <unix seconds>
 ##   [roms]     cache = <one line of JSON>  (owned by the ROM code: path -> entry)
 
 const Ini := preload("res://src/ini.gd")
+const FIELDS := ["installed", "latest", "archive", "rom_placed"]
 
 var path := ""
 var _ports := {}
@@ -42,7 +44,7 @@ static func load_from(file_path: String) -> RefCounted:
 			continue
 		var id := (key as String).substr(0, dot)
 		var field := (key as String).substr(dot + 1)
-		if field in ["installed", "latest"]:
+		if field in FIELDS:
 			if not state._ports.has(id):
 				state._ports[id] = {}
 			state._ports[id][field] = ports[key]
@@ -73,6 +75,25 @@ func latest_version(id: String) -> String:
 
 func set_latest(id: String, tag: String) -> void:
 	_store(id, "latest", tag)
+
+
+## The installed version that made the port's archive, or kept it (PORT-9).
+func archive_version(id: String) -> String:
+	return _ports.get(id, {}).get("archive", "")
+
+
+func set_archive_version(id: String, tag: String) -> void:
+	_store(id, "archive", tag)
+
+
+## The ROM copy Anchorage wrote for the port, so only that is ever deleted (PORT-9).
+func placed_rom(id: String) -> String:
+	return _ports.get(id, {}).get("rom_placed", "")
+
+
+func set_placed_rom(id: String, path: String) -> void:
+	if placed_rom(id) != path:
+		_store(id, "rom_placed", path)
 
 
 ## Unix seconds of the last successful update check, 0 when never.
@@ -130,7 +151,7 @@ func _serialise() -> String:
 	var ids := _ports.keys()
 	ids.sort()
 	for id in ids:
-		for field in ["installed", "latest"]:
+		for field in FIELDS:
 			var value := _line(_ports[id].get(field, ""))
 			if not value.is_empty():
 				out += "%s.%s = %s\n" % [_line(id), field, value]

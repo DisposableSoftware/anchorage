@@ -1,6 +1,6 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i bash -p jq grim wtype
-# Spec: LOOK-2, LOOK-5, LOOK-6, HOME-1 .. HOME-12 (screenshots).
+# Spec: LOOK-2, LOOK-5, LOOK-6, HOME-1 .. HOME-12, PORT-17 (screenshots).
 # One output size (WxH, default 1280x720); run through headless.sh, with the output set
 # to that size:
 #   HEADLESS_RES=1280x720 HEADLESS_SCALE=1 scripts/manual/headless.sh scripts/manual/shots.sh 1280x720
@@ -33,7 +33,7 @@ open() {
 
 close() { cleanup; wait "$PID" 2>/dev/null; PID=; sleep 0.3; }
 
-for scenario in showcase fresh installing updating rom-missing error offline playing; do
+for scenario in showcase fresh installing updating rom-missing error offline playing first-run; do
   open "$scenario"
   shot "$OUT/$res-$scenario.png"
   close
@@ -46,6 +46,11 @@ keys -k Left o
 shot "$OUT/$res-menu.png"
 keys -k Down -k Down -k Return
 shot "$OUT/$res-confirm.png"
+close
+
+open first-run
+keys -k Right -k Right
+shot "$OUT/$res-first-run-starship.png"
 close
 
 open rom-missing

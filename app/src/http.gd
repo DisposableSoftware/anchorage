@@ -5,23 +5,28 @@ extends Node
 ##   fetch_json(url, done)
 ##       done({ok, status, data, error}) with the parsed JSON body in `data`.
 ##   download(url, dest, progress, done, expected_size := 0)
-##       Streams the body to `dest` (HTTPRequest.download_file, on a worker thread).
-##       progress(bytes_done, bytes_total) every frame; bytes_total is -1 when unknown.
+##       Streams the body to `dest` (HTTPRequest.download_file), polled once a frame.
+##       progress(bytes_done, bytes_total) when more arrived; bytes_total is -1 when unknown.
 ##       done({ok, status, error, cancelled}). One download at a time.
 ##   cancel_download()
 ##       Stops the running download; `done` still fires, with cancelled = true.
 ##
-## GitHub asset URLs redirect to a CDN. Redirects are followed by hand (max_redirects = 0),
-## so each hop can be checked against `Releases.redirect_allowed` (https, GitHub hosts).
-## Tests use `res://tests/fake_http.gd`, which has the same three methods.
+## GitHub asset URLs redirect to a CDN, and the API redirects for a moved repo. Redirects are
+## followed by hand (max_redirects = 0), at most MAX_HOPS, so each hop can be checked against
+## `Releases.redirect_allowed` (https, GitHub hosts). Tests use `res://tests/fake_http.gd`,
+## which has the same three methods; `test_http.gd` runs this file against a local server.
 
 const Releases := preload("res://src/releases.gd")
 const USER_AGENT := "Anchorage"
 const MAX_HOPS := 5
-const STALL_SECONDS := 60.0
+const CHUNK_BYTES := 1 << 20
 
 ## Lets http:// URLs through, for a local test server. Never set by the app.
 var allow_http := false
+## A download that receives nothing for this long fails.
+var stall_seconds := 60.0
+## The limit for one API call.
+var timeout_seconds := 30.0
 ## Decides where a redirect may go; empty means GitHub's hosts (`Releases.redirect_allowed`).
 ## The cover art loader sets its own, so art redirects never reach other hosts (ART-4).
 var redirect_check := Callable()
@@ -36,17 +41,25 @@ func _ready() -> void:
 	set_process(false)
 
 
-func fetch_json(url: String, done: Callable) -> void:
+## Redirects (a moved repo) are followed by hand, like downloads, and checked the same way.
+func fetch_json(url: String, done: Callable, hops := 0) -> void:
 	if not _url_ok(url):
 		done.call({"ok": false, "status": 0, "error": "Refused URL"})
 		return
 	var request := HTTPRequest.new()
-	request.max_redirects = 4
-	request.timeout = 30.0
+	request.max_redirects = 0
+	request.timeout = timeout_seconds
 	add_child(request)
 	request.request_completed.connect(
-		func(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+		func(result: int, code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
 			request.queue_free()
+			if _is_redirect(result, code):
+				var target := _resolve(url, _header(headers, "location"))
+				if hops >= MAX_HOPS or target.is_empty() or not _redirect_ok(target):
+					done.call({"ok": false, "status": code, "error": "Refused a redirect"})
+				else:
+					fetch_json(target, done, hops + 1)
+				return
 			done.call(_json_result(result, code, body))
 	)
 	var headers := [
@@ -93,13 +106,13 @@ func _process(delta: float) -> void:
 	var total := _request.get_body_size()
 	if total <= 0:
 		total = _job["expected"] if _job["expected"] > 0 else -1
-	_job["progress"].call(got, total)
 	if got != _last_bytes:
 		_last_bytes = got
 		_stalled = 0.0
+		_job["progress"].call(got, total)
 	else:
 		_stalled += delta
-		if _stalled > STALL_SECONDS:
+		if _stalled > stall_seconds:
 			_request.cancel_request()
 			_finish({"ok": false, "status": 0, "error": "The download stalled"})
 
@@ -110,7 +123,11 @@ func _start(url: String) -> void:
 		return
 	_request = HTTPRequest.new()
 	_request.max_redirects = 0
-	_request.use_threads = true
+	# Not use_threads: its thread blocks in a socket read, so cancelling a stalled download
+	# (cancel_request joins the thread) froze the main loop. Polled from the main loop, a
+	# read never blocks; the large chunk keeps one read per frame fast enough.
+	_request.use_threads = false
+	_request.download_chunk_size = CHUNK_BYTES
 	_request.download_file = _job["dest"]
 	if _job["expected"] > 0:
 		_request.body_size_limit = _job["expected"]
@@ -130,10 +147,7 @@ func _on_completed(
 ) -> void:
 	if _job.is_empty():
 		return
-	var redirected := (
-		result == HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED and code in [301, 302, 303, 307, 308]
-	)
-	if redirected:
+	if _is_redirect(result, code):
 		var target := _resolve(url, _header(headers, "location"))
 		if _job["hops"] >= MAX_HOPS or target.is_empty() or not _redirect_ok(target):
 			_finish({"ok": false, "status": code, "error": "Refused a redirect"})
@@ -176,6 +190,10 @@ func _redirect_ok(url: String) -> bool:
 	if redirect_check.is_valid():
 		return redirect_check.call(url)
 	return Releases.redirect_allowed(url)
+
+
+static func _is_redirect(result: int, code: int) -> bool:
+	return result == HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED and code in [301, 302, 303, 307, 308]
 
 
 static func _header(headers: PackedStringArray, name: String) -> String:

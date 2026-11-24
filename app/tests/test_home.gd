@@ -124,6 +124,27 @@ func test_detail_shows_versions_and_rom_status() -> void:
 	_done(home)
 
 
+func test_the_first_launch_note_shows_until_the_port_made_its_files() -> void:
+	var home := _make("first-run")
+	var detail: String = home.get_node("%Detail").shown_text()
+	check(detail.contains("The first launch makes the game files"), "Shipwright's note (PORT-17)")
+	check(detail.contains("press Play again"), "Play again if it asks to run: " + detail)
+	home.card_for("starship").grab_focus()
+	detail = home.get_node("%Detail").shown_text()
+	check(detail.contains("needs a mouse or keyboard once (the trackpad works)"), "Starship's")
+	check(detail.contains("Later launches do not"), "later launches need nothing")
+	_done(home)
+	home = _make("showcase")
+	detail = home.get_node("%Detail").shown_text()
+	check(not detail.contains("first launch"), "no note once the game files exist: " + detail)
+	home.card_for("starship").grab_focus()
+	check(
+		home.get_node("%Detail").shown_text().contains("first launch"),
+		"a port that is not installed yet has no game files either"
+	)
+	_done(home)
+
+
 func test_accept_runs_the_primary_action() -> void:
 	var cases := [
 		["fresh", "soh", [["install", "soh"]]],
@@ -168,6 +189,30 @@ func test_options_menu_lists_what_the_port_allows() -> void:
 	_press(home, KEY_ENTER)
 	eq(_calls(home), [["refresh"]], "Check for updates runs refresh")
 	eq(home.mode, home.Mode.HOME, "and closes the menu")
+	_done(home)
+
+
+## A port short of its ROM shows ROM missing even with an update out, so accept only hints;
+## the update is in the options (HOME-4, HOME-5).
+func test_the_options_menu_offers_an_update_also_without_a_rom() -> void:
+	var home := _make("rom-missing")
+	home.ports._info["soh"].update_available = true
+	home.ports._info["soh"].installed_version = "9.3.0"
+	_press(home, KEY_O)
+	var update: Button = home.get_node("%UpdateButton")
+	check(update.visible, "Update in the menu")
+	eq(_focus(home), home.get_node("%PlayButton"), "focus still starts on Play")
+	_press(home, KEY_DOWN)
+	eq(_focus(home), update, "Update comes after Play")
+	_press(home, KEY_ENTER)
+	eq(_calls(home), [["update", "soh"]], "it updates")
+	eq(home.mode, home.Mode.HOME, "and closes the menu")
+	_done(home)
+	home = _make("showcase")
+	_press(home, KEY_O)
+	check(not home.get_node("%UpdateButton").visible, "no Update when there is none")
+	_press(home, KEY_DOWN)
+	eq(_focus(home), home.get_node("%CheckButton"), "the hidden button is skipped")
 	_done(home)
 
 
@@ -262,7 +307,13 @@ func test_hints_follow_the_live_bindings() -> void:
 	Keys.apply({"accept": ["Space", "Pad:RightShoulder"], "options": ["Pad:Start"]})
 	home.get_node("%HintBar").show_hints([["ui_accept", "Play"], ["options", "Options"]])
 	eq(home.hint_text(), "R1 Space Play · Menu Options", "remapped bindings show")
+	# The same hints again (a download's progress) keep the bar as it is (HOME-13).
+	var items: Array = home.get_node("%Hints").get_children()
+	home.get_node("%HintBar").show_hints([["ui_accept", "Play"], ["options", "Options"]])
+	eq(home.get_node("%Hints").get_children(), items, "not rebuilt when nothing changed")
 	Keys.apply({})
+	home.get_node("%HintBar").show_hints([["ui_accept", "Play"], ["options", "Options"]])
+	eq(home.hint_text(), "A Enter Play · Y O Options", "a changed binding rebuilds it")
 	_done(home)
 
 

@@ -69,6 +69,31 @@ func test_suffix_for_a_bare_appimage_and_a_fixed_name() -> void:
 	)
 
 
+func test_the_sha256_digest_is_kept_when_github_lists_one() -> void:
+	var hex := "e4bb775c9a0c3629ebac57e4b6ccba6d0b621d71ab201e9105aceef9141ad1f4"
+	var asset := _asset("Starship-Linux.zip")
+	asset["digest"] = "sha256:" + hex.to_upper()
+	var parsed := Releases.parse_latest(_port(), _release_json([asset]))
+	eq(parsed["release"]["asset"].get("sha256"), hex, "sha256 hex, lowercase")
+	asset["digest"] = null
+	parsed = Releases.parse_latest(_port(), _release_json([asset]))
+	eq(parsed["release"]["asset"].get("sha256"), "", "Starship v2.0.0 has none: size only")
+	asset["digest"] = "sha512:" + hex + hex
+	parsed = Releases.parse_latest(_port(), _release_json([asset]))
+	eq(parsed["release"]["asset"].get("sha256"), "", "another algorithm: size only")
+	for odd in ["sha256:xyz", "sha256:" + hex.left(10)]:
+		asset["digest"] = odd
+		parsed = Releases.parse_latest(_port(), _release_json([asset]))
+		check(not parsed["ok"], "a broken sha256 digest is refused: %s" % odd)
+
+
+func test_two_assets_with_the_suffix_are_refused() -> void:
+	var data := _release_json([_asset("a-Linux.zip"), _asset("b-Linux.zip")])
+	var parsed := Releases.parse_latest(_port(), data)
+	check(not parsed["ok"], "two matches: no guess (PORT-2)")
+	check("more than one" in parsed.get("error", ""), "says why: %s" % parsed.get("error"))
+
+
 func test_no_matching_asset_is_an_error_with_the_tag() -> void:
 	var parsed := Releases.parse_latest(_port(), _release_json([_asset("x-Windows.zip")]))
 	check(not parsed["ok"], "no match")
@@ -131,6 +156,16 @@ func test_redirects_stay_on_github() -> void:
 	check(not Releases.redirect_allowed("https://github.com.evil.example/x"), "suffix trick")
 	check(not Releases.redirect_allowed("https://github.com:444@evil.example/x"), "userinfo")
 	check(not Releases.redirect_allowed(""), "empty")
+	# HTTPRequest connects to the host before a '#', so these must not pass as GitHub's.
+	check(not Releases.redirect_allowed("https://evil.example#.github.com/x"), "fragment trick")
+	check(
+		not Releases.redirect_allowed("https://github.com#@evil.example/x"), "fragment + userinfo"
+	)
+	check(not Releases.redirect_allowed("https://evil.example\\.github.com/x"), "backslash")
+	check(not Releases.redirect_allowed("https://evil.example%2f.github.com/x"), "escaped slash")
+	check(not Releases.redirect_allowed("https://evil.example?.github.com/x"), "query trick")
+	check(not Releases.redirect_allowed("https://github.com"), "no path")
+	check(Releases.redirect_allowed("https://api.github.com/repositories/1/releases"), "moved repo")
 
 
 func test_update_available_is_a_difference_of_tags() -> void:
