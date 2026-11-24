@@ -139,7 +139,14 @@ static func current_environment() -> Dictionary:
 	if file != null:
 		var raw := file.get_buffer(4 << 20)
 		file.close()
-		for item in raw.get_string_from_utf8().split(String.chr(0), false):
+		# Split the bytes, not a decoded string: decoding stops being exact at the first NUL.
+		var start := 0
+		while start < raw.size():
+			var end := raw.find(0, start)
+			if end < 0:
+				end = raw.size()
+			var item := raw.slice(start, end).get_string_from_utf8()
+			start = end + 1
 			var eq := item.find("=")
 			if eq > 0:
 				env[item.left(eq)] = item.substr(eq + 1)

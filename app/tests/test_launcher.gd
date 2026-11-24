@@ -118,6 +118,17 @@ func test_without_an_appimage_the_environment_is_kept() -> void:
 	eq(port_env["APPIMAGE_EXTRACT_AND_RUN"], "1", "extract and run")
 
 
+## scripts/test.sh exports ANCHORAGE_TEST_SENTINEL; no code names it, so it is only there
+## when /proc/self/environ was split into its entries.
+func test_current_environment_reads_every_inherited_variable() -> void:
+	var env := Launcher.current_environment()
+	eq(env.get("ANCHORAGE_TEST_SENTINEL"), "a=b c", "a variable no code names, value with =")
+	eq(env.get("HOME"), OS.get_environment("HOME"), "HOME")
+	check(env.size() > 5, "more than the names read one by one: %d" % env.size())
+	for name in env:
+		check(not (name as String).contains("�"), "no replacement characters in %s" % name)
+
+
 func test_shell_args_unset_and_export_only_the_differences() -> void:
 	var base := {"KEEP": "1", "DROP": "x", "CHANGE": "old", "BAD-NAME": "y", "PWD": "/"}
 	var env := {"KEEP": "1", "CHANGE": "new value", "NEW": "n", "BAD-NAME": "z"}
