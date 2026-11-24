@@ -47,7 +47,7 @@ Keep this table current: one line per file, with the spec IDs it implements. The
 app/project.godot        engine settings: viewport 1280x720, stretch, renderer, app ID (config/name), version   LOOK-1 WIN-3
 app/export_presets.cfg   the "Linux" pack preset (nix/package.nix) and the "AppImage" release preset (embedded pack)   INT-25
 app/scenes/main.tscn     the root node; main.gd adds the Ports service and the home screen   WIN-1
-app/scenes/home.tscn     the home screen: cards row, detail panel, hint bar, menu, dialog, Playing   HOME
+app/scenes/home.tscn     the home screen: cards row, detail panel, hint bar, port menu, app menu, dialog, Playing   HOME
 app/scenes/card.tscn     one port card                                            HOME-1 HOME-2
 app/src/main.gd          startup: config, bindings, theme, Ports (real or fake), window, quit   WIN-1 WIN-4 CONF-8 CONF-9
 app/src/ini.gd           INI reader (Godot's ConfigFile can't read unquoted values) CONF-1
@@ -67,16 +67,17 @@ app/src/roms.gd          ROM scan (ScanJob thread, abort), zip sizes, SHA1 ident
 app/src/rom_folders.gd   ROM folder detection (EmuDeck, RetroDECK, defaults, mounts), SD card search (SearchJob), chooser listings   ROM-10 ROM-14 ROM-15 ROM-16
 app/scenes/rom_folder.tscn + app/src/ui/rom_folder.gd   the ROM folder chooser: starting points, folders, search, config.ini notice   ROM-11 ROM-12 ROM-14
 app/src/art.gd           cover art: download one at a time, cache by URL hash, size and type checks, decode   ART-3 ART-4 ART-6
-app/src/ui/home.gd       home screen logic: focus, accept, menu, dialog, Playing, hints   HOME
-app/src/ui/card.gd       a card: emblem, titles, badge, progress, focus/selection look   HOME-2 HOME-12
+app/src/ui/home.gd       home screen logic: focus, accept, port and app menus, Remove and Quit dialogs, Playing, hints   HOME
+app/src/ui/card.gd       a card: cover-shaped tile (art or emblem), titles, badge, progress, focus/selection look   HOME-2 HOME-12 LOOK-9
 app/src/ui/detail.gd     detail panel: description or first-launch note, versions, ROM status, progress, errors   HOME-3 HOME-8 HOME-9 PORT-17
-app/src/ui/hint_bar.gd   the hint bar from the live InputMap                      HOME-11
+app/src/ui/hint_bar.gd   the hint bar from the live InputMap; a click on a hint sends its action   HOME-11 HOME-14
 app/src/ui/port_state.gd state, badge text and primary action of one info() dict  HOME-2 HOME-4
 app/fonts/               Inter (variable) and its licence (OFL 1.1)               LOOK-6
 app/data/                config.example.ini + keybindings.example.ini (first-run files)   CONF-2
 app/data/ports.json      the port catalog                                         PORT-1
 app/tests/               run.gd (runner; awaits tests that await; TESTS=name runs one file), case.gd (base), test_*.gd; test_spec.gd checks spec <-> code
-app/tests/test_home_row.gd the cards row at 1280x720, 1280x800, 1920x1080: seven cards scroll with focus; every first-run note fits the detail panel   HOME-1 PORT-17
+app/tests/test_home_row.gd the screen at 1280x720, 1280x800, 1920x1080, 1920x1200: seven cards scroll with focus; whole cover; 16:10 height to the detail panel; fullest panel, hint bar, menus and first-run notes fit   HOME-1 PORT-17 LOOK-9
+app/tests/test_app_menu.gd the app menu and the Quit question   HOME-14 HOME-15 KEY-7
 app/tests/test_http.gd   http.gd against a local TCPServer: redirects, stall, cancel, size limit, JSON   PORT-4 PORT-13
 app/tests/test_art.gd    art.gd with fake HTTP; art_catalog.json is its test catalog   ART
 app/tests/test_rom_folders.gd, test_rom_folder.gd   ROM folder detection and search over fake trees; Ports' folder API and the chooser screen   ROM-10 .. ROM-16
@@ -139,7 +140,7 @@ Prefer adding a script to `scripts/manual/` (source `lib.sh`, which has the guar
 
 `--fake-ports [SCENARIO]` after `--` starts the app with `app/src/ports_fake.gd` instead of the real service (it is also used while `app/src/ports.gd` doesn't exist): `./result/bin/anchorage -- --fake-ports error`, or `godot --path app -- --fake-ports offline`. Scenarios: `showcase` (default: one card per state), `fresh`, `installing`, `updating`, `rom-missing`, `error`, `offline`, `playing`, `art-late`, `first-run` (every port installed without its game files: the first-launch notes), `rom-config` (the ROM folder set in `config.ini`), `no-card` (no SD card or drive); the list and what each sets are at the top of `ports_fake.gd`. Actions in the fake play out over time (a download takes 6 s, a launched port runs 8 s); the scenarios' own busy states stay still, so screenshots repeat.
 
-- `scripts/manual/shots.sh SIZE` takes a screenshot of every scenario, the options menu, the Remove dialog and latte with blue: `HEADLESS_RES=1280x720 HEADLESS_SCALE=1 OUT=/tmp/shots scripts/manual/headless.sh scripts/manual/shots.sh 1280x720`. `FLAVOR` and `ACCENT` change the look for the whole run.
+- `scripts/manual/shots.sh SIZE` takes a screenshot of every scenario, the options menu, the Remove dialog, the app menu, the Quit question and latte with blue: `HEADLESS_RES=1280x720 HEADLESS_SCALE=1 OUT=/tmp/shots scripts/manual/headless.sh scripts/manual/shots.sh 1280x720`. `FLAVOR` and `ACCENT` change the look for the whole run.
 - `scripts/manual/rom-folder.sh SIZE` takes screenshots of the ROM folder chooser (`ROM-11`, `ROM-12`, `ROM-14`), same usage as `shots.sh`.
 - `scripts/manual/home.sh` (1280×720) drives focus with keys and finds the focus ring by its colour, including while a download runs.
 - To try the UI from a checkout without `nix build`, run `godot --headless --path app --import` once (it imports the font), then pass `BIN=` a script that runs `godot --path app "$@"`.
@@ -149,7 +150,7 @@ Prefer adding a script to `scripts/manual/` (source `lib.sh`, which has the guar
 Run checks with `./scripts/manual/headless.sh ./scripts/manual/<name>.sh`. It starts a headless sway with its own D-Bus session and runtime dir, so it works while the screen is locked or the user has the app open, and never touches their windows. `lib.sh` switches to `swaymsg` when `HEADLESS` is set, so scripts don't change.
 
 - `lib.sh`'s `launch` starts the app with `--display-driver wayland --rendering-driver opengl3`, so it never falls back to the user's X11 session. It kills only the process it started (`$PID`).
-- The output defaults to 3840×2160 at scale 2. Set `HEADLESS_RES` and `HEADLESS_SCALE` to test other sizes. The app ignores Wayland scale for layout, since the stretch mode scales the UI by window size, so check sizes with `scripts/manual/resolutions.sh` (1280×720, 1280×800, 1920×1080, 3840×2160, fullscreen as in gamescope). Windows float, so they open at their default size.
+- The output defaults to 3840×2160 at scale 2. Set `HEADLESS_RES` and `HEADLESS_SCALE` to test other sizes. The app ignores Wayland scale for layout, since the stretch mode scales the UI by window size, so check sizes with `scripts/manual/resolutions.sh` (1280×720, 1280×800, 1920×1080, 1920×1200, 2560×1600, 3840×2160, fullscreen as in gamescope; `resolutions.sh scripts/manual/shots.sh` takes every screenshot at each size, `SIZES` picks them). Inside `nix develop` run it with `bash`: started through its nix-shell shebang there, the nested `headless.sh` exits without running anything. Windows float, so they open at their default size.
 - A window size the app sets on itself after startup leaves part of the surface unpainted under sway (see the `CONF-4` row). Make the compositor resize instead (`swaymsg fullscreen enable`), as gamescope does.
 - Send screenshots (`shot`, into `$OUT`) to the user when a change is visual.
 - Headless sway drops the first key after `wtype` loads its keymap; `keys` sends a Shift tap first to absorb it.

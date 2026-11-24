@@ -1,6 +1,6 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i bash -p jq grim imagemagick
-# Spec: LOOK-1. One output size (WxH); run through resolutions.sh. The compositor makes
+# Spec: LOOK-1, LOOK-9. One output size (WxH); run through resolutions.sh. The compositor makes
 # the window fullscreen, as gamescope does. A size the app sets on itself after startup
 # is not used here (see the CONF-4 note in spec/configuration.md).
 cd "$(dirname "$0")/../.." || exit 1

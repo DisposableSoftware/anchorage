@@ -12,15 +12,13 @@ script = ExtResource("1")
 [node name="Box" type="VBoxContainer" parent="."]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 2
+theme_override_constants/separation = 0
 
 [node name="Emblem" type="PanelContainer" parent="Box"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 116)
 layout_mode = 2
-size_flags_vertical = 3
 mouse_filter = 2
-theme_type_variation = &"Emblem0"
+theme_type_variation = &"CardEmblem0"
 
 [node name="Monogram" type="Label" parent="Box/Emblem"]
 unique_name_in_owner = true
@@ -33,9 +31,7 @@ vertical_alignment = 1
 unique_name_in_owner = true
 visible = false
 clip_children = 2
-custom_minimum_size = Vector2(0, 116)
 layout_mode = 2
-size_flags_vertical = 3
 mouse_filter = 2
 theme_type_variation = &"ArtTile"
 
@@ -47,41 +43,51 @@ mouse_filter = 2
 expand_mode = 1
 stretch_mode = 6
 
-[node name="Gap" type="Control" parent="Box"]
-custom_minimum_size = Vector2(0, 14)
+[node name="Text" type="MarginContainer" parent="Box"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="Lines" type="VBoxContainer" parent="Box/Text"]
 layout_mode = 2
 mouse_filter = 2
+theme_override_constants/separation = 2
 
-[node name="Kicker" type="Label" parent="Box"]
+[node name="Kicker" type="Label" parent="Box/Text/Lines"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"Kicker"
 text_overrun_behavior = 3
 
-[node name="Title" type="Label" parent="Box"]
+[node name="Title" type="Label" parent="Box/Text/Lines"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CardTitle"
 autowrap_mode = 3
 max_lines_visible = 2
 
-[node name="PortName" type="Label" parent="Box"]
+[node name="PortName" type="Label" parent="Box/Text/Lines"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"PortName"
 text_overrun_behavior = 3
 
-[node name="Spacer" type="Control" parent="Box"]
+[node name="Spacer" type="Control" parent="Box/Text/Lines"]
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
+size_flags_vertical = 3
 mouse_filter = 2
 
-[node name="ProgressSlot" type="Control" parent="Box"]
+[node name="ProgressSlot" type="Control" parent="Box/Text/Lines"]
 custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
 mouse_filter = 2
 
-[node name="Progress" type="ProgressBar" parent="Box/ProgressSlot"]
+[node name="Progress" type="ProgressBar" parent="Box/Text/Lines/ProgressSlot"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
@@ -93,22 +99,22 @@ grow_vertical = 2
 mouse_filter = 2
 show_percentage = false
 
-[node name="ProgressGap" type="Control" parent="Box"]
+[node name="ProgressGap" type="Control" parent="Box/Text/Lines"]
 custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
 mouse_filter = 2
 
-[node name="BadgeRow" type="HBoxContainer" parent="Box"]
+[node name="BadgeRow" type="HBoxContainer" parent="Box/Text/Lines"]
 layout_mode = 2
 mouse_filter = 2
 
-[node name="Badge" type="PanelContainer" parent="Box/BadgeRow"]
+[node name="Badge" type="PanelContainer" parent="Box/Text/Lines/BadgeRow"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 theme_type_variation = &"Badge_ready"
 
-[node name="BadgeText" type="Label" parent="Box/BadgeRow/Badge"]
+[node name="BadgeText" type="Label" parent="Box/Text/Lines/BadgeRow/Badge"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"BadgeText_ready"

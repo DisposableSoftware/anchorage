@@ -15,6 +15,8 @@ const HEADING := 34
 const MONOGRAM := 60
 const FOCUS_WIDTH := 4
 const RADIUS := 16
+## The cover art's shape: SteamGridDB 920x430 grids (ART-2).
+const ART_ASPECT := 920.0 / 430.0
 const FOCUS_CONTRAST := 3.0
 const TEXT_CONTRAST := 4.5
 
@@ -155,7 +157,8 @@ static func _panel(t: Theme, name: String, box: StyleBox) -> void:
 static func _panels(t: Theme, c: Dictionary) -> void:
 	t.set_stylebox("panel", "PanelContainer", StyleBoxEmpty.new())
 	_panel(t, "Background", flat(c.base, 0, 0, 0))
-	var card := flat(c.surface0, RADIUS, 20, 20)
+	# The tile fills the card inside the ring; card.tscn pads the text itself.
+	var card := flat(c.surface0, RADIUS, FOCUS_WIDTH, FOCUS_WIDTH)
 	card.set_border_width_all(FOCUS_WIDTH)
 	card.border_color = c.surface0
 	_panel(t, "Card", card)
@@ -167,7 +170,7 @@ static func _panels(t: Theme, c: Dictionary) -> void:
 	selected.bg_color = c.surface0.lerp(c.accent, 0.25)
 	selected.border_color = selected.bg_color
 	_panel(t, "CardSelected", selected)
-	_panel(t, "DetailPanel", flat(c.mantle, RADIUS, 32, 24))
+	_panel(t, "DetailPanel", flat(c.mantle, RADIUS, 32, 20))
 	_panel(t, "HintBar", flat(c.mantle, 0, 40, 14))
 	var dialog := flat(c.mantle, RADIUS, 36, 32)
 	dialog.set_border_width_all(2)
@@ -236,7 +239,7 @@ static func _badges(t: Theme, c: Dictionary, bold: Font) -> void:
 
 
 static func _emblems(t: Theme, c: Dictionary, bold: Font) -> void:
-	_panel(t, "ArtTile", flat(c.surface1, 12, 0, 0))
+	_panel(t, "ArtTile", _card_tile(c.surface1))
 	for i in EMBLEM_COLORS.size():
 		var color: Color = c[EMBLEM_COLORS[i]]
 		var bg := c.surface0.lerp(color, 0.18) as Color
@@ -244,4 +247,13 @@ static func _emblems(t: Theme, c: Dictionary, bold: Font) -> void:
 		box.content_margin_top = 8
 		box.content_margin_bottom = 8
 		_panel(t, "Emblem%d" % i, box)
+		_panel(t, "CardEmblem%d" % i, _card_tile(bg))
 		_label(t, "Monogram%d" % i, readable(color, bg, FOCUS_CONTRAST), MONOGRAM, bold)
+
+
+## The top of a card: rounded to follow the card's corners inside the ring, square below.
+static func _card_tile(bg: Color) -> StyleBoxFlat:
+	var box := flat(bg, RADIUS - FOCUS_WIDTH, 0, 0)
+	box.corner_radius_bottom_left = 0
+	box.corner_radius_bottom_right = 0
+	return box

@@ -1,9 +1,11 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i bash -p jq grim wtype
-# Spec: ROM-11, ROM-12, ROM-14 (screenshots of the ROM folder chooser).
+# Spec: ROM-11, ROM-12, ROM-14, LOOK-9 (screenshots of the ROM folder chooser).
 # One output size (WxH, default 1280x720); run through headless.sh, with the output set
 # to that size:
 #   HEADLESS_RES=1280x800 HEADLESS_SCALE=1 scripts/manual/headless.sh scripts/manual/rom-folder.sh 1280x800
+# or at every 16:9 and 16:10 size through resolutions.sh:
+#   OUT=/tmp/shots scripts/manual/resolutions.sh scripts/manual/rom-folder.sh
 # Starts the app with the fake ports, fullscreen, opens the chooser from the options menu
 # and saves $OUT/<size>-chooser*.png: the ROM folder, its parent with a folder highlighted,
 # a drive, the SD card search while it runs and its results, no card, the folder set in

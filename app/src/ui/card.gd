@@ -32,7 +32,23 @@ func _ready() -> void:
 	focus_entered.connect(_restyle)
 	focus_exited.connect(_restyle)
 	mouse_entered.connect(_on_mouse_entered)
+	resized.connect(_fit_tile)
 	_restyle()
+
+
+## The tile spans the card inside the focus ring and has the cover's shape, so the whole
+## cover shows at every window size (LOOK-9, ART-5). The card's width comes from the row
+## (HOME-1); its height follows from the tile.
+func _fit_tile() -> void:
+	var width := size.x - 2.0 * Style.FOCUS_WIDTH
+	var height := roundf(width / Style.ART_ASPECT) if width > 0.0 else 0.0
+	if _emblem.custom_minimum_size.y != height:
+		_emblem.custom_minimum_size.y = height
+		_art_tile.custom_minimum_size = _emblem.get_combined_minimum_size()
+
+
+func tile_size() -> Vector2:
+	return (_art_tile if has_art() else _emblem).size
 
 
 ## `index` is the catalog position, which picks the emblem colour.
@@ -40,7 +56,7 @@ func show_port(info: Dictionary, index: int) -> void:
 	port_id = info.id
 	var title := PortState.split_title(info.game)
 	var variant := index % Style.EMBLEM_COLORS.size()
-	_emblem.theme_type_variation = "Emblem%d" % variant
+	_emblem.theme_type_variation = "CardEmblem%d" % variant
 	_monogram.theme_type_variation = "Monogram%d" % variant
 	_monogram.text = PortState.short_name(info)
 	_show_art(info.get("art"))
@@ -61,10 +77,10 @@ func has_art() -> bool:
 	return _art_tile.visible
 
 
-## Both tiles take the same space (the art tile borrows the monogram's minimum width), so
-## the art arriving never moves anything.
+## Both tiles take the same space (the art tile borrows the monogram tile's minimum size),
+## so the art arriving never moves anything.
 func _show_art(texture: Variant) -> void:
-	_art_tile.custom_minimum_size.x = _emblem.get_combined_minimum_size().x
+	_art_tile.custom_minimum_size = _emblem.get_combined_minimum_size()
 	_art.texture = texture as Texture2D
 	_art_tile.visible = _art.texture != null
 	_emblem.visible = _art.texture == null
