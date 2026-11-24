@@ -255,7 +255,8 @@ func _on_downloaded(port: Dictionary, release: Dictionary, result: Dictionary) -
 	_report("unpack", 0, 1)
 	_offload(
 		_unpack.bind(port, archive, release["asset"], download.path_join("staging")),
-		func(error: String) -> void: _on_unpacked(port, release, error)
+		func(error: String) -> void: _on_unpacked(port, release, error),
+		"Unpacking stopped with an internal error"
 	)
 
 
@@ -349,22 +350,30 @@ static func copy_tree(from: String, to: String) -> bool:
 	return true
 
 
-func _offload(work: Callable, finished: Callable) -> void:
+## Runs `work` on the worker pool; a task that ends without a result of the fallback's type
+## (a script error inside it) hands `fallback` to `finished`.
+func _offload(work: Callable, finished: Callable, fallback: Variant) -> void:
 	var tree := Engine.get_main_loop() as SceneTree
 	if not threaded or tree == null:
-		finished.call(work.call())
+		finished.call(_or_fallback(work.call(), fallback))
 		return
 	var box := {}
 	var task := WorkerThreadPool.add_task(func() -> void: box["result"] = work.call())
-	_wait_for(task, box, finished, tree)
+	_wait_for(task, box, finished, fallback, tree)
 
 
-func _wait_for(task: int, box: Dictionary, finished: Callable, tree: SceneTree) -> void:
+func _wait_for(
+	task: int, box: Dictionary, finished: Callable, fallback: Variant, tree: SceneTree
+) -> void:
 	if WorkerThreadPool.is_task_completed(task):
 		WorkerThreadPool.wait_for_task_completion(task)
-		finished.call(box["result"])
+		finished.call(_or_fallback(box.get("result"), fallback))
 		return
-	tree.create_timer(0.05).timeout.connect(_wait_for.bind(task, box, finished, tree))
+	tree.create_timer(0.05).timeout.connect(_wait_for.bind(task, box, finished, fallback, tree))
+
+
+static func _or_fallback(result: Variant, fallback: Variant) -> Variant:
+	return result if typeof(result) == typeof(fallback) else fallback
 
 
 func _finish(port: Dictionary, result: Dictionary) -> void:

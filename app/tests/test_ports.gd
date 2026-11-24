@@ -506,3 +506,22 @@ func test_the_scan_runs_on_a_thread_and_its_cache_is_saved() -> void:
 	cache = State.load_from(_dir.path_join("state/state.ini")).rom_cache()
 	eq(cache.size(), 1, "keeps the cache for when it is back")
 	_free(ports)
+
+
+## A worker task that ends without a result (a script error inside it) must still hand
+## `finished` something, or the port stays busy forever.
+func test_a_worker_task_without_a_result_still_finishes() -> void:
+	_setup("ports_offload")
+	var ports := _make(false, true)
+	var got := []
+	ports._offload(
+		func() -> Variant: return null,
+		func(r: Dictionary) -> void: got.append(r),
+		{"ok": false, "error": "fallback"}
+	)
+	for _i in 100:
+		if not got.is_empty():
+			break
+		await (Engine.get_main_loop() as SceneTree).process_frame
+	eq(got, [{"ok": false, "error": "fallback"}], "the fallback result arrives")
+	_free(ports)

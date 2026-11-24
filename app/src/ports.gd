@@ -167,7 +167,8 @@ func launch(id: String) -> void:
 	var port: Dictionary = _ports[id]
 	_offload(
 		Launcher.prepare.bind(root, port, _roms.get(id, {})),
-		func(result: Dictionary) -> void: _on_prepared(id, result)
+		func(result: Dictionary) -> void: _on_prepared(id, result),
+		{"ok": false, "error": "Getting ready stopped with an internal error", "placed": ""}
 	)
 
 
@@ -493,19 +494,26 @@ func _on_checked(results: Dictionary) -> void:
 
 
 ## Runs `work` on the worker pool (inline when not `threaded`) and hands its result to
-## `finished` on the main thread.
-func _offload(work: Callable, finished: Callable) -> void:
+## `finished` on the main thread. A task that ends without a result of the fallback's type
+## (a script error inside it) hands over `fallback`, so nothing stays busy forever.
+func _offload(work: Callable, finished: Callable, fallback: Variant = null) -> void:
 	if not threaded or not is_inside_tree():
-		finished.call(work.call())
+		finished.call(_or_fallback(work.call(), fallback))
 		return
 	var box := {}
 	var task := WorkerThreadPool.add_task(func() -> void: box["result"] = work.call())
-	_wait_for(task, box, finished)
+	_wait_for(task, box, finished, fallback)
 
 
-func _wait_for(task: int, box: Dictionary, finished: Callable) -> void:
+func _wait_for(task: int, box: Dictionary, finished: Callable, fallback: Variant) -> void:
 	if WorkerThreadPool.is_task_completed(task):
 		WorkerThreadPool.wait_for_task_completion(task)
-		finished.call(box["result"])
+		finished.call(_or_fallback(box.get("result"), fallback))
 		return
-	get_tree().create_timer(0.05).timeout.connect(_wait_for.bind(task, box, finished))
+	get_tree().create_timer(0.05).timeout.connect(_wait_for.bind(task, box, finished, fallback))
+
+
+static func _or_fallback(result: Variant, fallback: Variant) -> Variant:
+	if fallback != null and typeof(result) != typeof(fallback):
+		return fallback
+	return result

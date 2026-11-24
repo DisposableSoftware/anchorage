@@ -488,3 +488,18 @@ func test_rm_rf_does_not_follow_links() -> void:
 	check(not DirAccess.dir_exists_absolute(victim), "victim removed")
 	check(FileAccess.file_exists(outside.path_join("keep")), "link target kept")
 	remove(_dir)
+
+
+## A worker task that ends without a result (a script error inside it) must still hand
+## `finished` something, or the install stays at "Unpacking" forever.
+func test_a_worker_task_without_a_result_still_finishes() -> void:
+	var installer := Installer.new("/nonexistent", FakeHttp.new())
+	var got := []
+	installer._offload(
+		func() -> Variant: return null, func(r: String) -> void: got.append(r), "fallback"
+	)
+	for _i in 100:
+		if not got.is_empty():
+			break
+		await (Engine.get_main_loop() as SceneTree).process_frame
+	eq(got, ["fallback"], "the fallback result arrives")
