@@ -13,6 +13,8 @@ var flavor := Palette.DEFAULT_FLAVOR
 var accent := Palette.DEFAULT_ACCENT
 ## As written, `~` not expanded: the ROM scanner expands it (ROM-1).
 var roms_directory := "~/Roms/n64"
+## True when config.ini sets `[roms] directory`: it then wins over the app (ROM-12).
+var roms_directory_set := false
 var check_updates := true
 ## Overrides from keybindings.ini: name -> PackedStringArray of tokens (see keys.gd).
 var keybindings := {}
@@ -35,6 +37,7 @@ static func load_from(path: String) -> RefCounted:
 	var roms: String = settings.get("roms", {}).get("directory", "")
 	if not roms.is_empty():
 		cfg.roms_directory = roms
+		cfg.roms_directory_set = true
 	cfg.check_updates = settings.get("ports", {}).get("check_updates", "true") != "false"
 	var keys := _read(path.path_join("keybindings.ini")).get("keybindings", {}) as Dictionary
 	for name in keys:

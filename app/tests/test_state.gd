@@ -21,6 +21,13 @@ func test_round_trip() -> void:
 	eq(again.rom_cache()["/roms/a b=c.z64"]["size"], 3.0, "cache, odd path kept")
 	again.clear_installed("soh")
 	eq(State.load_from(path).installed_version("soh"), "", "cleared and saved")
+	again.set_rom_dir("/run/media/deck/My Card/roms/n64\n[ports]")
+	eq(
+		State.load_from(path).rom_dir(),
+		"/run/media/deck/My Card/roms/n64 [ports]",
+		"the chosen ROM folder (ROM-12), on one line"
+	)
+	eq(State.load_from(path).rom_cache().size(), 1, "next to the cache")
 	remove(dir)
 
 

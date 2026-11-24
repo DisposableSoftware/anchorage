@@ -64,6 +64,8 @@ app/src/installer.gd     download, digest, unpack, swap current/previous (worker
 app/src/launcher.gd      child environment, /bin/sh spawn, ROM placement and argument, placed-copy cleanup   PORT-8 PORT-9 PORT-15 PORT-16
 app/src/state.gd         state.ini: installed and latest tags, archive version, placed ROM, last check, ROM scan cache   PORT-11
 app/src/roms.gd          ROM scan (ScanJob thread, abort), zip sizes, SHA1 identification, big-endian prepare, real paths   ROM
+app/src/rom_folders.gd   ROM folder detection (EmuDeck, RetroDECK, defaults, mounts), SD card search (SearchJob), chooser listings   ROM-10 ROM-14 ROM-15 ROM-16
+app/scenes/rom_folder.tscn + app/src/ui/rom_folder.gd   the ROM folder chooser: starting points, folders, search, config.ini notice   ROM-11 ROM-12 ROM-14
 app/src/art.gd           cover art: download one at a time, cache by URL hash, size and type checks, decode   ART-3 ART-4 ART-6
 app/src/ui/home.gd       home screen logic: focus, accept, menu, dialog, Playing, hints   HOME
 app/src/ui/card.gd       a card: emblem, titles, badge, progress, focus/selection look   HOME-2 HOME-12
@@ -76,6 +78,7 @@ app/data/ports.json      the port catalog                                       
 app/tests/               run.gd (runner; awaits tests that await; TESTS=name runs one file), case.gd (base), test_*.gd; test_spec.gd checks spec <-> code
 app/tests/test_http.gd   http.gd against a local TCPServer: redirects, stall, cancel, size limit, JSON   PORT-4 PORT-13
 app/tests/test_art.gd    art.gd with fake HTTP; art_catalog.json is its test catalog   ART
+app/tests/test_rom_folders.gd, test_rom_folder.gd   ROM folder detection and search over fake trees; Ports' folder API and the chooser screen   ROM-10 .. ROM-16
 app/tests/fake_http.gd   http.gd stand-in that answers from memory and local files
 scripts/test.sh          runs app/tests headless with every XDG folder in a temp dir; fails on script, Unicode and engine errors (allowlist for the tests that break input on purpose)
 scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway); art.sh fetches the real cover art (ART), e2e.sh installs and starts the real ports
@@ -124,9 +127,10 @@ Prefer adding a script to `scripts/manual/` (source `lib.sh`, which has the guar
 
 ### Fake ports and screenshots
 
-`--fake-ports [SCENARIO]` after `--` starts the app with `app/src/ports_fake.gd` instead of the real service (it is also used while `app/src/ports.gd` doesn't exist): `./result/bin/anchorage -- --fake-ports error`, or `godot --path app -- --fake-ports offline`. Scenarios: `showcase` (default: one card per state), `fresh`, `installing`, `updating`, `rom-missing`, `error`, `offline`, `playing`, `art-late`, `first-run` (every port installed without its game files: the first-launch notes); the list and what each sets are at the top of `ports_fake.gd`. Actions in the fake play out over time (a download takes 6 s, a launched port runs 8 s); the scenarios' own busy states stay still, so screenshots repeat.
+`--fake-ports [SCENARIO]` after `--` starts the app with `app/src/ports_fake.gd` instead of the real service (it is also used while `app/src/ports.gd` doesn't exist): `./result/bin/anchorage -- --fake-ports error`, or `godot --path app -- --fake-ports offline`. Scenarios: `showcase` (default: one card per state), `fresh`, `installing`, `updating`, `rom-missing`, `error`, `offline`, `playing`, `art-late`, `first-run` (every port installed without its game files: the first-launch notes), `rom-config` (the ROM folder set in `config.ini`), `no-card` (no SD card or drive); the list and what each sets are at the top of `ports_fake.gd`. Actions in the fake play out over time (a download takes 6 s, a launched port runs 8 s); the scenarios' own busy states stay still, so screenshots repeat.
 
 - `scripts/manual/shots.sh SIZE` takes a screenshot of every scenario, the options menu, the Remove dialog and latte with blue: `HEADLESS_RES=1280x720 HEADLESS_SCALE=1 OUT=/tmp/shots scripts/manual/headless.sh scripts/manual/shots.sh 1280x720`. `FLAVOR` and `ACCENT` change the look for the whole run.
+- `scripts/manual/rom-folder.sh SIZE` takes screenshots of the ROM folder chooser (`ROM-11`, `ROM-12`, `ROM-14`), same usage as `shots.sh`.
 - `scripts/manual/home.sh` (1280×720) drives focus with keys and finds the focus ring by its colour, including while a download runs.
 - To try the UI from a checkout without `nix build`, run `godot --headless --path app --import` once (it imports the font), then pass `BIN=` a script that runs `godot --path app "$@"`.
 

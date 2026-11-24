@@ -15,6 +15,12 @@ extends Node
 ##   art-late     as showcase, but the cover art arrives 2 s in (or on `deliver_art`)
 ##   first-run    every port installed, none has made its game files yet: the first-launch
 ##                notes (PORT-17), with the first card focused
+##   rom-config   as showcase, with the ROM folder set in config.ini (ROM-12)
+##   no-card      as showcase, with no SD card or drive (ROM-14)
+##
+## The ROM folder chooser (ROM-11) browses a small made-up tree (TREE, ROM_COUNTS) under
+## /home/deck and two drives; the SD card search (ROM-14) answers SEARCH_RESULTS after
+## SEARCH_SECONDS, or on `finish_search` when `simulate` is off.
 ##
 ## A port that is not installed has no game files either, so it shows its note too.
 ##
@@ -24,6 +30,9 @@ extends Node
 signal changed(id: String)
 signal launched(id: String)
 signal exited(id: String)
+signal rom_folder_changed
+signal folder_listed(path: String, listing: Dictionary)
+signal search_changed
 
 const SCENARIOS := [
 	"showcase",
@@ -36,11 +45,45 @@ const SCENARIOS := [
 	"playing",
 	"art-late",
 	"first-run",
+	"rom-config",
+	"no-card",
 ]
 const ART_PORTS := ["soh", "2ship"]
 const ART_SIZE := Vector2i(920, 430)
 const ART_DELAY := 2.0
-const ROM_FOLDER := "~/Roms/n64"
+const ROM_FOLDER := "~/Emulation/roms/n64"
+const FAKE_HOME := "/home/deck"
+const SD_CARD := "/run/media/mmcblk0p1"
+const USB_DRIVE := "/run/media/deck/Backup"
+const TREE := {
+	"/": ["home", "run"],
+	"/home": ["deck"],
+	"/home/deck": ["Desktop", "Documents", "Downloads", "Emulation", "Music", "Pictures", "Videos"],
+	"/home/deck/Emulation": ["bios", "roms", "saves", "storage", "tools"],
+	"/home/deck/Emulation/roms":
+	["dreamcast", "gb", "gba", "gc", "n64", "n64dd", "nds", "nes", "psx", "snes"],
+	SD_CARD: ["Emulation", "Music", "steamapps"],
+	SD_CARD + "/Emulation": ["roms"],
+	SD_CARD + "/Emulation/roms": ["n64", "snes"],
+	USB_DRIVE: ["Photos", "Roms"],
+	USB_DRIVE + "/Roms": ["N64"],
+}
+const ROM_COUNTS := {
+	"/home/deck/Downloads": 1,
+	"/home/deck/Emulation/roms/gba": 9,
+	"/home/deck/Emulation/roms/n64": 6,
+	"/home/deck/Emulation/roms/nes": 14,
+	"/home/deck/Emulation/roms/snes": 21,
+	SD_CARD + "/Emulation/roms/n64": 4,
+	SD_CARD + "/Emulation/roms/snes": 12,
+	USB_DRIVE + "/Roms/N64": 3,
+}
+const PLACES := [
+	{"label": "Home", "path": FAKE_HOME, "sd": false},
+	{"label": "SD card", "path": SD_CARD, "sd": true},
+	{"label": "Backup", "path": USB_DRIVE, "sd": false},
+]
+const SEARCH_SECONDS := 1.5
 
 const SHIP_NOTE := (
 	"The first launch makes the game files from your ROM\nIf it"
@@ -136,6 +179,12 @@ var _art := {}
 var _art_wait := -1.0
 ## Ports that have made their game files (PORT-17); a port that is not installed has not.
 var _extracted := {}
+var _folder := FAKE_HOME.path_join("Emulation/roms/n64")
+var _folder_source := "emudeck"
+var _locked := false
+var _cards := true
+var _search := {"status": "idle", "results": []}
+var _search_left := -1.0
 
 
 func _init(scenario := "showcase") -> void:
@@ -166,6 +215,11 @@ func _init(scenario := "showcase") -> void:
 	_apply_scenario(scenario if scenario in SCENARIOS else "showcase")
 	for id in _ids:
 		_extracted[id] = _info[id].installed and scenario != "first-run"
+	if scenario == "rom-config":
+		_locked = true
+		_folder = "/mnt/games/n64"
+		_folder_source = "config"
+	_cards = scenario != "no-card"
 	if scenario == "art-late":
 		_art_wait = ART_DELAY
 	else:
@@ -210,7 +264,7 @@ static func _demo_art(index: int) -> Texture2D:
 func _apply_scenario(scenario: String) -> void:
 	var first: String = _ids[0]
 	match scenario:
-		"showcase", "art-late":
+		"showcase", "art-late", "rom-config", "no-card":
 			_set_installed("soh", "9.3.1")
 			_set_installed("2ship", "5.0.0")
 			_set_busy("starship", "install", 0.42, "33.6 MB of 80 MB")
@@ -333,6 +387,120 @@ func dismiss_error(id: String) -> void:
 		changed.emit(id)
 
 
+func rom_folder_info() -> Dictionary:
+	return {
+		"path": _display(_folder),
+		"full": _folder,
+		"source": _folder_source,
+		"locked": _locked,
+		"config_file": "~/.config/anchorage/config.ini",
+	}
+
+
+## Records the choice; with the folder unlocked it becomes the folder and every port is
+## "rescanned" (nothing changes in the demo data but the folder shown).
+func set_rom_folder(path: String) -> void:
+	calls.append(["set_rom_folder", path])
+	if _locked:
+		return
+	_folder = path
+	_folder_source = "chosen"
+	for id in _ids:
+		if not _info[id].rom.found:
+			_info[id].rom.path = _display(path)
+	rom_folder_changed.emit()
+	for id in _ids:
+		changed.emit(id)
+
+
+## Answers at once from TREE; a folder that is not in it lists its nearest parent that is.
+func browse(path: String) -> void:
+	calls.append(["browse", path])
+	var dir := path if not path.is_empty() else _folder
+	while dir != "/" and not _exists(dir):
+		dir = dir.get_base_dir()
+	var folders := []
+	for name in TREE.get(dir, []):
+		var child := dir.path_join(name)
+		folders.append({"name": name, "path": child, "roms": ROM_COUNTS.get(child, 0)})
+	var places: Array = PLACES.duplicate(true) if _cards else [PLACES[0].duplicate()]
+	(
+		folder_listed
+		. emit(
+			path,
+			{
+				"ok": true,
+				"path": dir,
+				"roms": ROM_COUNTS.get(dir, 0),
+				"folders": folders,
+				"places": places,
+			}
+		)
+	)
+
+
+func search_sd_card() -> void:
+	calls.append(["search_sd_card"])
+	_search = {"status": "running", "results": []}
+	_search_left = SEARCH_SECONDS if simulate else -1.0
+	search_changed.emit()
+
+
+func cancel_search() -> void:
+	calls.append(["cancel_search"])
+	if _search.status == "running":
+		_search_left = -1.0
+		_search = {"status": "cancelled", "results": []}
+		search_changed.emit()
+
+
+func search_info() -> Dictionary:
+	return _search.duplicate(true)
+
+
+## Ends a running search with the demo results (or "no_card" in that scenario).
+func finish_search() -> void:
+	if _search.status != "running":
+		return
+	_search_left = -1.0
+	if not _cards:
+		_search = {"status": "no_card", "results": []}
+	else:
+		var results := []
+		for found in [
+			[SD_CARD, "SD card", "Emulation/roms/n64"],
+			[SD_CARD, "SD card", "Emulation/roms/snes"],
+			[USB_DRIVE, "Backup", "Roms/N64"],
+		]:
+			var path: String = found[0].path_join(found[2])
+			(
+				results
+				. append(
+					{
+						"path": path,
+						"display": path,
+						"label": found[1],
+						"folder": found[2],
+						"roms": ROM_COUNTS[path],
+					}
+				)
+			)
+		_search = {"status": "done", "results": results}
+	search_changed.emit()
+
+
+static func _exists(path: String) -> bool:
+	return TREE.has(path) or path.get_file() in TREE.get(path.get_base_dir(), [])
+
+
+static func _display(path: String) -> String:
+	if path == FAKE_HOME:
+		return "~"
+	if path.begins_with(FAKE_HOME + "/"):
+		return "~/" + path.substr(FAKE_HOME.length() + 1)
+	return path
+
+
 func _start(action: String, id: String) -> void:
 	calls.append([action, id])
 	if simulate and _info[id].busy.action == "":
@@ -348,6 +516,10 @@ func _process(delta: float) -> void:
 		_art_wait -= delta
 		if _art_wait <= 0.0:
 			deliver_art()
+	if _search_left > 0.0:
+		_search_left -= delta
+		if _search_left <= 0.0:
+			finish_search()
 	for id in _ids:
 		var port: Dictionary = _info[id]
 		if _jobs.has(id) and port.busy.action in ["install", "update"]:

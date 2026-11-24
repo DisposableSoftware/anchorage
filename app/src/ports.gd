@@ -11,7 +11,14 @@ extends Node
 signal changed(id: String)
 signal launched(id: String)
 signal exited(id: String)
+## The ROM folder changed: `rom_folder_info()` has the new one (ROM-12, ROM-13).
+signal rom_folder_changed
+## The answer to `browse(path)`, with the folder's listing (ROM-11).
+signal folder_listed(path: String, listing: Dictionary)
+## `search_info()` changed (ROM-14).
+signal search_changed
 
+const RomFolders := preload("res://src/rom_folders.gd")
 const Catalog := preload("res://src/catalog.gd")
 const Releases := preload("res://src/releases.gd")
 const Installer := preload("res://src/installer.gd")
@@ -29,8 +36,15 @@ const POLL_SECONDS := 0.25
 var root := ""
 ## state.ini; empty means $XDG_STATE_HOME/anchorage/state.ini.
 var state_path := ""
-## `[roms] directory` as written (CONF-8); `~` is expanded when scanning.
-var roms_dir := "~/Roms/n64"
+## `[roms] directory` as written (CONF-8), `~` expanded when used; "" when config.ini sets
+## none, and then the folder is the one chosen in the app (ROM-12) or found (ROM-10).
+var roms_dir := ""
+## config.ini, which the chooser names when it sets the folder (ROM-12).
+var config_file := ""
+## Where ROM-10 and ROM-14 look; tests pass fake trees. An empty `home` means $HOME.
+var home := ""
+var media_dir := RomFolders.MEDIA
+var mounts_file := RomFolders.MOUNTS_FILE
 ## `[ports] check_updates` (CONF-9).
 var check_updates := true
 ## Catalog entries; empty means res://data/ports.json.
@@ -59,6 +73,15 @@ var _roms := {}
 var _scan_status := ""
 var _scan_job: RefCounted
 var _scan_again := false
+## The ROM folder in use (absolute) and where it came from: "config", "chosen", "emudeck",
+## "retrodeck", "default", "mount", "search" or "fallback"; "" while ROM-10 looks.
+var _folder := ""
+var _folder_source := ""
+## ROM-14: {status: "idle"|"running"|"done"|"no_card"|"cancelled", results}.
+var _search := {"status": "idle", "results": []}
+var _search_job: RefCounted
+## The search ROM-10 started by itself: its first result becomes the folder.
+var _search_auto := false
 ## Launches asked for while a scan ran: they start with its result (the first scan at start
 ## has no ROMs yet).
 var _launch_after_scan: Array[String] = []
@@ -91,10 +114,12 @@ func _ready() -> void:
 	if http == null:
 		http = Http.new()
 		add_child(http)
+	if home.is_empty():
+		home = OS.get_environment("HOME")
 	_state = State.load_from(state_path)
 	Installer.cleanup_stale(root)
 	set_process(false)
-	_scan()
+	_pick_folder()
 	_start_art(injected)
 	if Releases.check_due(_state.last_check(), _now(), check_updates):
 		_check()
@@ -107,6 +132,11 @@ func _exit_tree() -> void:
 		_scan_job.abort()
 		_scan_job.join()
 		_scan_job = null
+	if _search_job != null:
+		_search_job.finished.disconnect(_on_searched)
+		_search_job.abort()
+		_search_job.join()
+		_search_job = null
 	if not _active.is_empty() and _active.get("installer") != null:
 		_active["cancelled"] = true
 		_active["installer"].cancel()
@@ -174,7 +204,7 @@ func launch(id: String) -> void:
 	if not _ports.has(id) or _is_busy(id) or not _installed(id):
 		return
 	_errors.erase(id)
-	if _scan_job != null:
+	if _scan_job != null or _folder_source.is_empty():
 		_busy[id] = {"action": "launch", "progress": -1.0, "detail": "Looking for ROMs"}
 		_launch_after_scan.append(id)
 		changed.emit(id)
@@ -189,12 +219,7 @@ func _prepare_launch(id: String) -> void:
 	var port: Dictionary = _ports[id]
 	_offload(
 		Launcher.prepare.bind(
-			root,
-			port,
-			_roms.get(id, {}),
-			_archive_current(id),
-			_state.placed_rom(id),
-			Roms.expand_dir(roms_dir)
+			root, port, _roms.get(id, {}), _archive_current(id), _state.placed_rom(id), _folder
 		),
 		func(result: Dictionary) -> void: _on_prepared(id, result),
 		{
@@ -235,6 +260,123 @@ func dismiss_error(id: String) -> void:
 		changed.emit(id)
 
 
+# The ROM folder (ROM-10 .. ROM-16) ---------------------------------------------------
+
+
+## {path (as shown, `~` for home), full, source, locked (config.ini sets it), config_file}.
+func rom_folder_info() -> Dictionary:
+	return {
+		"path": RomFolders.display(_folder, home),
+		"full": _folder,
+		"source": _folder_source,
+		"locked": not roms_dir.is_empty(),
+		"config_file": RomFolders.display(config_file, home),
+	}
+
+
+## ROM-12, ROM-13: stores the folder in state.ini and rescans it. Does nothing while
+## config.ini sets the folder (CONF-3: Anchorage never writes config.ini).
+func set_rom_folder(path: String) -> void:
+	if not roms_dir.is_empty() or not path.is_absolute_path():
+		return
+	_search_auto = false
+	_state.set_rom_dir(path)
+	_use_folder(path, "chosen")
+
+
+## Lists `path` (the ROM folder when empty) on the worker pool; `folder_listed` answers.
+func browse(path: String) -> void:
+	var dir := path if not path.is_empty() else (_folder if not _folder.is_empty() else home)
+	var where := [home, media_dir, mounts_file]
+	_offload(
+		func() -> Dictionary:
+			return RomFolders.list_folder(dir, where[0], where[1], RomFolders.read_mounts(where[2])),
+		func(listing: Dictionary) -> void: folder_listed.emit(path, listing),
+		{"ok": false, "path": dir, "roms": 0, "folders": [], "places": []}
+	)
+
+
+## ROM-14: looks for ROM folders on the SD card and other drives, on a worker thread.
+func search_sd_card() -> void:
+	_search_auto = false
+	_start_search(false)
+
+
+func cancel_search() -> void:
+	if _search_job != null:
+		_search_job.abort()
+
+
+## {status: "idle"|"running"|"done"|"no_card"|"cancelled", results: [{path, display,
+## label (the drive), folder (the path on it), roms}]}.
+func search_info() -> Dictionary:
+	return _search.duplicate(true)
+
+
+func _pick_folder() -> void:
+	if not roms_dir.is_empty():
+		_use_folder(Roms.expand_dir(roms_dir), "config")
+		return
+	if not _state.rom_dir().is_empty():
+		_use_folder(_state.rom_dir(), "chosen")
+		return
+	var where := [home, media_dir, mounts_file]
+	_offload(
+		func() -> Dictionary:
+			var found := RomFolders.detect(where[0], where[1], RomFolders.read_mounts(where[2]))
+			if found["path"].is_empty():
+				found = {"path": RomFolders.fallback(where[0]), "source": "fallback"}
+			return found,
+		_on_detected,
+		{"path": RomFolders.fallback(home), "source": "fallback"}
+	)
+
+
+func _on_detected(found: Dictionary) -> void:
+	if not _folder_source.is_empty():
+		return
+	_use_folder(found["path"], found["source"])
+	if found["source"] == "fallback":
+		_start_search(true)
+
+
+func _use_folder(path: String, source: String) -> void:
+	_folder = path
+	_folder_source = source
+	rom_folder_changed.emit()
+	_scan()
+
+
+func _start_search(auto: bool) -> void:
+	if _search_job != null:
+		return
+	_search_auto = auto
+	_search = {"status": "running", "results": []}
+	search_changed.emit()
+	if not threaded:
+		var mounts := RomFolders.mounts(media_dir, RomFolders.read_mounts(mounts_file))
+		_on_searched(RomFolders.search(mounts))
+		return
+	_search_job = RomFolders.SearchJob.new()
+	_search_job.finished.connect(_on_searched)
+	_search_job.start(media_dir, mounts_file)
+
+
+func _on_searched(result: Dictionary) -> void:
+	_search_job = null
+	var statuses := {"ok": "done", "no_card": "no_card", "aborted": "cancelled"}
+	var results := []
+	for entry in result.get("results", []):
+		var shown: Dictionary = entry.duplicate()
+		shown["display"] = RomFolders.display(entry["path"], home)
+		results.append(shown)
+	_search = {"status": statuses.get(result.get("status"), "done"), "results": results}
+	search_changed.emit()
+	if _search_auto and _folder_source == "fallback" and not results.is_empty():
+		_use_folder(results[0]["path"], "search")
+	_search_auto = false
+
+
 ## Checks the running ports; `_process` calls it every POLL_SECONDS. Public for tests.
 func poll() -> void:
 	for id in _runs.keys():
@@ -248,12 +390,7 @@ func poll() -> void:
 		var code := OS.get_process_exit_code(run["pid"])
 		_runs.erase(id)
 		var after := Launcher.after_exit(
-			root,
-			_ports[id],
-			_state.placed_rom(id),
-			Roms.expand_dir(roms_dir),
-			run["unix"],
-			run["settled"]
+			root, _ports[id], _state.placed_rom(id), _folder, run["unix"], run["settled"]
 		)
 		if after["archive_current"]:
 			_state.set_archive_version(id, _state.installed_version(id))
@@ -324,7 +461,8 @@ func _rom_info(port: Dictionary) -> Dictionary:
 		label = "Looking for ROMs"
 	elif _scan_status == "missing":
 		label = "ROM folder not found"
-	return {"found": false, "label": label, "path": roms_dir, "wanted": wanted}
+	var shown := roms_dir if not roms_dir.is_empty() else RomFolders.display(_folder, home)
+	return {"found": false, "label": label, "path": shown, "wanted": wanted}
 
 
 func _emit_all() -> void:
@@ -516,10 +654,13 @@ func _on_prepared(id: String, result: Dictionary) -> void:
 
 ## ROM-4, ROM-5: one scan at a time; a request during a scan runs another one after it.
 func _scan() -> void:
+	# While ROM-10 still looks there is no folder yet; it scans when it has one.
+	if _folder_source.is_empty():
+		return
 	if _scan_job != null:
 		_scan_again = true
 		return
-	var dir := Roms.expand_dir(roms_dir)
+	var dir := _folder
 	var hashes := {}
 	for port in catalog:
 		hashes[port["id"]] = port["roms"]
@@ -533,6 +674,11 @@ func _scan() -> void:
 
 func _on_scanned(result: Dictionary) -> void:
 	_scan_job = null
+	if result["dir"] != _folder:
+		# The folder changed during the scan (ROM-13): only the new folder's result counts.
+		_scan_again = false
+		_scan()
+		return
 	_scan_status = result["status"]
 	_roms = result["matches"]
 	# An unmounted SD card is "missing": keep the cache for when it is back.
