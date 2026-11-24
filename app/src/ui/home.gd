@@ -1,9 +1,13 @@
 extends Control
-## The home screen (HOME-1 .. HOME-13): one card per port, the focused port's details,
-## its options menu, the Remove confirmation, the Playing overlay and the hint bar.
-## It talks only to `ports` (PORT-14), which must be set before the node enters the tree.
+## The home screen (HOME-1 .. HOME-15): one card per port, the focused port's details,
+## its options menu, the app menu, the Remove and Quit confirmations, the Playing overlay
+## and the hint bar. It talks only to `ports` (PORT-14), which must be set before the node
+## enters the tree.
 
-enum Mode { HOME, MENU, CONFIRM, PLAYING, CHOOSER }
+## The user chose to quit (HOME-14, HOME-15); main.gd quits as it does for `quit`.
+signal quit_requested
+
+enum Mode { HOME, MENU, APP_MENU, CONFIRM, PLAYING, CHOOSER }
 
 const CardScene := preload("res://scenes/card.tscn")
 const ChooserScene := preload("res://scenes/rom_folder.tscn")
@@ -24,6 +28,8 @@ var _cards: Array[Control] = []
 var _current: Control
 ## The ROM folder chooser while it is open (ROM-11).
 var _chooser: Control
+## What the open confirmation does when confirmed: remove the port or quit.
+var _on_confirmed: Callable
 
 @onready var _cards_scroll: ScrollContainer = %CardsScroll
 @onready var _cards_box: HBoxContainer = %Cards
@@ -38,6 +44,10 @@ var _chooser: Control
 @onready var _check_button: Button = %CheckButton
 @onready var _rom_folder_button: Button = %RomFolderButton
 @onready var _remove_button: Button = %RemoveButton
+@onready var _app_menu_layer: Control = %AppMenuLayer
+@onready var _catalog_button: Button = %CatalogButton
+@onready var _app_rom_folder_button: Button = %AppRomFolderButton
+@onready var _quit_button: Button = %QuitButton
 @onready var _confirm_layer: Control = %ConfirmLayer
 @onready var _confirm_title: Label = %ConfirmTitle
 @onready var _confirm_body: Label = %ConfirmBody
@@ -68,10 +78,15 @@ func _ready() -> void:
 	_check_button.pressed.connect(_on_check)
 	_rom_folder_button.pressed.connect(_on_rom_folder)
 	_remove_button.pressed.connect(_on_remove)
+	_catalog_button.pressed.connect(_on_check)
+	_app_rom_folder_button.pressed.connect(_on_rom_folder)
+	_quit_button.pressed.connect(quit_requested.emit)
 	_cancel_button.pressed.connect(_close)
-	_confirm_button.pressed.connect(_on_confirm_remove)
+	_confirm_button.pressed.connect(func() -> void: _on_confirmed.call())
+	_hint_bar.hint_clicked.connect(_on_hint_clicked)
 	var menu := [_play_button, _update_button, _check_button, _rom_folder_button, _remove_button]
-	for button in menu + [_cancel_button, _confirm_button]:
+	var app_menu := [_catalog_button, _app_rom_folder_button, _quit_button]
+	for button in menu + app_menu + [_cancel_button, _confirm_button]:
 		button.mouse_entered.connect(button.grab_focus)
 	if _cards.is_empty():
 		return
@@ -79,6 +94,7 @@ func _ready() -> void:
 	_size_cards()
 	_link_focus(_cards, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP, SIDE_BOTTOM)
 	_link_focus(menu, SIDE_TOP, SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT)
+	_link_focus(app_menu, SIDE_TOP, SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT)
 	_link_focus([_cancel_button, _confirm_button], SIDE_LEFT, SIDE_RIGHT, SIDE_TOP, SIDE_BOTTOM)
 	_current = _cards[0]
 	_current.grab_focus()
@@ -194,6 +210,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			handled = event.is_action_pressed("ui_cancel")
 			if handled:
 				_close()
+		Mode.APP_MENU:
+			handled = event.is_action_pressed("ui_cancel") or event.is_action_pressed("menu")
+			if handled:
+				_close()
 		_:
 			handled = false
 	if handled:
@@ -210,10 +230,14 @@ func _home_input(event: InputEvent) -> bool:
 			ports.dismiss_error(id)
 		elif PortState.cancellable(info):
 			ports.cancel(id)
+		else:
+			_ask_to_quit()
 	elif event.is_action_pressed("options"):
 		_open_menu()
 	elif event.is_action_pressed("refresh"):
 		ports.refresh()
+	elif event.is_action_pressed("menu"):
+		open_app_menu()
 	else:
 		return false
 	return true
@@ -312,24 +336,26 @@ func _refresh_view() -> void:
 
 func _hints() -> Array:
 	match mode:
-		Mode.MENU:
+		Mode.MENU, Mode.APP_MENU:
 			return [["ui_accept", "Select"], ["ui_cancel", "Close"]]
 		Mode.CONFIRM:
-			return [["ui_accept", "Select"], ["ui_cancel", "Cancel"]]
+			return [["ui_accept", "Select"], ["ui_cancel", _cancel_button.text]]
 		Mode.PLAYING:
 			return [["quit", "Quit Anchorage"]]
 	var info: Dictionary = ports.info(_current.port_id)
 	if not info.error.is_empty():
-		return [["ui_accept", "Dismiss"], ["ui_cancel", "Dismiss"], ["quit", "Quit"]]
+		return [["ui_accept", "Dismiss"], ["ui_cancel", "Dismiss"], ["menu", "Menu"]]
 	var hints := []
 	var primary := PortState.primary(info)
 	if not primary.is_empty():
 		hints.append(["ui_accept", PortState.ACTION_LABELS[primary]])
 	elif PortState.state(info) == "rom_missing" and not _detail.notice().is_empty():
 		hints.append(["ui_accept", "Choose ROM folder"])
+	# Back at the top asks to quit (HOME-15), but that stays off the bar: Quit is in the
+	# app menu, and with it the bar would not fit 1280 px beside "Choose ROM folder".
 	if PortState.cancellable(info):
 		hints.append(["ui_cancel", "Cancel"])
-	hints.append_array([["options", "Options"], ["refresh", "Refresh"], ["quit", "Quit"]])
+	hints.append_array([["options", "Options"], ["refresh", "Refresh"], ["menu", "Menu"]])
 	return hints
 
 
@@ -369,13 +395,13 @@ func _on_rom_folder() -> void:
 
 func _on_remove() -> void:
 	var info: Dictionary = ports.info(_current.port_id)
-	_confirm_title.text = "Remove “%s”?" % info.name
-	_confirm_body.text = (
-		"Anchorage deletes the installed port. Your saves and settings for %s stay." % info.name
-	)
 	_menu_layer.visible = false
-	_set_modal(Mode.CONFIRM, _confirm_layer)
-	_cancel_button.grab_focus()
+	_confirm(
+		"Remove “%s”?" % info.name,
+		"Anchorage deletes the installed port. Your saves and settings for %s stay." % info.name,
+		["Cancel", "Remove", "DangerButton"],
+		_on_confirm_remove
+	)
 
 
 func _on_confirm_remove() -> void:
@@ -384,13 +410,50 @@ func _on_confirm_remove() -> void:
 	ports.remove(id)
 
 
+## The app menu (HOME-14): catalog check, ROM folder, Quit.
+func open_app_menu() -> void:
+	_set_modal(Mode.APP_MENU, _app_menu_layer, false)
+	_catalog_button.grab_focus()
+
+
+## Back with nothing to cancel or dismiss (HOME-15). Focus starts on Stay, so a stray
+## press of accept doesn't quit.
+func _ask_to_quit() -> void:
+	_confirm("Quit Anchorage?", "", ["Stay", "Quit", ""], quit_requested.emit, false)
+
+
+## Opens the confirmation dialog; `buttons` is [cancel text, confirm text, confirm style].
+func _confirm(
+	title: String, body: String, buttons: Array, on_confirmed: Callable, about_card := true
+) -> void:
+	_confirm_title.text = title
+	_confirm_body.text = body
+	_confirm_body.visible = not body.is_empty()
+	_cancel_button.text = buttons[0]
+	_confirm_button.text = buttons[1]
+	_confirm_button.theme_type_variation = buttons[2]
+	_on_confirmed = on_confirmed
+	_set_modal(Mode.CONFIRM, _confirm_layer, about_card)
+	_cancel_button.grab_focus()
+
+
+## A click on a hint does what its input does (HOME-14: the mouse reaches the app menu).
+func _on_hint_clicked(action: String) -> void:
+	for pressed in [true, false]:
+		var event := InputEventAction.new()
+		event.action = action
+		event.pressed = pressed
+		get_viewport().push_input.call_deferred(event)
+
+
 ## Opens `layer` over the scrim. Cards can't take focus meanwhile, so the D-pad stays
-## inside the menu, and the card shows the selection look instead of the focus ring.
-func _set_modal(new_mode: Mode, layer: Control) -> void:
+## inside the menu, and the card it is about shows the selection look instead of the focus
+## ring; the app menu and Quit are about no card.
+func _set_modal(new_mode: Mode, layer: Control, about_card := true) -> void:
 	mode = new_mode
 	for card in _cards:
 		card.focus_mode = Control.FOCUS_NONE
-	_current.selected = true
+	_current.selected = about_card
 	_scrim.visible = true
 	layer.visible = true
 	_hint_bar.show_hints(_hints())
@@ -400,6 +463,7 @@ func _close() -> void:
 	mode = Mode.HOME
 	_scrim.visible = false
 	_menu_layer.visible = false
+	_app_menu_layer.visible = false
 	_confirm_layer.visible = false
 	_playing_layer.visible = false
 	for card in _cards:

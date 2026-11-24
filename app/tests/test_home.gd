@@ -290,7 +290,10 @@ func test_playing_overlay_takes_over_until_the_port_exits() -> void:
 	eq(home.playing_text(), "Playing Majora's Mask", "overlay names the game")
 	_press(home, KEY_F5)
 	_press(home, KEY_LEFT)
+	_press(home, KEY_ESCAPE)
+	_press(home, KEY_F10)
 	eq(_calls(home), [["launch", "2ship"]], "input other than quit is ignored")
+	eq(home.mode, home.Mode.PLAYING, "back and menu open nothing while a port runs (HOME-15)")
 	eq(home.hint_text(), "Ctrl+Q Quit Anchorage", "only quit in the hint bar")
 	home.ports._process(PortsFake.PLAY_SECONDS + 1.0)
 	eq(home.mode, home.Mode.HOME, "back to normal when the port exits")
@@ -302,8 +305,22 @@ func test_hints_follow_the_live_bindings() -> void:
 	var home := _make()
 	eq(
 		home.hint_text(),
-		"A Enter Play · Y O Options · X F5 Refresh · Ctrl+Q Quit",
-		"default hints (HOME-11)"
+		"A Enter Play · Y O Options · X F5 Refresh · Menu F10 Menu",
+		"default hints (HOME-11), with the app menu (HOME-14)"
+	)
+	_done(home)
+	home = _make("installing")
+	eq(
+		home.hint_text(),
+		"B Escape Cancel · Y O Options · X F5 Refresh · Menu F10 Menu",
+		"back cancels a download instead"
+	)
+	_done(home)
+	home = _make("error")
+	eq(
+		home.hint_text(),
+		"A Enter Dismiss · B Escape Dismiss · Menu F10 Menu",
+		"and dismisses an error"
 	)
 	_done(home)
 	home = _make()

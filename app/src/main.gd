@@ -25,6 +25,7 @@ func _ready() -> void:
 	add_child(ports)
 	var home := HomeScene.instantiate()
 	home.ports = ports
+	home.quit_requested.connect(quit)
 	add_child(home)
 
 
@@ -47,4 +48,10 @@ static func make_ports(args: PackedStringArray, cfg: RefCounted = null) -> Node:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("quit"):
-		get_tree().quit()
+		quit()
+
+
+## `quit`, the app menu's Quit Anchorage and the Quit confirmation all end here. As the
+## tree goes, Ports' _exit_tree stops its scan and search and joins their threads.
+func quit() -> void:
+	get_tree().quit()

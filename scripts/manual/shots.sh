@@ -1,13 +1,15 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i bash -p jq grim wtype
-# Spec: LOOK-2, LOOK-5, LOOK-6, HOME-1 .. HOME-12, PORT-17 (screenshots).
+# Spec: LOOK-2, LOOK-5, LOOK-6, LOOK-9, HOME-1 .. HOME-15, PORT-17 (screenshots).
 # One output size (WxH, default 1280x720); run through headless.sh, with the output set
 # to that size:
 #   HEADLESS_RES=1280x720 HEADLESS_SCALE=1 scripts/manual/headless.sh scripts/manual/shots.sh 1280x720
+# or at every 16:9 and 16:10 size (LOOK-9) through resolutions.sh:
+#   OUT=/tmp/shots scripts/manual/resolutions.sh scripts/manual/shots.sh
 # Starts the app with the fake ports (`--fake-ports SCENARIO`) in every scenario, fullscreen
 # as gamescope runs it, and saves a screenshot of each to $OUT/<size>-<scenario>.png, plus
-# the options menu, the Remove dialog and the latte flavour. FLAVOR and ACCENT override
-# the appearance for the whole run.
+# the options menu, the Remove dialog, the app menu, the Quit question and the latte
+# flavour. FLAVOR and ACCENT override the appearance for the whole run.
 cd "$(dirname "$0")/../.." || exit 1
 . scripts/manual/lib.sh
 [ -n "${HEADLESS:-}" ] || { echo "run through scripts/manual/headless.sh" >&2; exit 2; }
@@ -49,8 +51,16 @@ keys -k Left -k Left -k Left
 shot "$OUT/$res-showcase-back.png"
 keys -k Left -k Left -k Left -k Left o
 shot "$OUT/$res-menu.png"
-keys -k Down -k Down -k Return
+keys -k Down -k Down -k Down -k Return
 shot "$OUT/$res-confirm.png"
+close
+
+# The app menu (HOME-14), then back twice: closed, then the Quit question (HOME-15).
+open showcase
+keys -k F10
+shot "$OUT/$res-app-menu.png"
+keys -k Escape -k Escape
+shot "$OUT/$res-quit.png"
 close
 
 open first-run

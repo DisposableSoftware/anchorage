@@ -14,6 +14,7 @@ const BINDINGS := [
 	["back", "ui_cancel", "Back", ["Escape", "Pad:B"]],
 	["options", "options", "Options", ["O", "Pad:Y"]],
 	["refresh", "refresh", "Refresh", ["F5", "Pad:X"]],
+	["menu", "menu", "App menu", ["F10", "Pad:Start"]],
 	["quit", "quit", "Quit", ["Ctrl+Q"]],
 ]
 

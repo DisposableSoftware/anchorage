@@ -1,6 +1,9 @@
 extends PanelContainer
 ## The button hint bar (HOME-11): each action of the current screen with the first
-## gamepad button and the first key bound to it, read from the live InputMap.
+## gamepad button and the first key bound to it, read from the live InputMap. A click on a
+## hint asks for its action, so the mouse and a touchscreen reach the app menu (HOME-14).
+
+signal hint_clicked(action: String)
 
 const Keys := preload("res://src/keys.gd")
 
@@ -26,6 +29,10 @@ func show_hints(hints: Array) -> void:
 			continue
 		var item := HBoxContainer.new()
 		item.add_theme_constant_override("separation", 8)
+		item.mouse_filter = Control.MOUSE_FILTER_STOP
+		item.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		item.set_meta("action", hint[0])
+		item.gui_input.connect(_on_item_input.bind(hint[0]))
 		if not inputs[0].is_empty():
 			item.add_child(_cap("PadGlyph", _pad_variation(inputs[0]), inputs[0]))
 		if not inputs[1].is_empty():
@@ -48,6 +55,21 @@ func text() -> String:
 	return " · ".join(items)
 
 
+## The shown hint for `action`, or null.
+func item_for(action: String) -> Control:
+	for item in _hints.get_children():
+		if item.get_meta("action") == action:
+			return item
+	return null
+
+
+func _on_item_input(event: InputEvent, action: String) -> void:
+	var button := event as InputEventMouseButton
+	if button and button.button_index == MOUSE_BUTTON_LEFT and button.pressed:
+		accept_event()
+		hint_clicked.emit(action)
+
+
 static func _pad_variation(label: String) -> String:
 	return "PadText" + label if label in ["A", "B", "X", "Y"] else "PadText"
 
@@ -56,6 +78,7 @@ static func _cap(panel: String, text_variation: String, text: String) -> PanelCo
 	var cap := PanelContainer.new()
 	cap.theme_type_variation = panel
 	cap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var label := Label.new()
 	label.theme_type_variation = text_variation
 	label.text = text

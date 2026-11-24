@@ -321,6 +321,54 @@ theme_type_variation = &"DangerButton"
 text = "Remove"
 alignment = 0
 
+[node name="AppMenuLayer" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+z_index = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="AppMenu" type="PanelContainer" parent="AppMenuLayer"]
+custom_minimum_size = Vector2(480, 0)
+layout_mode = 2
+theme_type_variation = &"Dialog"
+
+[node name="Box" type="VBoxContainer" parent="AppMenuLayer/AppMenu"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="AppMenuTitle" type="Label" parent="AppMenuLayer/AppMenu/Box"]
+layout_mode = 2
+theme_type_variation = &"DialogTitle"
+text = "Anchorage"
+
+[node name="Gap" type="Control" parent="AppMenuLayer/AppMenu/Box"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="CatalogButton" type="Button" parent="AppMenuLayer/AppMenu/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Check for updates and new ports"
+alignment = 0
+
+[node name="AppRomFolderButton" type="Button" parent="AppMenuLayer/AppMenu/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "ROM folder"
+alignment = 0
+
+[node name="QuitButton" type="Button" parent="AppMenuLayer/AppMenu/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Quit Anchorage"
+alignment = 0
+
 [node name="ConfirmLayer" type="CenterContainer" parent="."]
 unique_name_in_owner = true
 visible = false
