@@ -12,7 +12,7 @@ cd "$(dirname "$0")/../.." || exit 1
 [ -n "${HEADLESS:-}" ] || { echo "run through scripts/manual/headless.sh" >&2; exit 2; }
 require_no_instance
 
-T=$(mktemp -d); trap 'cleanup; rm -rf "$T"' EXIT
+T=$(mktemp -d /tmp/art.XXXXXX); trap 'cleanup; rm -rf "$T"' EXIT
 OUT=${OUT:-$T/shots}; mkdir -p "$OUT" "$T/home" "$T/config/anchorage" "$T/roms"
 export HOME=$T/home XDG_STATE_HOME=$T/state XDG_CACHE_HOME=$T/cache XDG_DATA_HOME=$T/data
 res=${1:-1280x720}

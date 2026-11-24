@@ -229,6 +229,7 @@ static func _badges(t: Theme, c: Dictionary, bold: Font) -> void:
 
 
 static func _emblems(t: Theme, c: Dictionary, bold: Font) -> void:
+	_panel(t, "ArtTile", flat(c.surface1, 12, 0, 0))
 	for i in EMBLEM_COLORS.size():
 		var color: Color = c[EMBLEM_COLORS[i]]
 		var bg := c.surface0.lerp(color, 0.18) as Color
