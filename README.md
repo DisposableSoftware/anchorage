@@ -49,7 +49,7 @@ the right one. It never downloads ROMs.
 | | |
 |---|---|
 | ![Starship downloading at 42 percent, with a progress bar on its card and in the detail panel](docs/screenshots/installing.png) | ![The ROM folder chooser at ~/Emulation/roms, with the n64 folder highlighted and its count of six ROM files](docs/screenshots/rom-folder.png) |
-| ![The options menu for Ship of Harkinian: Play, Check for updates, ROM folder and Remove](docs/screenshots/menu.png) | ![Catppuccin Latte with the blue accent, scrolled to Ghostship, PaperBoat and Lighthouse](docs/screenshots/latte.png) |
+| ![The options menu for Ship of Harkinian: Play, Check for updates, ROM folder and Remove](docs/screenshots/menu.png) | ![Catppuccin Latte with the blue accent, scrolled to Ghostship and its first-launch note](docs/screenshots/latte.png) |
 
 ## Install
 
@@ -79,7 +79,10 @@ It downloads the latest release's AppImage to `~/Applications/Anchorage.AppImage
 checks it against the release's `SHA256SUMS`, adds a desktop entry and icon, and adds an
 "Anchorage" shortcut with its artwork to every Steam account on the device (native Steam
 and Flatpak Steam). It backs up `shortcuts.vdf` before it changes it and never touches
-another game's shortcut. It needs only bash, curl and coreutils, and asks no questions.
+another game's shortcut. It keeps a record of the files it wrote, with their checksums, in
+`~/.local/state/anchorage-installer/`, and replaces artwork only while it is still the
+image it put there, so art you set in Steam yourself stays. It needs only bash, curl and
+coreutils, and asks no questions.
 
 Piping a script from the internet into bash is a leap of faith, so read it first: its
 source is [`scripts/install-steamos.sh`](https://github.com/DisposableSoftware/anchorage/blob/main/scripts/install-steamos.sh),
@@ -88,8 +91,9 @@ and each release attaches a copy with only that release's version filled in.
 - **Update:** run the same command again. When the installed version is the latest, it
   does nothing.
 - **Remove:** `curl -fsSL https://github.com/DisposableSoftware/anchorage/releases/latest/download/install-steamos.sh | bash -s -- --uninstall`
-  removes what the script added. Your ports, saves and settings stay; it lists their
-  folders so you can delete them too.
+  removes the shortcut and only the files the script wrote, as its record lists them;
+  artwork you set yourself stays. Your ports, saves and settings stay too; it lists their
+  folders so you can delete them.
 - **Look first:** `... | bash -s -- --dry-run` says what it would do and changes nothing.
 - **A given version:** run the copy attached to that release, which installs that release:
   `curl -fsSL https://github.com/DisposableSoftware/anchorage/releases/download/vX.Y.Z/install-steamos.sh | bash`.
@@ -183,13 +187,13 @@ On a desktop, run `anchorage` (or the AppImage). The window has the Wayland app 
 
 | Game | Port | ROM versions | First launch |
 |---|---|---|---|
-| The Legend of Zelda: Ocarina of Time | [Ship of Harkinian](https://github.com/HarbourMasters/Shipwright) | N64 1.0 to 1.2 (US, JP, PAL), GameCube and Master Quest | Makes the game files from your ROM. If it then asks to run the game, close it and press Play again |
-| The Legend of Zelda: Majora's Mask | [2Ship2Harkinian](https://github.com/2ship2harkinian/2ship2harkinian) | US 1.0, US GameCube | Makes the game files from your ROM. If it then asks to run the game, close it and press Play again |
-| Star Fox 64 | [Starship](https://github.com/HarbourMasters/Starship) | US 1.0, US 1.1 | Needs a mouse or keyboard once (the trackpad works): answer Yes and pick `sf64.z64` |
-| Mario Kart 64 | [SpaghettiKart](https://github.com/HarbourMasters/SpaghettiKart) | US | Needs a mouse or keyboard once (the trackpad works) to answer its questions |
-| Super Mario 64 | [Ghostship](https://github.com/HarbourMasters/Ghostship) | US, JP | Needs a mouse or keyboard once (the trackpad works): answer Yes twice |
-| Paper Mario | [PaperBoat](https://github.com/HarbourMasters/PaperBoat) | US | Needs a mouse or keyboard once (the trackpad works) to answer its questions |
-| Banjo-Kazooie | [Lighthouse](https://github.com/HarbourMasters/Lighthouse) | US 1.0, US 1.1, PAL, JP | Makes the game files from your ROM. If it then asks to run the game, close it and press Play again |
+| The Legend of Zelda: Ocarina of Time | [Ship of Harkinian](https://github.com/HarbourMasters/Shipwright) | N64 1.0 to 1.2 (US, JP, PAL), GameCube and Master Quest | The first launch makes the game files from your ROM. If it then asks to run, close it and press Play again |
+| The Legend of Zelda: Majora's Mask | [2Ship2Harkinian](https://github.com/2ship2harkinian/2ship2harkinian) | US 1.0, US GameCube | The first launch makes the game files from your ROM. If it then asks to run, close it and press Play again |
+| Star Fox 64 | [Starship](https://github.com/HarbourMasters/Starship) | US 1.0, US 1.1 | First launch only: use the trackpad or a mouse. Answer Yes, then pick `sf64.z64` |
+| Mario Kart 64 | [SpaghettiKart](https://github.com/HarbourMasters/SpaghettiKart) | US | First launch only: answer its questions with the trackpad or a mouse |
+| Super Mario 64 | [Ghostship](https://github.com/HarbourMasters/Ghostship) | US, JP | First launch only: use the trackpad or a mouse. Answer Yes to both questions |
+| Paper Mario | [PaperBoat](https://github.com/HarbourMasters/PaperBoat) | US | First launch only: answer its questions with the trackpad or a mouse |
+| Banjo-Kazooie | [Lighthouse](https://github.com/HarbourMasters/Lighthouse) | US 1.0, US 1.1, PAL, JP | The first launch makes the game files from your ROM. If it then asks to run, close it and press Play again |
 
 Later launches need nothing. The detail panel shows the first-launch note until the port
 has made its game files, and lists the ROM versions it accepts while none is found.
