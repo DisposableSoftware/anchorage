@@ -58,18 +58,23 @@ Still here? Bold. Scroll up, reread the warning, then carry on.
 
 ### SteamOS (Steam Deck)
 
-Do this once, in Desktop Mode:
+Do this once, in Desktop Mode, with Steam left open:
 
 1. Switch to Desktop Mode (Steam button, Power, Switch to Desktop).
-2. Exit Steam: right-click the Steam icon in the system tray and choose Exit, or run
-   `steam -shutdown`. The script edits Steam's shortcut file, and Steam overwrites that
-   file when it exits, so the script refuses to run while Steam is open.
-3. Open Konsole and run:
+2. Open Konsole and run:
 
    ```sh
    curl -fsSL https://github.com/DisposableSoftware/anchorage/releases/latest/download/install-steamos.sh | bash
    ```
 
+   Leave Steam running: in Desktop Mode the controller only works as a mouse and keyboard
+   while Steam is open. To type the command, press Steam + X for the on-screen keyboard.
+   Or open this page in Firefox, copy the command, and paste it into Konsole with
+   Ctrl+Shift+V (or right-click with the left trigger and choose Paste).
+3. The script downloads everything first. Then it closes Steam for a few seconds (it
+   counts down from 5, and Ctrl+C in that time cancels with nothing changed), adds the
+   shortcut, and starts Steam again by itself. Steam overwrites its shortcut file when it
+   exits, so the file can only be changed while Steam is closed.
 4. Go back to Gaming Mode. Anchorage is in your library, under Non-Steam.
 
 The command runs the copy of the script attached to the latest release, so the script
@@ -93,8 +98,15 @@ and each release attaches a copy with only that release's version filled in.
 - **Remove:** `curl -fsSL https://github.com/DisposableSoftware/anchorage/releases/latest/download/install-steamos.sh | bash -s -- --uninstall`
   removes the shortcut and only the files the script wrote, as its record lists them;
   artwork you set yourself stays. Your ports, saves and settings stay too; it lists their
-  folders so you can delete them.
-- **Look first:** `... | bash -s -- --dry-run` says what it would do and changes nothing.
+  folders so you can delete them. Like the install, it closes Steam for a few seconds
+  and starts it again.
+- **Look first:** `... | bash -s -- --dry-run` says what it would do and changes nothing,
+  and does not close Steam.
+- **Close Steam yourself:** `... | bash -s -- --no-steam-restart` never closes Steam. While
+  Steam runs, it changes nothing and tells you to exit Steam first (right-click the Steam
+  icon in the system tray, Exit), then to run it again: for a Deck with a keyboard
+  attached. Over SSH the script does this by itself, as it can't start Steam again on the
+  Deck's screen from there.
 - **A given version:** run the copy attached to that release, which installs that release:
   `curl -fsSL https://github.com/DisposableSoftware/anchorage/releases/download/vX.Y.Z/install-steamos.sh | bash`.
 

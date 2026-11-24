@@ -92,8 +92,8 @@ scripts/release-check.sh recommended version bump since the last v* tag (spec de
 scripts/release.sh       bump, commit "Anchorage X.Y.Z", tag, draft notes (no push)
 scripts/build-appimage.sh builds the AppImage into dist/ (git-ignored)             INT-26
 scripts/release-assets.sh stages a release's files in dist/vX.Y.Z/: AppImage, Steam art, icon, pinned install-steamos.sh, SHA256SUMS   INT-28 INT-34
-scripts/install-steamos.sh SteamOS one-command install (curl | bash): AppImage, desktop entry, Steam shortcut and art; bash VDF reader/writer   INT-28 INT-29 INT-33 INT-34
-scripts/manual/steam-install.sh the installer against fake Steam folders and a fake GitHub (steam-install/: fixtures.py, check.py with ValvePython's vdf)   INT-28 INT-29 INT-33 INT-34
+scripts/install-steamos.sh SteamOS one-command install (curl | bash): AppImage, desktop entry, Steam shortcut and art; bash VDF reader/writer; closes and restarts Steam   INT-28 INT-29 INT-33 INT-34 INT-35
+scripts/manual/steam-install.sh the installer against fake Steam folders, a fake Steam client and a fake GitHub (steam-install/: fixtures.py, check.py with ValvePython's vdf)   INT-28 INT-29 INT-33 INT-34 INT-35
 .githooks/pre-push       on every push refuses ROMs and large files (scripts/check-no-roms.sh, PROD-14); on a push of main, offers to release
 data/                    desktop entry, metainfo, app icon and symbolic icon (drawn by tools/steam-art)   INT-2 INT-41 INT-42
 data/steam/              Steam library art: portrait, wide, hero, logo (SVG + PNG) and icon.png; generated   INT-27
@@ -137,7 +137,7 @@ Prefer adding a script to `scripts/manual/` (source `lib.sh`, which has the guar
 
 ### SteamOS installer
 
-`scripts/manual/steam-install.sh` (`nix flake check` runs it as `checks.x86_64-linux.steam-install`) tests `scripts/install-steamos.sh` without Steam or the network: fake HOMEs and Steam folders, a fake `pgrep` for "Steam is running", and a fake GitHub API and release on 127.0.0.1, which the installer reaches through `ANCHORAGE_API_URL` and `ANCHORAGE_DOWNLOAD_BASE` (test hooks only). It reads the results with ValvePython's `vdf`, never with the installer's own parser. `KEEP=1` keeps the temp dir. The installer reads nothing from stdin (it runs as `curl | bash`), and it uses only bash, curl and coreutils: no python3, jq or xxd. Steam showing the shortcut and its art can only be checked on a Deck. The decisions and sources are in `spec/integration.md`, "Implementation notes: the SteamOS installer".
+`scripts/manual/steam-install.sh` (`nix flake check` runs it as `checks.x86_64-linux.steam-install`) tests `scripts/install-steamos.sh` without Steam or the network: fake HOMEs and Steam folders, a fake GitHub API and release on 127.0.0.1, which the installer reaches through `ANCHORAGE_API_URL` and `ANCHORAGE_DOWNLOAD_BASE` (test hooks only), and a fake Steam client: `steam`, `flatpak` and `pgrep` scripts first in `PATH` that run, quit a few seconds after `-shutdown` (or never), start again, and log each call with the hash of `shortcuts.vdf` at that moment, so the order shutdown, exit, edit, restart is checked. `ANCHORAGE_COUNTDOWN` and `ANCHORAGE_STEAM_WAIT` (test hooks only) shorten the 5 s countdown and the 60 s wait. The fakes must stay first in `PATH`: never let a test reach a real `steam` on the machine. It reads the results with ValvePython's `vdf`, never with the installer's own parser. `KEEP=1` keeps the temp dir. The installer reads nothing from stdin (it runs as `curl | bash`), and it uses only bash, curl and coreutils: no python3, jq or xxd. Steam showing the shortcut and its art, and how the real Steam closes and starts again (`INT-35`: `steam -shutdown`, `steam -silent` in the Plasma session, the controller coming back), can only be checked on a Deck. The decisions and sources are in `spec/integration.md`, "Implementation notes: the SteamOS installer".
 
 ### Catalog updates
 

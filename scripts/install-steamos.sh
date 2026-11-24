@@ -5,17 +5,20 @@
 #
 # It downloads the release AppImage to ~/Applications/Anchorage.AppImage, checks it
 # against the release's SHA256SUMS, adds a desktop entry and icon, and adds an
-# "Anchorage" shortcut with artwork to every Steam account (Steam must be closed).
-# Spec: INT-28, INT-29, INT-33, INT-34 in spec/integration.md, with the reasons.
+# "Anchorage" shortcut with artwork to every Steam account. Steam must be closed for that:
+# when it runs, the script closes it, makes the change and starts it again.
+# Spec: INT-28, INT-29, INT-33, INT-34, INT-35 in spec/integration.md, with the reasons.
 #
 # Options (through curl: ... | bash -s -- --uninstall):
-#   --version X.Y.Z   install that release instead of the latest
-#   --dry-run         say what would change, change nothing
-#   --uninstall       remove what this script added (not Anchorage's own data)
+#   --version X.Y.Z      install that release instead of the latest
+#   --dry-run            say what would change, change nothing
+#   --uninstall          remove what this script added (not Anchorage's own data)
+#   --no-steam-restart   never close Steam: stop with instructions while it runs
 #   --help
 #
 # Needs bash, curl and coreutils. It reads nothing from standard input.
-# For tests only: ANCHORAGE_API_URL and ANCHORAGE_DOWNLOAD_BASE replace the GitHub URLs.
+# For tests only: ANCHORAGE_API_URL and ANCHORAGE_DOWNLOAD_BASE replace the GitHub URLs,
+# ANCHORAGE_COUNTDOWN and ANCHORAGE_STEAM_WAIT the 5 s countdown and the 60 s wait for Steam.
 set -euo pipefail
 
 # scripts/release-assets.sh sets this in the copy attached to a release.
@@ -40,7 +43,7 @@ die() { short "$*"; printf '\nerror: %s\n' "$REPLY" >&2; exit 1; }
 usage() {
   cat <<'EOF'
 Installs Anchorage (AppImage, desktop entry, Steam shortcut with artwork).
-Usage: install-steamos.sh [--version X.Y.Z] [--dry-run] [--uninstall]
+Usage: install-steamos.sh [--version X.Y.Z] [--dry-run] [--uninstall] [--no-steam-restart]
        curl -fsSL https://github.com/DisposableSoftware/anchorage/releases/latest/download/install-steamos.sh | bash -s -- [options]
 EOF
 }
@@ -88,12 +91,143 @@ steam_running() {
   return 1
 }
 
-steam_closed_or_die() {
+steam_flatpak_running() {
+  command -v flatpak >/dev/null 2>&1 || return 1
+  flatpak ps --columns=application 2>/dev/null | grep -qxF com.valvesoftware.Steam
+}
+
+steam_up() { # steam_up KIND (native or flatpak): that Steam is running
+  if [[ $1 == flatpak ]]; then steam_flatpak_running; else steam_running; fi
+}
+
+# ---- closing and restarting Steam (INT-35) -----------------------------------
+# A Deck's controller is a mouse and keyboard in Desktop Mode only while Steam runs, so the
+# user can't be asked to quit Steam and then press a key: the script closes Steam and
+# starts it again itself, when it can start it again in the user's desktop.
+
+steam_closable() { # -> 0, or 1 with REPLY saying why this run can't close and restart Steam
+  REPLY=
+  if [[ -n $NO_RESTART ]]; then
+    REPLY=" "
+  elif [[ -n ${SSH_CONNECTION:-}${SSH_CLIENT:-}${SSH_TTY:-} ]]; then
+    REPLY="Over SSH it can't start Steam again on the Deck's screen, so it doesn't close it."
+  elif [[ -z ${DISPLAY:-}${WAYLAND_DISPLAY:-} ]]; then
+    REPLY="Without a desktop (no DISPLAY or WAYLAND_DISPLAY) it can't start Steam again, so it doesn't close it."
+  elif [[ -n ${SteamGameId:-}${SteamAppId:-} ]]; then
+    REPLY="This terminal was started by Steam, and closing Steam would close it too. Run the command from Konsole in Desktop Mode."
+  elif ! steam_flatpak_running && ! command -v steam >/dev/null 2>&1; then
+    REPLY="There is no steam command to close Steam with."
+  fi
+  [[ -z $REPLY ]]
+}
+
+# steam_check: before a change to shortcuts.vdf or the artwork. Returns at once when Steam
+# is not running, stops with instructions when this run can't close and restart it, and
+# otherwise sets STEAM_CLOSE: steam_close closes it, after the downloads.
+steam_check() {
   steam_running || return 0
-  die "Steam is running. Steam rewrites its shortcuts file when it exits, so the shortcut
-can't be changed now. Nothing was changed.
+  if ! steam_closable; then
+    if [[ $REPLY == " " ]]; then REPLY=; else REPLY=$'\n'$REPLY; fi
+    die "Steam is running. Steam rewrites its shortcuts file when it exits, so the shortcut
+can't be changed now. Nothing was changed.$REPLY
 Exit Steam first: in Desktop Mode, right-click the Steam icon in the system tray and
 choose Exit (or run: steam -shutdown). When it has closed, run the same command again."
+  fi
+  STEAM_CLOSE=1
+  if [[ -n $DRY ]]; then
+    if steam_flatpak_running; then
+      info "Steam is running: would close it (flatpak run com.valvesoftware.Steam -shutdown), make the"
+      info "changes and start it again (flatpak run com.valvesoftware.Steam -silent)"
+    else
+      info "Steam is running: would close it (steam -shutdown), make the changes and start it"
+      info "again (steam -silent)"
+    fi
+  fi
+}
+
+steam_close() {
+  local n=$COUNTDOWN
+  step "Closing Steam"
+  info "Steam must be closed while its shortcuts change. It closes now and starts again by"
+  info "itself in a few seconds. Press Ctrl+C in the next $n seconds to cancel: nothing has"
+  info "been changed yet."
+  printf '    closing Steam in'
+  while ((n > 0)); do
+    printf ' %s' "$n"
+    sleep 1
+    n=$((n - 1))
+  done
+  printf '\n'
+  # From here on Steam is closing, and the EXIT trap must get to start it again.
+  trap '' INT
+  if steam_flatpak_running; then steam_quit flatpak || steam_gave_up; fi
+  if steam_running; then
+    command -v steam >/dev/null 2>&1 || steam_gave_up
+    steam_quit native || steam_gave_up
+  fi
+  sleep 2 # as Steam ROM Manager does: let what Steam started finish exiting
+}
+
+steam_quit() { # steam_quit KIND: asks that Steam to quit, and waits for it to exit
+  local helper waited=0
+  STEAM_CLOSED+=("$1")
+  if [[ $1 == flatpak ]]; then
+    info "asking Steam to quit: flatpak run com.valvesoftware.Steam -shutdown"
+    flatpak run com.valvesoftware.Steam -shutdown </dev/null >/dev/null 2>&1 &
+  else
+    info "asking Steam to quit: steam -shutdown"
+    steam -shutdown </dev/null >/dev/null 2>&1 &
+  fi
+  helper=$!
+  printf '    waiting for Steam to exit'
+  while kill -0 "$helper" 2>/dev/null || steam_up "$1"; do
+    if ((waited >= STEAM_WAIT)); then
+      printf '\n'
+      return 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+    printf '.'
+  done
+  printf ' closed\n'
+}
+
+steam_gave_up() {
+  trap - INT
+  die "Steam did not close within $STEAM_WAIT seconds, so nothing was changed, and Steam was
+not forced to close. If Steam shows a question or a game is running, close it, then run
+the same command again."
+}
+
+detach() { # runs a command in a session of its own, so that it outlives the terminal
+  if command -v setsid >/dev/null 2>&1; then
+    setsid -f "$@" </dev/null >/dev/null 2>&1
+  else
+    nohup "$@" </dev/null >/dev/null 2>&1 &
+  fi
+}
+
+# steam_restart: starts the Steam that steam_close closed, the way Desktop Mode starts it
+# (/etc/xdg/autostart/steam.desktop: steam -silent), unless it runs again already. Also
+# from the EXIT trap, so that a failure after closing Steam still brings it back.
+steam_restart() {
+  local k start=()
+  ((${#STEAM_CLOSED[@]} > 0)) || return 0
+  trap - INT
+  for k in "${STEAM_CLOSED[@]}"; do steam_up "$k" || start+=("$k"); done
+  STEAM_CLOSED=()
+  ((${#start[@]} > 0)) || return 0
+  step "Starting Steam again"
+  for k in "${start[@]}"; do
+    if [[ $k == flatpak ]]; then
+      info "flatpak run com.valvesoftware.Steam -silent"
+      detach flatpak run com.valvesoftware.Steam -silent || warn "Could not start Steam again: start it from the application menu."
+    else
+      info "steam -silent"
+      detach steam -silent || warn "Could not start Steam again: start it from the application menu."
+    fi
+  done
+  RESTARTED=1
 }
 
 # CRC-32 (IEEE, as zlib) of a string's bytes, as an unsigned number in REPLY.
@@ -566,6 +700,24 @@ $MARKER
 "
 }
 
+download_appimage() { # download_appimage DEST: downloads the AppImage and checks it
+  info "downloading $APPIMAGE_ASSET"
+  fetch "$DOWNLOADS/$TAG/$APPIMAGE_ASSET" "$1" progress ||
+    die "Could not download $DOWNLOADS/$TAG/$APPIMAGE_ASSET."
+  same_sha "$1" "${SUM[$APPIMAGE_ASSET]}" ||
+    die "The download does not match the checksum in SHA256SUMS (${SUM[$APPIMAGE_ASSET]}). Nothing was installed."
+}
+
+prefetch() { # downloads all the install needs before Steam closes, so it closes only briefly
+  local name
+  if ! same_sha "$APPIMAGE" "${SUM[$APPIMAGE_ASSET]}"; then
+    download_appimage "$TMP/appimage"
+    FETCHED=$TMP/appimage
+  fi
+  same_sha "$ICON" "${SUM[$ICON_ASSET]}" || asset "$ICON_ASSET"
+  for name in "${ART_ASSETS[@]}"; do asset "$name"; done
+}
+
 install_appimage() {
   local want=${SUM[$APPIMAGE_ASSET]} part=$APPDIR/.Anchorage.AppImage.part
   if same_sha "$APPIMAGE" "$want"; then
@@ -587,11 +739,12 @@ install_appimage() {
   fi
   mkdir -p -- "$APPDIR"
   PART=$part
-  info "downloading $APPIMAGE_ASSET"
-  fetch "$DOWNLOADS/$TAG/$APPIMAGE_ASSET" "$part" progress ||
-    die "Could not download $DOWNLOADS/$TAG/$APPIMAGE_ASSET."
-  same_sha "$part" "$want" ||
-    die "The download does not match the checksum in SHA256SUMS ($want). Nothing was installed."
+  if [[ -n $FETCHED ]]; then
+    mv -f -- "$FETCHED" "$part"
+    FETCHED=
+  else
+    download_appimage "$part"
+  fi
   chmod 755 -- "$part"
   mv -f -- "$part" "$APPIMAGE"
   PART=
@@ -635,20 +788,42 @@ install_desktop() {
 
 # install_art USER ID: the five images, where they differ. An image that is neither the
 # release's nor the one this script wrote before is the user's (set in Steam): kept.
+art_state() { # art_state DEST HASH -> REPLY: same, kept (an image the user set) or write
+  if same_sha "$1" "$2"; then
+    REPLY=same
+  elif [[ -e $1 ]] && ! { [[ -n ${OWN[$1]:-} ]] && same_sha "$1" "${OWN[$1]}"; }; then
+    REPLY=kept
+  else
+    REPLY="write"
+  fi
+}
+
+art_pending() { # art_pending USER ID: install_art would write some of the images
+  local i
+  for i in "${!ART_ASSETS[@]}"; do
+    art_state "$1/config/grid/$2${ART_SUFFIXES[i]}.png" "${SUM[${ART_ASSETS[i]}]}"
+    [[ $REPLY != write ]] || return 0
+  done
+  return 1
+}
+
 install_art() {
   local grid=$1/config/grid i name dest want n=0
   for i in "${!ART_ASSETS[@]}"; do
     name=${ART_ASSETS[i]} want=${SUM[${ART_ASSETS[i]}]}
     dest=$grid/$2${ART_SUFFIXES[i]}.png
-    if same_sha "$dest" "$want"; then
-      OWN[$dest]=$want
-      continue
-    fi
-    if [[ -e $dest ]] && ! { [[ -n ${OWN[$dest]:-} ]] && same_sha "$dest" "${OWN[$dest]}"; }; then
-      unset 'OWN[$dest]'
-      info "account ${1##*/}: kept $dest: this script did not write it (set in Steam?)"
-      continue
-    fi
+    art_state "$dest" "$want"
+    case $REPLY in
+      same)
+        OWN[$dest]=$want
+        continue
+        ;;
+      kept)
+        unset 'OWN[$dest]'
+        info "account ${1##*/}: kept $dest: this script did not write it (set in Steam?)"
+        continue
+        ;;
+    esac
     CHANGED=1 n=$((n + 1))
     [[ -z $DRY ]] || continue
     asset "$name"
@@ -667,7 +842,7 @@ install_art() {
 }
 
 do_install() {
-  local u i art_missing users_planned=() plans=() ids=() sigs=() saved=() write=
+  local u i art_missing extra users_planned=() plans=() ids=() sigs=() saved=() write=
   step "Finding the release"
   resolve_release
   APPIMAGE_ASSET=Anchorage-$VERSION-x86_64.AppImage
@@ -694,12 +869,19 @@ do_install() {
     sigs+=("$PLAN_SIG")
     plan_save
     saved+=("$REPLY")
+    extra=
     case $PLAN in
       create | add | update) write=1 ;;
+      none) if art_pending "$u" "$SC_ID"; then write=1 extra=", artwork to write"; fi ;;
     esac
-    info "account ${u##*/}: $(plan_text "$PLAN")"
+    info "account ${u##*/}: $(plan_text "$PLAN")$extra"
   done
-  [[ -z $write ]] || steam_closed_or_die
+  [[ -z $write ]] || steam_check
+  if [[ -n $STEAM_CLOSE && -z $DRY ]]; then
+    step "Downloading Anchorage $VERSION"
+    prefetch
+    steam_close
+  fi
 
   step "Installing Anchorage $VERSION"
   install_appimage
@@ -736,6 +918,8 @@ Exit Steam, then run the same command again: it only adds what is missing."
     info "  flatpak override --user --filesystem=~/Applications com.valvesoftware.Steam"
   fi
 
+  steam_restart
+
   if [[ -n $DRY ]]; then
     say ""
     say "Dry run: nothing was changed."
@@ -745,8 +929,11 @@ Exit Steam, then run the same command again: it only adds what is missing."
   else
     say ""
     say "Anchorage $VERSION is installed: $APPIMAGE"
-    ((${#users_planned[@]} == 0)) ||
+    if [[ -n $RESTARTED ]]; then
+      say "Steam is starting again. Anchorage is in the library, under Non-Steam."
+    elif ((${#users_planned[@]} > 0)); then
       say "Start Steam (or return to Gaming Mode): Anchorage is in the library, under Non-Steam."
+    fi
   fi
 }
 
@@ -782,7 +969,8 @@ do_uninstall() {
       info "account ${u##*/}: $(plan_text "$PLAN")"
     fi
   done
-  [[ -z $write ]] || steam_closed_or_die
+  [[ -z $write ]] || steam_check
+  [[ -z $STEAM_CLOSE || -n $DRY ]] || steam_close
 
   step "Removing Anchorage"
   for i in "${!users_planned[@]}"; do
@@ -819,6 +1007,7 @@ do_uninstall() {
   fi
   remove_own "$ICON"
   own_save
+  steam_restart
   say ""
   if [[ -n $DRY ]]; then
     say "Dry run: nothing was changed."
@@ -894,6 +1083,7 @@ own_save() { # writes MANIFEST from OWN when it differs; removes it when OWN is 
 }
 
 cleanup() {
+  steam_restart
   [[ -z ${PART:-} ]] || rm -f -- "$PART"
   [[ -z ${NEW:-} ]] || rm -f -- "$NEW"
   [[ -z ${TMP:-} ]] || rm -rf -- "$TMP"
@@ -903,13 +1093,18 @@ main() {
   # Under `curl | bash`, bash reads this script from standard input: nothing else may.
   exec </dev/null
   local mode=install t
-  OPT_VERSION='' DRY='' CHANGED='' FAILED='' PART='' NEW='' TMP=''
+  OPT_VERSION='' DRY='' CHANGED='' FAILED='' PART='' NEW='' TMP='' FETCHED=''
+  NO_RESTART='' STEAM_CLOSE='' STEAM_CLOSED=() RESTARTED=''
+  COUNTDOWN=${ANCHORAGE_COUNTDOWN:-5} STEAM_WAIT=${ANCHORAGE_STEAM_WAIT:-60}
+  [[ $COUNTDOWN =~ ^[0-9]+$ ]] || COUNTDOWN=5
+  [[ $STEAM_WAIT =~ ^[0-9]+$ ]] || STEAM_WAIT=60
   while (($# > 0)); do
     case $1 in
       --version) (($# >= 2)) || die "--version needs a version, like --version 1.2.0"; OPT_VERSION=$2; shift ;;
       --version=*) OPT_VERSION=${1#*=} ;;
       --dry-run) DRY=1 ;;
       --uninstall) mode=uninstall ;;
+      --no-steam-restart) NO_RESTART=1 ;;
       -h | --help) usage; return 0 ;;
       *) usage >&2; exit 2 ;;
     esac

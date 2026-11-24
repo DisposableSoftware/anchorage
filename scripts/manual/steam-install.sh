@@ -1,10 +1,11 @@
 #! /usr/bin/env nix-shell
-#! nix-shell -i bash -p "python3.withPackages (ps: [ ps.vdf ])" shellcheck curl desktop-file-utils
+#! nix-shell -i bash -p "python3.withPackages (ps: [ ps.vdf ])" shellcheck curl desktop-file-utils util-linux
 # shellcheck shell=bash
-# Spec: INT-28, INT-29, INT-33, INT-34.
+# Spec: INT-28, INT-29, INT-33, INT-34, INT-35.
 # Runs scripts/install-steamos.sh the way `curl ... | bash` does, against fake HOME and
 # Steam folders, a fake GitHub API and fake release assets served from 127.0.0.1, and a
-# fake pgrep that says whether Steam runs. The results are read back with an independent
+# fake Steam (steam, flatpak and pgrep commands first in PATH) that runs, quits after
+# -shutdown or never, and logs each call. The results are read back with an independent
 # VDF parser (ValvePython's vdf, scripts/manual/steam-install/check.py) and compared
 # byte for byte with the files before. Nothing outside a temp dir is touched, and no real
 # Steam, release or network is used. Also runs shellcheck on the scripts.
@@ -95,28 +96,98 @@ done
 [[ -n $PORT ]] || fail "the test server did not start"
 URL=http://127.0.0.1:$PORT
 
-# Fake pgrep: Steam runs when $T/steam-running exists.
-mkdir -p "$T/bin" "$T/tmp"
-cat >"$T/bin/pgrep" <<EOF
+# Fake Steam (INT-35): native Steam runs while $S/native exists, Flatpak Steam while
+# $S/flatpak does. pgrep -x steam sees both (the host sees Flatpak's steam process too),
+# flatpak ps lists the Flatpak one. `steam -shutdown` (or `flatpak run
+# com.valvesoftware.Steam -shutdown`) returns at once and Steam exits 3 s later (after the 2 s
+# the installer waits once Steam is gone, so an edit that did not wait shows), or
+# never when $S/mode says stuck; any other call starts it. Each call goes to $S/log with
+# the hash of the file named in $S/watch, the display it got and whether it runs in a
+# session of its own (detached from the terminal). These come first in PATH, so a real
+# Steam on the machine is never called.
+S=$T/steam
+mkdir -p "$T/bin" "$T/tmp" "$S"
+cat >"$T/bin/fake-steam" <<'EOF'
 #!/bin/sh
-[ "\$*" = "-x steam" ] && [ -e "$T/steam-running" ]
+S=@S@
+kind=$1
+shift
+hash() {
+  w=$(cat "$S/watch" 2>/dev/null)
+  if [ -n "$w" ] && [ -f "$w" ]; then sha256sum "$w" | cut -c1-16; else echo none; fi
+}
+if [ "$1" = -shutdown ]; then
+  echo "$kind shutdown $(hash)" >>"$S/log"
+  [ -e "$S/$kind" ] || exit 0
+  [ "$(cat "$S/mode" 2>/dev/null)" = stuck ] && exit 0
+  (sleep 3; echo "$kind exited $(hash)" >>"$S/log"; rm -f "$S/$kind") &
+  exit 0
+fi
+detached=no
+[ "$(cut -d' ' -f6 /proc/$$/stat)" = "$$" ] && detached=yes
+echo "$kind start $* $(hash) display=${DISPLAY:-}/${WAYLAND_DISPLAY:-} detached=$detached" >>"$S/log"
+touch "$S/$kind"
 EOF
-chmod +x "$T/bin/pgrep"
+cat >"$T/bin/steam" <<'EOF'
+#!/bin/sh
+exec @S@/../bin/fake-steam native "$@"
+EOF
+cat >"$T/bin/flatpak" <<'EOF'
+#!/bin/sh
+case "$1" in
+  ps) [ "$2" = --columns=application ] && [ -e @S@/flatpak ] && echo com.valvesoftware.Steam; exit 0 ;;
+  run) [ "$2" = com.valvesoftware.Steam ] || exit 1; shift 2; exec @S@/../bin/fake-steam flatpak "$@" ;;
+esac
+exit 1
+EOF
+cat >"$T/bin/pgrep" <<'EOF'
+#!/bin/sh
+[ "$*" = "-x steam" ] && { [ -e @S@/native ] || [ -e @S@/flatpak ]; }
+EOF
+sed -i "s|@S@|$S|g" "$T/bin/fake-steam" "$T/bin/steam" "$T/bin/flatpak" "$T/bin/pgrep"
+chmod +x "$T/bin/fake-steam" "$T/bin/steam" "$T/bin/flatpak" "$T/bin/pgrep"
 BASE_PATH=$T/bin:$PATH
+steam_on() { # steam_on KIND [MODE] [WATCH]: a fresh log, that Steam running
+  rm -f "$S/log" "$S/native" "$S/flatpak" "$S/watch"
+  echo "${2:-exits}" >"$S/mode"
+  [[ -z ${3:-} ]] || echo "$3" >"$S/watch"
+  touch "$S/$1"
+}
+steam_off() { rm -f "$S/log" "$S/native" "$S/flatpak" "$S/watch" "$S/mode"; }
+starts() { grep -c ' start ' "$S/log" 2>/dev/null || true; }
+log_wait() { # log_wait PATTERN: the fake Steam's log gets the line within 3 s (setsid -f returns first)
+  local _
+  for _ in $(seq 30); do
+    grep -q -- "$1" "$S/log" 2>/dev/null && return 0
+    sleep 0.1
+  done
+  return 1
+}
+no_steam_calls() { # nothing called the fake Steam (a late detached start included)
+  sleep 0.3
+  [[ ! -e $S/log ]] || fail "$1: Steam was called: $(cat "$S/log")"
+}
+DESKTOP_ENV=(DISPLAY=:0 WAYLAND_DISPLAY=wayland-0 ANCHORAGE_COUNTDOWN=0)
+RUN_ENV=() XENV=()
 
 # run NAME HOME [ARGS...]: pipes the script from the fake raw URL into bash, as the
-# README's command does. SCRIPT_URL picks another copy.
+# README's command does. SCRIPT_URL picks another copy; RUN_ENV adds variables.
 run() {
   local name=$1 home=$2
   shift 2
   LOG=$T/$name.log
   set +e
   # shellcheck disable=SC2016 # expanded by the inner bash
-  env -i HOME="$home" PATH="$BASE_PATH" LANG=C.UTF-8 TMPDIR="$T/tmp" \
+  env -i HOME="$home" PATH="$BASE_PATH" LANG=C.UTF-8 TMPDIR="$T/tmp" "${RUN_ENV[@]}" \
     ANCHORAGE_API_URL="$URL/api" ANCHORAGE_DOWNLOAD_BASE="$URL/download" \
     bash -c 'curl -fsSL "$1" | bash -s -- "${@:2}"' _ "${SCRIPT_URL:-$URL/raw/install-steamos.sh}" "$@" >"$LOG" 2>&1
   STATUS=$?
   set -e
+}
+drun() { # drun NAME HOME [ARGS...]: run in a desktop session (DESKTOP_ENV), plus XENV
+  RUN_ENV=("${DESKTOP_ENV[@]}" "${XENV[@]}")
+  run "$@"
+  RUN_ENV=()
 }
 expect_ok() { [[ $STATUS == 0 ]] || fail "$1: exit $STATUS"; }
 expect_fail() { [[ $STATUS != 0 ]] || fail "$1: exit 0, expected a failure"; grep -q -- "$2" "$LOG" || fail "$1: no \"$2\" in the output"; }
@@ -158,11 +229,12 @@ run rerun "$H1"
 expect_ok rerun
 grep -q 'Anchorage 1.2.0 is already installed. Nothing to do.' "$LOG" || fail "rerun: not a no-op"
 [[ $(tree_state "$H1") == "$before" ]] || fail "rerun: files changed"
-touch "$T/steam-running"
-run rerun-steam "$H1"
-rm "$T/steam-running"
+steam_on native
+drun rerun-steam "$H1"
 expect_ok "rerun with Steam running"
 [[ $(tree_state "$H1") == "$before" ]] || fail "rerun with Steam running: files changed"
+no_steam_calls "rerun with Steam running"
+steam_off
 ok "rerun at the same version changes nothing, even while Steam runs"
 
 latest 1.3.0
@@ -210,13 +282,15 @@ grep -q 'would add the shortcut' "$LOG" || fail "--dry-run: no plan"
 [[ $(tree_state "$H3") == "$dry_before" ]] || fail "--dry-run changed files"
 ok "--dry-run says what it would do and changes nothing"
 
-touch "$T/steam-running"
+steam_on native
 run running "$H3"
-rm "$T/steam-running"
-expect_fail "Steam running" "Steam is running"
+expect_fail "Steam running, no display" "Steam is running"
 grep -q 'steam -shutdown' "$LOG" || fail "Steam running: no way to close it"
+grep -q 'Without a desktop (no DISPLAY or WAYLAND_DISPLAY)' "$LOG" || fail "Steam running, no display: no reason"
 [[ $(tree_state "$H3") == "$dry_before" ]] || fail "Steam running: files changed"
-ok "with Steam running and a shortcut to add, it changes nothing and says how to close Steam"
+no_steam_calls "Steam running, no display"
+steam_off
+ok "with Steam running, a shortcut to add and no display, it changes nothing and says how to close Steam"
 
 run existing "$H3"
 expect_ok existing
@@ -247,12 +321,13 @@ for f in p "" _hero _logo _icon; do [[ -f $V4/grid/3000000001$f.png ]] || fail "
 ok "an older Anchorage shortcut gets the new path and keeps its ID and other fields"
 
 echo "# uninstall (INT-33)"
-touch "$T/steam-running"
+steam_on native
 before=$(tree_state "$H3")
 run uninstall-running "$H3" --uninstall
-rm "$T/steam-running"
 expect_fail "uninstall with Steam running" "Steam is running"
 [[ $(tree_state "$H3") == "$before" ]] || fail "uninstall with Steam running: files changed"
+no_steam_calls "uninstall with Steam running, no display"
+steam_off
 run uninstall "$H3" --uninstall
 expect_ok uninstall
 for u in 111 222; do
@@ -373,6 +448,208 @@ set -e +m
 [[ -z $(ls -A "$T/int") ]] || fail "interrupt: left its temp dir"
 cmp -s "$T/many.vdf" "$V9/shortcuts.vdf" && fail "interrupt: the uninstall had already finished"
 ok "1000 shortcuts: a progress line, appended byte for byte; Ctrl-C leaves no temp file"
+
+echo "# closing and restarting Steam (INT-33, INT-35)"
+simple_home() { # simple_home DIR ID: native Steam, one account with two shortcuts; VDF is its file
+  steam_home "$1" "$2"
+  VDF=$1/.local/share/Steam/userdata/$2/config/shortcuts.vdf
+  py "$HERE/fixtures.py" simple "$VDF"
+}
+h16() { sha256sum "$1" | cut -c1-16; }
+H12=$T/home12
+simple_home "$H12" 12
+V12=$VDF
+cp "$V12" "$T/simple12.vdf"
+orig=$(h16 "$V12")
+steam_on native exits "$V12"
+XENV=(ANCHORAGE_COUNTDOWN=5)
+drun restart "$H12"
+XENV=()
+expect_ok "restart"
+log_wait "native start" || fail "restart: Steam was not started again"
+new=$(h16 "$V12")
+check appended "$T/simple12.vdf" "$V12" 2
+mapfile -t calls <"$S/log"
+[[ ${#calls[@]} == 3 && ${calls[0]} == "native shutdown $orig" && ${calls[1]} == "native exited $orig" &&
+  ${calls[2]} == "native start -silent $new display=:0/wayland-0 detached=yes" ]] ||
+  fail "restart: the calls were: ${calls[*]}"
+[[ -e $S/native ]] || fail "restart: Steam is not running at the end"
+grep -q 'closing Steam in 5 4 3 2 1$' "$LOG" || fail "restart: no countdown"
+grep -q 'Press Ctrl+C in the next 5 seconds to cancel' "$LOG" || fail "restart: no way to cancel"
+grep -q 'waiting for Steam to exit.* closed' "$LOG" || fail "restart: no progress"
+grep -q 'Steam is starting again' "$LOG" || fail "restart: summary"
+ok "Steam running: countdown, steam -shutdown, the edit only after it exited, steam -silent once, detached, same display"
+
+before=$(tree_state "$H12")
+steam_on native exits "$V12"
+drun restart-none "$H12"
+expect_ok "nothing to change, Steam running"
+grep -q 'Nothing to do' "$LOG" || fail "nothing to change: not a no-op"
+[[ $(tree_state "$H12") == "$before" ]] || fail "nothing to change: files changed"
+no_steam_calls "nothing to change"
+id12=$(py "$HERE/check.py" appid "\"$H12/Applications/Anchorage.AppImage\"" Anchorage)
+G12=$H12/.local/share/Steam/userdata/12/config/grid
+rm "$G12/${id12}_hero.png"
+steam_on native exits "$V12"
+drun restart-art "$H12"
+expect_ok "artwork to write, Steam running"
+log_wait "native start" || fail "artwork: Steam was not started again"
+[[ $(grep -c . "$S/log") == 3 && $(starts) == 1 ]] || fail "artwork: the calls were: $(cat "$S/log")"
+cmp -s "$G12/${id12}_hero.png" "$(art 1.3.0)/steam-hero.png" || fail "artwork: hero not written"
+H13=$T/home13
+simple_home "$H13" 13
+steam_off
+drun restart-off "$H13"
+expect_ok "Steam not running"
+check appended "$T/simple12.vdf" "$VDF" 2
+no_steam_calls "Steam not running"
+ok "no Steam calls when nothing changes or Steam is not running; missing artwork alone closes and restarts it"
+
+H14=$T/home14
+simple_home "$H14" 14
+before=$(tree_state "$H14")
+steam_on native stuck "$VDF"
+XENV=(ANCHORAGE_STEAM_WAIT=2)
+drun stuck "$H14"
+XENV=()
+expect_fail "Steam never exits" "Steam did not close within 2 seconds, so nothing was changed"
+[[ $(tree_state "$H14") == "$before" ]] || fail "Steam never exits: files changed"
+[[ -e $S/native ]] || fail "Steam never exits: Steam was stopped"
+sleep 0.3
+[[ $(cat "$S/log") == "native shutdown $(h16 "$VDF")" ]] || fail "Steam never exits: the calls were: $(cat "$S/log")"
+ok "a Steam that never exits: nothing changed (not even ~/Applications), not killed, not started twice, exit non-zero"
+
+H15=$T/home15
+simple_home "$H15" 15
+cp "$VDF" "$T/simple15.vdf"
+chmod 555 "${VDF%/*}"
+steam_on native exits "$VDF"
+drun trap "$H15"
+chmod 755 "${VDF%/*}"
+[[ $STATUS != 0 ]] || fail "failure mid-edit: exit 0"
+log_wait "native start" || fail "failure mid-edit: Steam was not started again"
+[[ $(starts) == 1 ]] || fail "failure mid-edit: the calls were: $(cat "$S/log")"
+cmp -s "$VDF" "$T/simple15.vdf" || fail "failure mid-edit: shortcuts.vdf changed"
+ok "a failure after Steam was closed (unwritable config folder) still starts Steam again, once"
+
+H16=$T/home16
+simple_home "$H16" 16
+before=$(tree_state "$H16")
+steam_on native exits "$VDF"
+LOG=$T/cancel.log
+set +e -m
+# shellcheck disable=SC2016 # expanded by the inner bash
+env -i HOME="$H16" PATH="$BASE_PATH" LANG=C.UTF-8 TMPDIR="$T/tmp" "${DESKTOP_ENV[@]}" ANCHORAGE_COUNTDOWN=5 \
+  ANCHORAGE_API_URL="$URL/api" ANCHORAGE_DOWNLOAD_BASE="$URL/download" \
+  bash -c 'bash -s <"$1"' _ "$REPO/scripts/install-steamos.sh" >"$LOG" 2>&1 &
+pid=$!
+for _ in $(seq 100); do
+  grep -q 'closing Steam in 5' "$LOG" && break
+  sleep 0.05
+done
+grep -q 'closing Steam in 5' "$LOG" || fail "cancel: the countdown never started"
+kill -INT -- "-$pid"
+wait "$pid"
+set -e +m
+[[ $(tree_state "$H16") == "$before" ]] || fail "cancel: files changed"
+[[ -e $S/native ]] || fail "cancel: Steam was stopped"
+no_steam_calls "Ctrl+C in the countdown"
+ok "Ctrl+C in the countdown: Steam not touched, nothing changed"
+
+H18=$T/home18
+simple_home "$H18" 18
+cp "$VDF" "$T/simple18.vdf"
+steam_on native exits "$VDF"
+LOG=$T/cancel-late.log
+set +e -m
+# shellcheck disable=SC2016 # expanded by the inner bash
+env -i HOME="$H18" PATH="$BASE_PATH" LANG=C.UTF-8 TMPDIR="$T/tmp" "${DESKTOP_ENV[@]}" \
+  ANCHORAGE_API_URL="$URL/api" ANCHORAGE_DOWNLOAD_BASE="$URL/download" \
+  bash -c 'bash -s <"$1"' _ "$REPO/scripts/install-steamos.sh" >"$LOG" 2>&1 &
+pid=$!
+for _ in $(seq 100); do
+  grep -q 'waiting for Steam to exit' "$LOG" && break
+  sleep 0.05
+done
+grep -q 'waiting for Steam to exit' "$LOG" || fail "late Ctrl+C: Steam was never closed"
+kill -INT -- "-$pid"
+wait "$pid"
+STATUS=$?
+set -e +m
+expect_ok "Ctrl+C while Steam closes"
+log_wait "native start" || fail "late Ctrl+C: Steam was not started again"
+[[ $(starts) == 1 ]] || fail "late Ctrl+C: the calls were: $(cat "$S/log")"
+check appended "$T/simple18.vdf" "$VDF" 2
+ok "Ctrl+C after the countdown is ignored: the install finishes and Steam starts again, once"
+
+steam_on native exits "$VDF"
+drun no-restart "$H16" --no-steam-restart
+expect_fail "--no-steam-restart" "Steam is running"
+grep -q 'steam -shutdown' "$LOG" || fail "--no-steam-restart: no way to close it"
+[[ $(tree_state "$H16") == "$before" ]] || fail "--no-steam-restart: files changed"
+no_steam_calls "--no-steam-restart"
+XENV=(SSH_CONNECTION="10.0.0.2 50000 10.0.0.3 22")
+drun ssh "$H16"
+expect_fail "over SSH" "Over SSH it can't start Steam again"
+no_steam_calls "over SSH"
+XENV=(SteamGameId=12345)
+drun under-steam "$H16"
+expect_fail "terminal started by Steam" "This terminal was started by Steam"
+no_steam_calls "terminal started by Steam"
+XENV=()
+[[ $(tree_state "$H16") == "$before" ]] || fail "fallbacks: files changed"
+drun dry-steam "$H16" --dry-run
+expect_ok "--dry-run, Steam running"
+if ! grep -q 'would close it (steam -shutdown), make the changes and start it' "$LOG" ||
+  ! grep -q 'again (steam -silent)' "$LOG"; then
+  fail "--dry-run: does not say it would close and restart Steam"
+fi
+[[ $(tree_state "$H16") == "$before" ]] || fail "--dry-run, Steam running: files changed"
+no_steam_calls "--dry-run"
+ok "--no-steam-restart, SSH and a terminal Steam started stop with instructions; --dry-run says it would restart Steam"
+
+steam_on native exits "$V12"
+installed=$(h16 "$V12")
+drun restart-uninstall "$H12" --uninstall
+expect_ok "uninstall, Steam running"
+log_wait "native start" || fail "uninstall: Steam was not started again"
+cmp -s "$V12" "$T/simple12.vdf" || fail "uninstall, Steam running: not the original bytes"
+mapfile -t calls <"$S/log"
+[[ ${#calls[@]} == 3 && ${calls[0]} == "native shutdown $installed" && ${calls[1]} == "native exited $installed" &&
+  ${calls[2]} == "native start -silent $orig display=:0/wayland-0 detached=yes" ]] ||
+  fail "uninstall: the calls were: ${calls[*]}"
+ok "uninstall closes Steam, removes the shortcut, starts Steam again once"
+
+H17=$T/home17
+FP17=$H17/.var/app/com.valvesoftware.Steam/.local/share/Steam/userdata/17/config
+mkdir -p "$FP17"
+py "$HERE/fixtures.py" simple "$FP17/shortcuts.vdf"
+orig=$(h16 "$FP17/shortcuts.vdf")
+steam_on flatpak exits "$FP17/shortcuts.vdf"
+drun flatpak "$H17"
+expect_ok "Flatpak Steam"
+log_wait "flatpak start" || fail "Flatpak: Steam was not started again"
+new=$(h16 "$FP17/shortcuts.vdf")
+mapfile -t calls <"$S/log"
+[[ ${#calls[@]} == 3 && ${calls[0]} == "flatpak shutdown $orig" && ${calls[1]} == "flatpak exited $orig" &&
+  ${calls[2]} == "flatpak start -silent $new display=:0/wayland-0 detached=yes" ]] ||
+  fail "Flatpak: the calls were: ${calls[*]}"
+grep -q 'flatpak run com.valvesoftware.Steam -shutdown' "$LOG" || fail "Flatpak: output"
+ok "Flatpak Steam: flatpak run com.valvesoftware.Steam -shutdown, then -silent, once"
+
+steam_off
+(
+  # shellcheck source=/dev/null
+  source <(sed '/^main "\$@"$/d' scripts/install-steamos.sh)
+  unset DISPLAY WAYLAND_DISPLAY
+  mkdir -p "$T/nosetsid"
+  for t in nohup sh cat cut sha256sum touch rm sleep; do ln -s "$(command -v "$t")" "$T/nosetsid/$t"; done
+  ln -s "$T/bin/steam" "$T/nosetsid/steam"
+  PATH=$T/nosetsid detach steam -silent
+)
+log_wait "native start -silent none display=/ detached=no" || fail "nohup: $(cat "$S/log" 2>/dev/null)"
+steam_off
+ok "without setsid, Steam is started with nohup"
 
 echo "# failures"
 H6=$T/home6
