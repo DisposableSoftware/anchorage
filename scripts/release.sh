@@ -54,7 +54,7 @@ $changes
 On SteamOS, in Desktop Mode, exit Steam, open Konsole and run:
 
 \`\`\`sh
-curl -fsSL https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/scripts/install-steamos.sh | bash
+curl -fsSL https://github.com/DisposableSoftware/anchorage/releases/latest/download/install-steamos.sh | bash
 \`\`\`
 
 It installs the latest AppImage as \`~/Applications/Anchorage.AppImage\` (checked against \`SHA256SUMS\`), adds a desktop entry, and adds Anchorage to Steam with its artwork. Read [the script](https://github.com/DisposableSoftware/anchorage/blob/v$new/scripts/install-steamos.sh) before you run it. To install exactly this version, run this release's copy: \`curl -fsSL https://github.com/DisposableSoftware/anchorage/releases/download/v$new/install-steamos.sh | bash\`. To remove it again, add \`-s -- --uninstall\` after \`bash\`.
