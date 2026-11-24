@@ -11,6 +11,33 @@ const Installer := preload("res://src/installer.gd")
 const State := preload("res://src/state.gd")
 const Roms := preload("res://src/roms.gd")
 const NOW := 1_800_000_000
+## Engine classes and singletons that reach the network, the disk, processes or threads, or
+## that could reach them by name.
+const FORBIDDEN := [
+	"HTTPRequest",
+	"HTTPClient",
+	"StreamPeer\\w*",
+	"TCPServer",
+	"PacketPeer\\w*",
+	"FileAccess",
+	"DirAccess",
+	"ZIPReader",
+	"ZIPPacker",
+	"OS",
+	"Thread",
+	"WorkerThreadPool",
+	"Mutex",
+	"Semaphore",
+	"ClassDB",
+	"Expression",
+	"ResourceLoader",
+	"ResourceSaver",
+	"ProjectSettings",
+]
+## What a screen may load: scenes, other screens and the pure helpers.
+const LOADABLE := (
+	"^res://(scenes/[a-z_]+\\.tscn|src/ui/[a-z_]+\\.gd" + "|src/(keys|theme|palette)\\.gd)$"
+)
 
 
 ## Holds downloads until `release_one`, so a test can look while one runs.
@@ -177,13 +204,45 @@ func test_ports_has_every_method_and_signal_the_screens_use() -> void:
 	ports.free()
 
 
+## What in `source` breaks PORT-14. Comments are skipped, names are whole words whatever the
+## spacing, and every load must be of a screen file or a pure helper.
+static func _forbidden(source: String) -> Array:
+	var found := []
+	var code := RegEx.create_from_string("#[^\\n]*").sub(source, "", true)
+	var words := RegEx.create_from_string("\\b(%s)\\b" % "|".join(FORBIDDEN))
+	for m in words.search_all(code):
+		found.append(m.get_string(1))
+	if code.contains("user://"):
+		found.append("user://")
+	var loads := RegEx.create_from_string("\\b(?:pre)?load\\s*\\(\\s*([^)]*)\\)")
+	for m in loads.search_all(code):
+		var arg := m.get_string(1).strip_edges()
+		var path := arg.substr(1, arg.length() - 2) if arg.begins_with('"') else arg
+		if not (arg.begins_with('"') and RegEx.create_from_string(LOADABLE).search(path)):
+			found.append("load(%s)" % arg)
+	return found
+
+
 func test_screens_never_touch_the_network_the_disk_or_processes() -> void:
 	for file in DirAccess.get_files_at("res://src/ui"):
 		if not file.ends_with(".gd"):
 			continue
 		var text := FileAccess.get_file_as_string("res://src/ui/" + file)
-		for word in ["HTTPRequest", "FileAccess", "DirAccess", "OS.", "Thread", "user://"]:
-			check(not text.contains(word), "%s uses %s (PORT-14)" % [file, word])
+		eq(_forbidden(text), [], "%s (PORT-14)" % file)
+	# Ways around a plain substring search, which the old check let through.
+	for sample in [
+		"var dir = DirAccess .open(path)",
+		"OS\n\t.execute('rm', [])",
+		'const I := preload("res://src/installer.gd")',
+		'var h = load("res://src/http.gd").new()',
+		"var name := 'res://src/' + 'roms.gd'\nload(name)",
+		'ClassDB.instantiate("HTTP" + "Request")',
+		"var t := Thread.new()",
+		'var p := "user://ports"',
+	]:
+		check(not _forbidden(sample).is_empty(), "caught: %s" % sample)
+	eq(_forbidden("# OS.execute in a comment\nvar x := 1"), [], "comments do not count")
+	eq(_forbidden('const K := preload("res://src/keys.gd")'), [], "pure helpers may be loaded")
 
 
 func test_the_start_check_obeys_check_updates_and_the_hour() -> void:
