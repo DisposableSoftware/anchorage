@@ -84,11 +84,16 @@ Catalog consequences: all three run with `cwd: data` and `SHIP_HOME` = the data 
 
 ## End-to-end run through Anchorage
 
-See the `PORT-8`, `PORT-9` and `PORT-16` rows in `spec/ports.md` and the results recorded below.
+`ONLY="ghostship paperboat lighthouse" LAUNCH_SECONDS=240 ANSWERS=4 RUNNER=steam-run scripts/manual/headless.sh scripts/manual/e2e.sh` at 1920×1080, 2026-11-23, with the ROM zips copied from the sandbox (0 checks failed). On this NixOS host binfmt hands every AppImage to `appimage-run`, so `APPIMAGE_EXTRACT_AND_RUN` itself was not exercised.
 
-Not run yet when this was written; the results follow once the catalog entries exist.
+- Install: Ghostship first, PaperBoat and Lighthouse queued behind it; all three downloaded from GitHub with their digests, unpacked, executables 755 (PaperBoat's AppImage, 0644 in the zip, too), no `download/` left, `gamecontrollerdb.txt` in Ghostship's and PaperBoat's data folders. The real cover art loaded on all three cards; the row scrolled to the focused card.
+- ROM matching: Anchorage's scan of the ROM folder (all eight zips) matched each of the seven ports to exactly its own game (`Super Mario 64 (USA).z64` → Ghostship US, `Paper Mario (USA).z64` → PaperBoat US, `Banjo-Kazooie (USA) (Rev-A).z64` → Lighthouse US 1.1, and the first four to theirs); no port claimed another's ROM. The placed copies (`sm64.z64`, `pm64.z64`, `bk.z64`) had the listed SHA1 and the `80 37 12 40` header.
+- Lighthouse 1.2.2: started with `<data>/bk.z64` as its only argument, extracted at once with no question, wrote `bk.o2r` (25900760 bytes) in the data folder, then showed "Run Lighthouse? All files have been processed" (screenshot `15-lighthouse-c-after`). Anchorage deleted its placed ROM copy after the run.
+- Ghostship 3.0.0 and PaperBoat 1.0.3: both started in their data folder with the ROM placed there and showed the ImGui popup "No O2R Files: No O2R files found. Generate one now?" (log: `O2R file not found at path: ./sm64.o2r`). Neither Return nor clicks on Yes (wlrctl virtual pointer, also with `XDG_CURRENT_DESKTOP=gamescope`, which turns off ImGui viewports) reached the popup in headless sway, so their extraction was not seen. Return is expected to fail (LUS never sets `NavEnableKeyboard`); the click failing is a limit of this headless setup, which has never answered an ImGui popup (the earlier runs did not either). After stopping each port, Anchorage came back with focus on its card and kept the placed ROM, because no archive was made.
 
 ## Not verified
+
+- Ghostship's and PaperBoat's extraction (the popups could not be answered headless); the second Ghostship popup and PaperBoat's "ROMs found" and "Run PaperBoat?" are from source only.
 
 - Nothing was run outside the sandboxed end-to-end run; no Steam Deck or gamescope session was available, so game-mode fullscreen, the gamescope file-browser switch of PaperBoat and Steam Input are from source only.
 - Whether `{"CVars":{"gSettings":{"ControlNav":1}}}` pre-seeded in `paperboat.cfg.json`/`lighthouse.cfg.json` makes the popups gamepad-driven (same open question as for SoH).

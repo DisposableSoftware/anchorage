@@ -147,7 +147,7 @@ Run checks with `./scripts/manual/headless.sh ./scripts/manual/<name>.sh`. It st
 
 ### End to end (real network, real ports)
 
-`scripts/manual/e2e.sh` installs all four ports from GitHub with keyboard input, refreshes, launches each one (Shipwright and 2ship get the ROM as an argument and extract without asking), answers the other ports' first-run "Generate one now?" prompt and removes one, with HOME and every XDG folder in a temp sandbox and ROM copies from `ROMS`. Screenshots and the ports' `launch.log` go to `$OUT`; the sandbox is deleted at the end (`KEEP=1` keeps it). On NixOS the release AppImages need an FHS environment and `steam-run` has a private `/tmp`, so put the runner's temp folder in your home, under a short path (sway's socket path has a length limit):
+`scripts/manual/e2e.sh` installs the catalog's ports from GitHub with keyboard input (all seven, or those named in `ONLY`, e.g. `ONLY="ghostship paperboat lighthouse"`), refreshes, launches each one (Shipwright, 2ship and Lighthouse get the ROM as an argument and extract without asking), answers up to `ANSWERS` (default 2) of the other ports' first-run prompts and removes the last one, with HOME and every XDG folder in a temp sandbox and ROM copies from `ROMS`. Screenshots and the ports' `launch.log` go to `$OUT`; the sandbox is deleted at the end (`KEEP=1` keeps it). On NixOS the release AppImages need an FHS environment and `steam-run` has a private `/tmp`, so put the runner's temp folder in your home, under a short path (sway's socket path has a length limit):
 
 ```bash
 mkdir -p ~/.cache/ae && TMPDIR=~/.cache/ae RUNNER=steam-run ROMS=/path/to/rom/copies OUT=/tmp/shots \
