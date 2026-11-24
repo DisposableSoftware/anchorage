@@ -12,14 +12,29 @@ extends Node
 ##   error        the first port's update failed
 ##   offline      the update check failed for every port
 ##   playing      the first port running
+##   art-late     as showcase, but the cover art arrives 2 s in (or on `deliver_art`)
+##
+## The first two ports have placeholder cover art, drawn in code (never a real image), and
+## the other two show their monogram, so a screenshot has both looks (ART-5, ART-6).
 
 signal changed(id: String)
 signal launched(id: String)
 signal exited(id: String)
 
 const SCENARIOS := [
-	"showcase", "fresh", "installing", "updating", "rom-missing", "error", "offline", "playing"
+	"showcase",
+	"fresh",
+	"installing",
+	"updating",
+	"rom-missing",
+	"error",
+	"offline",
+	"playing",
+	"art-late",
 ]
+const ART_PORTS := ["soh", "2ship"]
+const ART_SIZE := Vector2i(920, 430)
+const ART_DELAY := 2.0
 const ROM_FOLDER := "~/Roms/n64"
 
 const DEMO := [
@@ -85,6 +100,8 @@ const DEMO := [
 const BUSY_SECONDS := 6.0
 const PLAY_SECONDS := 8.0
 
+static var _art_cache := {}
+
 var simulate := true
 ## Every action called, in order: ["install", "soh"], ["refresh"], ...
 var calls: Array = []
@@ -93,6 +110,8 @@ var _ids: Array[String] = []
 var _play_left := {}
 ## Ports with a download started here; the scenarios' busy states stay as they are.
 var _jobs := {}
+var _art := {}
+var _art_wait := -1.0
 
 
 func _init(scenario := "showcase") -> void:
@@ -120,12 +139,51 @@ func _init(scenario := "showcase") -> void:
 			"error": "",
 		}
 	_apply_scenario(scenario if scenario in SCENARIOS else "showcase")
+	if scenario == "art-late":
+		_art_wait = ART_DELAY
+	else:
+		deliver_art(false)
+
+
+## Gives the art ports their texture (and says so) at once instead of after ART_DELAY.
+func deliver_art(announce := true) -> void:
+	_art_wait = -1.0
+	for id in ART_PORTS:
+		_art[id] = _demo_art(ART_PORTS.find(id))
+		if announce:
+			changed.emit(id)
+
+
+## A 920x430 stand-in for cover art: a sky, a sun and two ridges, in a hue per index.
+static func _demo_art(index: int) -> Texture2D:
+	if _art_cache.has(index):
+		return _art_cache[index]
+	var hue := 0.58 + 0.3 * index
+	var image := Image.create(ART_SIZE.x, ART_SIZE.y, false, Image.FORMAT_RGB8)
+	for y in ART_SIZE.y:
+		var t := float(y) / ART_SIZE.y
+		var sky := Color.from_hsv(fposmod(hue + 0.08 * t, 1.0), 0.55 - 0.25 * t, 0.35 + 0.6 * t)
+		image.fill_rect(Rect2i(0, y, ART_SIZE.x, 1), sky)
+	var sun := Color.from_hsv(fposmod(hue + 0.4, 1.0), 0.25, 1.0)
+	var center := Vector2(ART_SIZE.x * (0.68 - 0.3 * index), ART_SIZE.y * 0.46)
+	for y in range(int(center.y) - 90, int(center.y) + 91):
+		var half := int(sqrt(maxf(90.0 * 90.0 - (y - center.y) * (y - center.y), 0.0)))
+		image.fill_rect(Rect2i(int(center.x) - half, y, half * 2, 1), sun)
+	for ridge in 2:
+		var shade := Color.from_hsv(hue, 0.5, 0.42 - 0.2 * ridge)
+		for x in ART_SIZE.x:
+			var wave := sin(x * (0.011 + 0.006 * ridge) + index * 2.0 + ridge * 1.7)
+			var top := int(ART_SIZE.y * (0.66 + 0.1 * ridge) - 40.0 * wave)
+			image.fill_rect(Rect2i(x, top, 1, ART_SIZE.y - top), shade)
+	image.generate_mipmaps()
+	_art_cache[index] = ImageTexture.create_from_image(image)
+	return _art_cache[index]
 
 
 func _apply_scenario(scenario: String) -> void:
 	var first: String = _ids[0]
 	match scenario:
-		"showcase":
+		"showcase", "art-late":
 			_set_installed("soh", "9.3.1")
 			_set_installed("2ship", "5.0.0")
 			_set_busy("starship", "install", 0.42, "33.6 MB of 80 MB")
@@ -185,7 +243,9 @@ func list() -> Array:
 
 
 func info(id: String) -> Dictionary:
-	return _info[id].duplicate(true)
+	var out: Dictionary = _info[id].duplicate(true)
+	out["art"] = _art.get(id)
+	return out
 
 
 func install(id: String) -> void:
@@ -252,6 +312,10 @@ func _start(action: String, id: String) -> void:
 func _process(delta: float) -> void:
 	if not simulate:
 		return
+	if _art_wait > 0.0:
+		_art_wait -= delta
+		if _art_wait <= 0.0:
+			deliver_art()
 	for id in _ids:
 		var port: Dictionary = _info[id]
 		if _jobs.has(id) and port.busy.action in ["install", "update"]:

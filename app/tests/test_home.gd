@@ -280,6 +280,37 @@ func test_mouse_hover_focuses_and_click_accepts() -> void:
 	_done(home)
 
 
+func test_cards_with_art_show_it_and_the_others_keep_the_monogram() -> void:
+	var home := _make()
+	check(home.card_for("soh").has_art(), "a port with art shows it (ART-5)")
+	check(home.card_for("2ship").has_art(), "the second too")
+	check(not home.card_for("starship").has_art(), "a port without art shows its monogram (ART-6)")
+	var soh: Control = home.card_for("soh")
+	check(soh.get_node("%ArtTile").clip_children != CanvasItem.CLIP_CHILDREN_DISABLED, "clipped")
+	eq(soh.get_node("%Art").stretch_mode, TextureRect.STRETCH_KEEP_ASPECT_COVERED, "covers")
+	check(not soh.get_node("%Emblem").visible, "the monogram tile is hidden behind it")
+	check(home.card_for("starship").get_node("%Emblem").visible, "the monogram tile shows")
+	_done(home)
+
+
+func test_art_arriving_changes_the_tile_not_the_layout_or_the_focus() -> void:
+	var home := _make("art-late")
+	var soh: Control = home.card_for("soh")
+	check(not soh.has_art(), "the monogram while the art is missing (ART-6)")
+	_press(home, KEY_RIGHT)
+	var focused := _focus(home)
+	eq(focused, home.card_for("2ship"), "focus is on the second card")
+	var size_before := soh.get_combined_minimum_size()
+	var badge_before: String = soh.badge_text()
+	home.ports.deliver_art()
+	check(soh.has_art(), "the art shows once it arrives")
+	check(home.card_for("2ship").has_art(), "on both cards")
+	eq(_focus(home), focused, "focus did not move")
+	eq(soh.get_combined_minimum_size(), size_before, "the card did not change size")
+	eq(soh.badge_text(), badge_before, "the rest of the card is as it was")
+	_done(home)
+
+
 func test_monogram_and_title_split() -> void:
 	eq(PortState.monogram("The Legend of Zelda: Ocarina of Time"), "OoT", "OoT")
 	eq(PortState.monogram("The Legend of Zelda: Majora's Mask"), "MM", "MM")

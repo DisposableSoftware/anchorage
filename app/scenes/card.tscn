@@ -29,6 +29,24 @@ theme_type_variation = &"Monogram0"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="ArtTile" type="PanelContainer" parent="Box"]
+unique_name_in_owner = true
+visible = false
+clip_children = 2
+custom_minimum_size = Vector2(0, 116)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_type_variation = &"ArtTile"
+
+[node name="Art" type="TextureRect" parent="Box/ArtTile"]
+unique_name_in_owner = true
+texture_filter = 5
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+
 [node name="Gap" type="Control" parent="Box"]
 custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
