@@ -6,6 +6,7 @@ const Keys := preload("res://src/keys.gd")
 const Style := preload("res://src/theme.gd")
 const PortsFake := preload("res://src/ports_fake.gd")
 const HomeScene := preload("res://scenes/home.tscn")
+const Catalog := preload("res://src/catalog.gd")
 
 
 ## The home screen at `size` over the showcase fake; `count` keeps only its first ports.
@@ -99,3 +100,40 @@ func test_four_cards_share_the_row_without_scrolling() -> void:
 	var scroll: ScrollContainer = home.get_node("%CardsScroll")
 	check(absf(row.size.x - scroll.size.x) < 1.0, "the four fill the row's width")
 	_done(home)
+
+
+## Finding: the first-launch notes filled all three lines of the description at 1280x720
+## and read as cut off ("...Later launches do not"). Every catalog note, and every demo
+## one, fits the description's lines with the panel around it (PORT-17).
+func test_every_first_run_note_fits_the_detail_panel() -> void:
+	var notes := {"(too long, to prove the check)": "Far too long a note ".repeat(12)}
+	for port in Catalog.load_default()["ports"]:
+		notes["catalog " + port["id"]] = port["first_run"]
+	for size in [Vector2(1280, 720), Vector2(1280, 800)]:
+		var home := _make(size)
+		for id in home.ports.list():
+			notes["demo " + id] = home.ports.info(id).first_run
+		var detail: Control = home.get_node("%Detail")
+		var label: Label = detail.get_node("%Description")
+		var clip: Control = detail.get_node("Clip")
+		for name: String in notes:
+			var info: Dictionary = home.ports.info("soh")
+			info["first_run"] = notes[name]
+			detail.show_port(info)
+			# With max_lines_visible the label trims its lines, so count them without it.
+			var budget := label.max_lines_visible
+			label.max_lines_visible = -1
+			await _frames()
+			var lines := label.get_line_count()
+			label.max_lines_visible = budget
+			await _frames()
+			var fits := lines <= budget
+			if name.begins_with("("):
+				check(not fits, "%s: a note of %d lines is caught" % [size, lines])
+				continue
+			check(fits, "%s: %s takes %d lines of %d" % [size, name, lines, budget])
+			check(
+				clip.get_global_rect().encloses(label.get_global_rect()),
+				"%s: %s is inside the panel" % [size, name]
+			)
+		_done(home)

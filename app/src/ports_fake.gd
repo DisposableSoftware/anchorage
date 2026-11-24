@@ -85,14 +85,13 @@ const PLACES := [
 ]
 const SEARCH_SECONDS := 1.5
 
+## The catalog's notes (app/data/ports.json).
 const SHIP_NOTE := (
-	"The first launch makes the game files from your ROM\nIf it"
-	+ " then asks to run the game, close it and press Play again"
+	"The first launch makes the game files from your ROM\nIf it then asks to run, close it"
+	+ " and press Play again"
 )
-const QUESTIONS_NOTE := (
-	"The first launch needs a mouse or keyboard once (the trackpad works) to answer its"
-	+ " questions\nLater launches do not"
-)
+const QUESTIONS_NOTE := "First launch only: answer its questions with the trackpad or a mouse"
+const MOUSE_NOTE := "First launch only: use the trackpad or a mouse\n"
 
 const DEMO := [
 	{
@@ -141,11 +140,7 @@ const DEMO := [
 		"A PC port of Star Fox 64 with widescreen, high frame rates and mod support.",
 		"latest": "v2.0.0",
 		"rom": "Star Fox 64 (USA) (Rev 1).z64",
-		"first_run":
-		(
-			"The first launch needs a mouse or keyboard once (the trackpad works): answer Yes"
-			+ " and pick sf64.z64\nLater launches do not"
-		),
+		"first_run": MOUSE_NOTE + "Answer Yes, then pick sf64.z64",
 		"wanted": ["US 1.0", "US 1.1"],
 	},
 	{
@@ -166,11 +161,7 @@ const DEMO := [
 		"description": "A PC port of Super Mario 64 with widescreen, mods and alternate assets.",
 		"latest": "3.0.0",
 		"rom": "Super Mario 64 (USA).z64",
-		"first_run":
-		(
-			"The first launch needs a mouse or keyboard once (the trackpad works): answer Yes"
-			+ " twice\nLater launches do not"
-		),
+		"first_run": MOUSE_NOTE + "Answer Yes to both questions",
 		"wanted": ["US", "JP"],
 	},
 	{

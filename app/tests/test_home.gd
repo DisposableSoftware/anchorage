@@ -131,15 +131,15 @@ func test_the_first_launch_note_shows_until_the_port_made_its_files() -> void:
 	check(detail.contains("press Play again"), "Play again if it asks to run: " + detail)
 	home.card_for("starship").grab_focus()
 	detail = home.get_node("%Detail").shown_text()
-	check(detail.contains("needs a mouse or keyboard once (the trackpad works)"), "Starship's")
-	check(detail.contains("Later launches do not"), "later launches need nothing")
+	check(detail.contains("First launch only: use the trackpad or a mouse"), "Starship's")
+	check(detail.contains("Answer Yes, then pick sf64.z64"), "what to answer: " + detail)
 	_done(home)
 	home = _make("showcase")
 	detail = home.get_node("%Detail").shown_text()
 	check(not detail.contains("first launch"), "no note once the game files exist: " + detail)
 	home.card_for("starship").grab_focus()
 	check(
-		home.get_node("%Detail").shown_text().contains("first launch"),
+		home.get_node("%Detail").shown_text().to_lower().contains("first launch"),
 		"a port that is not installed yet has no game files either"
 	)
 	_done(home)
