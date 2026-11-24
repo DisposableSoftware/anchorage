@@ -12,13 +12,45 @@
   <description>
     <p>
       Certified, artisanal, vibe-coded slop: an AI wrote all of it while a person said
-      "yeah, looks good" and pressed Enter a lot.
+      "yeah, looks good" and pressed Enter a lot. It downloads programs from the internet,
+      runs them and looks through your SD card for ROMs, and it has never met a real Steam
+      Deck.
     </p>
-    <p>Anchorage is a controller-first launcher for the HarbourMasters game ports.</p>
+    <p>Still here? Anchorage is a controller-first launcher for the HarbourMasters PC ports of N64 games:</p>
+    <ul>
+      <li>Seven ports as cards with cover art, from Ship of Harkinian to Lighthouse</li>
+      <li>Install, update and remove each port from its GitHub releases</li>
+      <li>Finds your own ROMs, with EmuDeck, RetroDECK and the SD card out of the box</li>
+      <li>Works with a gamepad alone, and every binding can be changed</li>
+      <li>All four Catppuccin flavours and all 14 accents</li>
+    </ul>
+    <p>It never downloads ROMs: bring your own.</p>
   </description>
   <launchable type="desktop-id">io.github.DisposableSoftware.Anchorage.desktop</launchable>
   <url type="homepage">https://github.com/DisposableSoftware/anchorage</url>
   <url type="bugtracker">https://github.com/DisposableSoftware/anchorage/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The home screen, with a card and cover art for each port</caption>
+      <image>https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/docs/screenshots/home.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>A port downloading, with its progress</caption>
+      <image>https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/docs/screenshots/installing.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The ROM folder chooser</caption>
+      <image>https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/docs/screenshots/rom-folder.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>A port's options menu</caption>
+      <image>https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/docs/screenshots/menu.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Catppuccin Latte with the blue accent</caption>
+      <image>https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/docs/screenshots/latte.png</image>
+    </screenshot>
+  </screenshots>
   <content_rating type="oars-1.1"/>
   <provides>
     <binary>anchorage</binary>

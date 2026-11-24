@@ -98,6 +98,7 @@ app/icon.svg             Godot project and window icon: a copy of the app icon (
 tools/steam-art/         generate.py draws the icons and Steam art as SVG; shell.nix pins its tools   INT-27 INT-42
 scripts/render-steam-art.sh runs generate.py and renders data/steam/*.png; --check fails on stale files   INT-27
 nix/                     package.nix, appimage.nix (+ AppRun), nixos-module.nix, hm-module.nix   INT-2x
+docs/                    icon.svg (README icon, a copy of the app icon), screenshots/ (README and metainfo, 1280x720, demo data), research/   INT-41 INT-43
 spec/                    the specification
 ```
 

@@ -1,6 +1,6 @@
 # HarbourMasters Linux ports: research for Anchorage
 
-Date checked: 2026-11-23. Release data from `gh api`; zips downloaded and listed; AppImage squashfs listed with unsquashfs (static, nothing run); source read from the release tags (Starship, SpaghettiKart, 2ship) or `develop`/`main` (SoH, noted below). Work dir: `/tmp/claude-1000/-home-weston-Developer-disposable/c99b45bc-1f45-4751-a314-fb523b5d8f4e/scratchpad/ports-research/`.
+Date checked: 2026-11-23. Release data from `gh api`; zips downloaded and listed; AppImage squashfs listed with unsquashfs (static, nothing run); source read from the release tags (Starship, SpaghettiKart, 2ship) or `develop`/`main` (SoH, noted below). Work dir: a temporary scratch folder.
 
 ## Summary
 

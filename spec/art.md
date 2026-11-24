@@ -12,7 +12,7 @@ Each port card can show cover art from [SteamGridDB](https://www.steamgriddb.com
 | `ART-4` | Art is downloaded only from `https://cdn2.steamgriddb.com/` or `https://cdn.steamgriddb.com/`, at most 5 MiB per file, and used only if Godot decodes it as PNG, JPEG or WebP at no more than 4096×4096. Anything else is deleted and ignored. | done | `test_art` (wrong host or scheme, redirect check, over 5 MiB, not an image, truncated, over 4096 px, forged header, PNG, JPEG and WebP) |
 | `ART-5` | The card shows the art in the place of the monogram tile, scaled to cover it without distortion, with the same rounded corners. The title, port name and badge stay as text below it, so the card reads without the art. | done | `scripts/manual/art.sh` and `shots.sh` screenshots at 1280x720, 1280x800 and 1920x1080; `test_home::test_cards_with_art_show_it_and_the_others_keep_the_monogram` |
 | `ART-6` | While the art is missing, offline, or rejected, the card shows the monogram, with no error and no layout change. When the art arrives the card updates without moving focus. | done | `test_art` (failed, offline and rejected files show nothing, no error, `changed` on arrival), `test_home::test_art_arriving_changes_the_tile_not_the_layout_or_the_focus` |
-| `ART-7` | The README credits SteamGridDB and lists every artist and asset page from the catalog. | planned | manual |
+| `ART-7` | The README credits SteamGridDB and lists every artist and asset page from the catalog. | done | manual (2026-11-23): every `art.author` and `art.source` in `app/data/ports.json` (seven ports, one artist) found in the README's Credits table by a `jq` and `grep` check; the README says the art is not in the repository or the AppImage |
 
 ## Implementation notes
 
