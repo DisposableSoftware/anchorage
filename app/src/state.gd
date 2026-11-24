@@ -8,6 +8,8 @@ extends RefCounted
 ##   [ports]    <id>.installed = <tag>      <id>.latest = <tag>
 ##              <id>.archive = <tag that made the archive>   <id>.rom_placed = <path>
 ##   [updates]  last_check = <unix seconds>
+##   [catalog]  last_check = <unix seconds>   version = <the fetched version last announced>
+##              new = <ids of fetched ports not focused yet, comma separated> (PORT-23)
 ##   [roms]     cache = <one line of JSON>  (owned by the ROM code: path -> entry)
 ##              directory = <the ROM folder chosen in the app (ROM-12)>
 
@@ -19,6 +21,7 @@ var _ports := {}
 var _last_check := 0
 var _rom_cache := {}
 var _rom_dir := ""
+var _catalog := {"last_check": 0, "version": 0, "new": []}
 
 
 ## $XDG_STATE_HOME/anchorage/state.ini (default ~/.local/state).
@@ -56,7 +59,20 @@ static func load_from(file_path: String) -> RefCounted:
 	if json.parse(parsed.get("roms", {}).get("cache", "")) == OK and json.data is Dictionary:
 		state._rom_cache = json.data
 	state._rom_dir = parsed.get("roms", {}).get("directory", "")
+	var catalog: Dictionary = parsed.get("catalog", {})
+	state._catalog["last_check"] = _int(catalog.get("last_check", ""))
+	state._catalog["version"] = _int(catalog.get("version", ""))
+	var id := RegEx.create_from_string("^[a-z0-9_-]{1,32}$")
+	for item in (catalog.get("new", "") as String).split(",", false):
+		var name := item.strip_edges()
+		if id.search(name) and name.length() == id.search(name).get_end():
+			if not name in state._catalog["new"]:
+				state._catalog["new"].append(name)
 	return state
+
+
+static func _int(text: String) -> int:
+	return int(text) if text.is_valid_int() else 0
 
 
 func installed_version(id: String) -> String:
@@ -128,6 +144,32 @@ func set_rom_dir(dir: String) -> void:
 	save()
 
 
+## The fetched catalog's part (a copy): {last_check: unix seconds of the last successful
+## fetch, 0 when never (PORT-18); version: the highest fetched version announced; new: ids
+## of fetched ports not focused yet (PORT-23)}.
+func catalog() -> Dictionary:
+	return _catalog.duplicate(true)
+
+
+## Changes some of `catalog()`'s keys, and saves when that changed anything.
+func set_catalog(changes: Dictionary) -> void:
+	var next := _catalog.duplicate(true)
+	for key in changes:
+		if next.has(key):
+			next[key] = changes[key]
+	var ids := []
+	for id in next["new"]:
+		var clean := _line(str(id)).replace(",", "")
+		if not clean.is_empty() and not clean in ids:
+			ids.append(clean)
+	next["new"] = ids
+	next["last_check"] = int(next["last_check"])
+	next["version"] = int(next["version"])
+	if next != _catalog:
+		_catalog = next
+		save()
+
+
 ## Writes a temp file beside the real one and renames it over, so a kill never leaves a
 ## half-written state.ini. Returns false (and warns) when it could not.
 func save() -> bool:
@@ -169,6 +211,11 @@ func _serialise() -> String:
 			if not value.is_empty():
 				out += "%s.%s = %s\n" % [_line(id), field, value]
 	out += "\n[updates]\nlast_check = %d\n" % _last_check
+	if _catalog != {"last_check": 0, "version": 0, "new": []}:
+		out += "\n[catalog]\nlast_check = %d\n" % _catalog["last_check"]
+		out += "version = %d\n" % _catalog["version"]
+		if not _catalog["new"].is_empty():
+			out += "new = %s\n" % ",".join(PackedStringArray(_catalog["new"]))
 	if not _rom_cache.is_empty() or not _rom_dir.is_empty():
 		out += "\n[roms]\n"
 	if not _rom_dir.is_empty():

@@ -31,6 +31,28 @@ func test_round_trip() -> void:
 	remove(dir)
 
 
+func test_catalog_check_version_and_new_ports_round_trip() -> void:
+	var dir := temp_dir("state_catalog")
+	var path := dir.path_join("anchorage/state.ini")
+	var state := State.load_from(path)
+	eq(state.catalog(), {"last_check": 0, "version": 0, "new": []}, "nothing yet")
+	state.set_catalog({"last_check": 1234, "version": 3, "new": ["gamma", "delta", "gamma"]})
+	var again := State.load_from(path)
+	eq(again.catalog()["last_check"], 1234, "the catalog's own check time (PORT-18)")
+	eq(again.catalog()["version"], 3, "the announced version")
+	eq(again.catalog()["new"], ["gamma", "delta"], "the new ports, once each (PORT-23)")
+	again.set_catalog({"new": ["delta"]})
+	eq(State.load_from(path).catalog()["new"], ["delta"], "one cleared and saved")
+	eq(State.load_from(path).catalog()["version"], 3, "the rest kept")
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string("[catalog]\nnew = ok, ../bad, Upper,x\nversion = nope\n")
+	file.close()
+	again = State.load_from(path)
+	eq(again.catalog()["new"], ["ok", "x"], "good ids read, bad ones ignored")
+	eq(again.catalog()["version"], 0, "a broken number is 0")
+	remove(dir)
+
+
 func test_missing_or_broken_files_remember_nothing() -> void:
 	var dir := temp_dir("state_broken")
 	var missing := State.load_from(dir.path_join("nope/state.ini"))

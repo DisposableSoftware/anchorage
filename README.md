@@ -174,9 +174,10 @@ it from your library; it opens fullscreen on the row of cards.
 5. To quit, choose Quit Anchorage in that menu, or press <kbd>B</kbd> on the cards with
    nothing to cancel and confirm with Quit (focus starts on Stay).
 
-Anchorage checks for updates when it starts (at most once an hour) and when you press
-<kbd>X</kbd>. A card with `Update available` updates on <kbd>A</kbd>, and its menu still has
-Play.
+Anchorage checks for updates and new ports when it starts (at most once an hour) and when
+you press <kbd>X</kbd>. A card with `Update available` updates on <kbd>A</kbd>, and its menu
+still has Play. A new port gets its card at the end of the row, marked `New` until you
+move to it.
 
 **Controller layout:** Anchorage expects the Xbox-style gamepad that Steam Input gives a
 non-Steam game: <kbd>A</kbd> accepts, <kbd>B</kbd> goes back. If the buttons do nothing, open
@@ -346,6 +347,10 @@ the SteamOS installer against fake Steam folders (`steam-install.sh`), and an en
 run that installs and starts the real ports (`e2e.sh`). The README screenshots are
 1280×720 shots of the demo data, with the cover art fetched from SteamGridDB at the time.
 The pre-push hook refuses ROMs and large files (`scripts/check-no-roms.sh`).
+
+The port list is `app/data/ports.json`, and Anchorage fetches it from `main`, so a new port
+needs no new release. [`docs/adding-a-port.md`](docs/adding-a-port.md) covers the fields,
+finding ROM hashes, bumping the catalog `version` and testing with `ANCHORAGE_CATALOG_URL`.
 
 ## Credits
 

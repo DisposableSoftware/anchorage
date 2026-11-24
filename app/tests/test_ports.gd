@@ -148,6 +148,7 @@ func _make(check_updates := false, threaded := false, settle := 10.0) -> Node:
 	ports.roms_dir = _roms_dir()
 	ports.check_updates = check_updates
 	ports.catalog = _catalog()
+	ports.catalog_cache = _dir.path_join("cache/catalog.json")
 	ports.http = _http
 	ports.threaded = threaded
 	ports.clock = func() -> int: return NOW
@@ -197,12 +198,13 @@ func test_ports_has_every_method_and_signal_the_screens_use() -> void:
 		for method in (
 			["list", "info", "install", "update", "remove", "launch", "cancel", "refresh"]
 			+ ["dismiss_error", "rom_folder_info", "set_rom_folder", "browse", "search_sd_card"]
-			+ ["cancel_search", "search_info"]
+			+ ["cancel_search", "search_info", "notice", "mark_seen"]
 		):
 			check(ports.has_method(method), method)
 		for sig in ["changed", "launched", "exited"] + ["rom_folder_changed", "folder_listed"]:
 			check(ports.has_signal(sig), sig)
 		check(ports.has_signal("search_changed"), "search_changed")
+		check(ports.has_signal("notice_changed"), "notice_changed")
 		ports.free()
 
 

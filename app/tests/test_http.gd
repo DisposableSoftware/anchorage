@@ -221,3 +221,43 @@ func test_json_follows_a_moved_repo_and_refuses_foreign_redirects() -> void:
 	await _until(box)
 	eq(box.get("result", {}).get("error"), "GitHub sent unreadable data", "a bad body")
 	_teardown()
+
+
+func test_text_has_a_size_limit_and_checked_redirects() -> void:
+	_setup("http_text")
+	_server.routes["/catalog"] = _route(200, '{"ports": []}'.to_utf8_buffer())
+	_server.routes["/big"] = _route(200, "x".repeat(2048).to_utf8_buffer())
+	_server.routes["/moved"] = _route(302, PackedByteArray(), ["Location: /catalog"])
+	_server.routes["/away"] = _route(
+		302, PackedByteArray(), ["Location: https://raw.githubusercontent.com.evil.example/x"]
+	)
+	var box := {}
+	_http.fetch_text(_server.url("/moved"), 1024, func(r: Dictionary) -> void: box["result"] = r)
+	await _until(box)
+	eq(box.get("result", {}).get("text"), '{"ports": []}', "followed and read as text")
+	box = {}
+	_http.fetch_text(_server.url("/big"), 1024, func(r: Dictionary) -> void: box["result"] = r)
+	await _until(box)
+	eq(box.get("result", {}).get("ok"), false, "over the limit (PORT-19)")
+	eq(box.get("result", {}).get("error"), "The answer is too large", "says why")
+	box = {}
+	_http.fetch_text(_server.url("/away"), 1024, func(r: Dictionary) -> void: box["result"] = r)
+	await _until(box)
+	eq(box.get("result", {}).get("error"), "Refused a redirect", "off GitHub's hosts")
+	_teardown()
+
+
+func test_plain_http_is_only_for_this_machine() -> void:
+	var http := Http.new()
+	http.allow_http = true
+	check(http._url_ok("http://127.0.0.1:8080/x"), "a local test server")
+	for url in [
+		"http://example.com/x",
+		"http://127.0.0.1.evil.example:80/x",
+		"http://127.0.0.1@evil.example:80/x",
+		"http://localhost:80/x",
+	]:
+		check(not http._url_ok(url), "refused: " + url)
+	http.allow_http = false
+	check(not http._url_ok("http://127.0.0.1:8080/x"), "not without allow_http")
+	http.free()
