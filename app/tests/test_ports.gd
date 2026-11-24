@@ -394,6 +394,24 @@ func test_launch_places_the_rom_runs_and_comes_back() -> void:
 	eq(ports.info("alpha").error, "", "a clean exit is no error")
 	check(FileAccess.file_exists(data.path_join("alpha.o2r")), "the fake port extracted")
 	check(not FileAccess.file_exists(data.path_join("alpha.z64")), "placed ROM deleted (PORT-9)")
+	var state := State.load_from(_dir.path_join("state/state.ini"))
+	eq(state.archive_version("alpha"), "1.0", "the version that made the archive is remembered")
+	eq(state.placed_rom("alpha"), "", "and no copy is left to remember")
+	check(ports._archive_current("alpha"), "the archive is current: no ROM needed now")
+	# After an update the port rebuilds its archive, so it needs the ROM again (PORT-9, ROM-9).
+	_publish("alpha", "2.0", 0.3)
+	ports.update("alpha")
+	check(not ports._archive_current("alpha"), "after the update the ROM is wanted again")
+	var seen := []
+	ports.launched.connect(
+		func(_id: String) -> void: seen.append(FileAccess.file_exists(data.path_join("alpha.z64")))
+	)
+	ports.launch("alpha")
+	eq(seen, [true], "the ROM is placed again although an archive exists")
+	_wait_exit(ports, "alpha")
+	state = State.load_from(_dir.path_join("state/state.ini"))
+	eq(state.archive_version("alpha"), "2.0", "the new version made it")
+	check(not FileAccess.file_exists(data.path_join("alpha.z64")), "and the copy is gone again")
 	_free(ports)
 
 
@@ -531,7 +549,12 @@ func test_rom_status_names_what_is_wanted_and_where_it_looked() -> void:
 	var data := _dir.path_join("ports/alpha/data")
 	DirAccess.make_dir_recursive_absolute(data)
 	FileAccess.open(data.path_join("alpha.o2r"), FileAccess.WRITE).close()
-	check(ports.info("alpha").rom.found, "an extracted port needs no ROM (ROM-9)")
+	check(not ports.info("alpha").rom.found, "an archive no installed version made needs the ROM")
+	ports._state.set_installed("alpha", "1.0")
+	ports._state.set_archive_version("alpha", "1.0")
+	check(ports.info("alpha").rom.found, "an archive of the installed version needs none (ROM-9)")
+	ports._state.set_installed("alpha", "2.0")
+	check(not ports.info("alpha").rom.found, "after an update the ROM is wanted again")
 	_free(ports)
 
 

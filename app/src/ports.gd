@@ -134,6 +134,7 @@ func info(id: String) -> Dictionary:
 		"rom": _rom_info(port),
 		"busy": _busy.get(id, IDLE).duplicate(),
 		"running": _runs.has(id),
+		"first_run": port.get("first_run", "") if not Launcher.extracted(root, port) else "",
 		"art": _art.get(id),
 		"error": _errors.get(id, ""),
 	}
@@ -187,9 +188,21 @@ func _prepare_launch(id: String) -> void:
 	changed.emit(id)
 	var port: Dictionary = _ports[id]
 	_offload(
-		Launcher.prepare.bind(root, port, _roms.get(id, {})),
+		Launcher.prepare.bind(
+			root,
+			port,
+			_roms.get(id, {}),
+			_archive_current(id),
+			_state.placed_rom(id),
+			Roms.expand_dir(roms_dir)
+		),
 		func(result: Dictionary) -> void: _on_prepared(id, result),
-		{"ok": false, "error": "Getting ready stopped with an internal error", "placed": ""}
+		{
+			"ok": false,
+			"error": "Getting ready stopped with an internal error",
+			"placed": "",
+			"args": []
+		}
 	)
 
 
@@ -234,7 +247,17 @@ func poll() -> void:
 			continue
 		var code := OS.get_process_exit_code(run["pid"])
 		_runs.erase(id)
-		Launcher.after_exit(root, _ports[id])
+		var after := Launcher.after_exit(
+			root,
+			_ports[id],
+			_state.placed_rom(id),
+			Roms.expand_dir(roms_dir),
+			run["unix"],
+			run["settled"]
+		)
+		if after["archive_current"]:
+			_state.set_archive_version(id, _state.installed_version(id))
+		_state.set_placed_rom(id, after["placed"])
 		if code != 0 and elapsed < settle_seconds:
 			var detail := "It stopped after %d s with exit code %d." % [ceili(elapsed), code]
 			var line := Launcher.last_line(Launcher.log_path(root, id))
@@ -272,6 +295,16 @@ func _error_text(action: String, id: String, detail: String) -> String:
 
 ## ROM-9: the matched file, or what the port takes and where Anchorage looked. A port
 ## whose archive exists needs no ROM.
+## PORT-9: the archive was made (or kept) by the installed version, so no ROM is needed.
+func _archive_current(id: String) -> bool:
+	var version: String = _state.installed_version(id)
+	return (
+		not version.is_empty()
+		and _state.archive_version(id) == version
+		and Launcher.extracted(root, _ports[id])
+	)
+
+
 func _rom_info(port: Dictionary) -> Dictionary:
 	var wanted: Array[String] = []
 	for rom in port["roms"]:
@@ -282,7 +315,7 @@ func _rom_info(port: Dictionary) -> Dictionary:
 		var entry: String = match.get("entry", "")
 		var label: String = entry.get_file() if not entry.is_empty() else match["path"].get_file()
 		return {"found": true, "label": label, "path": match["path"], "wanted": wanted}
-	if Launcher.extracted(root, port):
+	if _archive_current(port["id"]):
 		return {
 			"found": true, "label": "Not needed, already extracted", "path": "", "wanted": wanted
 		}
@@ -453,13 +486,19 @@ func _on_prepared(id: String, result: Dictionary) -> void:
 		_errors[id] = _error_text("launch", id, result["error"])
 		changed.emit(id)
 		return
-	var started := Launcher.start(root, _ports[id])
+	_state.set_placed_rom(id, result["placed"])
+	var started := Launcher.start(root, _ports[id], {}, result["args"])
 	_busy.erase(id)
 	if started["pid"] <= 0:
 		_errors[id] = _error_text("launch", id, started["error"])
 		changed.emit(id)
 		return
-	_runs[id] = {"pid": started["pid"], "started": Time.get_ticks_msec(), "settled": false}
+	_runs[id] = {
+		"pid": started["pid"],
+		"started": Time.get_ticks_msec(),
+		"unix": int(Time.get_unix_time_from_system()),
+		"settled": false,
+	}
 	_poll_left = POLL_SECONDS
 	set_process(true)
 	changed.emit(id)

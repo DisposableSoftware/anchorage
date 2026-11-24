@@ -21,8 +21,11 @@ extends RefCounted
 ##   extra_files   Array of paths of files or folders inside the unpacked release that
 ##                 install copies to the data folder, keeping the last path part as the
 ##                 name; launch copies them again when missing (optional, default [])
-##   rom_place     where the ROM is written: "data_dir" (data folder) or "cwd" (the launch
-##                 working directory)
+##   rom_place     where the ROM is written: "data_dir" (data folder), "cwd" (the launch
+##                 working directory) or "argv" (the data folder, and its path is passed as
+##                 an argument while the port has no archive: PORT-16)
+##   first_run     a short note for the detail panel until the port has made its archive,
+##                 lines split by \n (optional, default "": PORT-17)
 ##   rom_file      file name of the written ROM, a big-endian ".z64"
 ##   roms          Array of {label, sha1}: the accepted ROMs. sha1 is 40 lowercase hex
 ##                 characters of the big-endian data. Order is priority (ROM-7); several
@@ -45,7 +48,7 @@ const PATH := "res://data/ports.json"
 const ART_KEYS := ["url", "author", "source", "style"]
 const ART_SOURCE := "https://www.steamgriddb.com/"
 const CWD_VALUES := ["data", "current"]
-const ROM_PLACES := ["data_dir", "cwd"]
+const ROM_PLACES := ["data_dir", "cwd", "argv"]
 const STRING_KEYS := ["id", "name", "game", "description", "repo", "asset_suffix", "rom_file"]
 
 
@@ -115,6 +118,8 @@ static func validate(raw: Variant) -> PackedStringArray:
 		out.append("rom_file must end with .z64")
 	if not raw.get("rom_place") in ROM_PLACES:
 		out.append("rom_place must be one of %s" % str(ROM_PLACES))
+	if raw.has("first_run") and not raw["first_run"] is String:
+		out.append("first_run must be a string")
 	_check_string_list(raw, "archive", true, out)
 	_check_string_list(raw, "extra_files", false, out)
 	var launch: Variant = raw.get("launch")
@@ -185,6 +190,8 @@ static func _check_string_list(
 static func _normalise(raw: Dictionary) -> Dictionary:
 	var port := raw.duplicate(true)
 	port["asset_suffix"] = (port["asset_suffix"] as String).to_lower()
+	if not port.has("first_run"):
+		port["first_run"] = ""
 	if not port.has("extra_files"):
 		port["extra_files"] = []
 	if not port["launch"].has("args"):

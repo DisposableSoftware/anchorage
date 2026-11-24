@@ -1,6 +1,6 @@
 extends PanelContainer
-## The focused port's details (HOME-3): description, versions, ROM status, progress
-## while busy (HOME-8) and errors from `Ports` (HOME-9).
+## The focused port's details (HOME-3): description (or the first-launch note, PORT-17),
+## versions, ROM status, progress while busy (HOME-8) and errors from `Ports` (HOME-9).
 
 const PortState := preload("res://src/ui/port_state.gd")
 
@@ -33,7 +33,7 @@ func show_port(info: Dictionary) -> void:
 		_error_detail.visible = not parts[1].is_empty()
 	_name.text = info.name
 	_game.text = info.game
-	_description.text = info.description
+	_description.text = info.first_run if not info.first_run.is_empty() else info.description
 	_installed.text = info.installed_version if info.installed else "Not installed"
 	if info.offline:
 		_latest.text = "Offline"

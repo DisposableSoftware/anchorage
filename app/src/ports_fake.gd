@@ -13,6 +13,10 @@ extends Node
 ##   offline      the update check failed for every port
 ##   playing      the first port running
 ##   art-late     as showcase, but the cover art arrives 2 s in (or on `deliver_art`)
+##   first-run    every port installed, none has made its game files yet: the first-launch
+##                notes (PORT-17), with the first card focused
+##
+## A port that is not installed has no game files either, so it shows its note too.
 ##
 ## The first two ports have placeholder cover art, drawn in code (never a real image), and
 ## the other two show their monogram, so a screenshot has both looks (ART-5, ART-6).
@@ -31,11 +35,17 @@ const SCENARIOS := [
 	"offline",
 	"playing",
 	"art-late",
+	"first-run",
 ]
 const ART_PORTS := ["soh", "2ship"]
 const ART_SIZE := Vector2i(920, 430)
 const ART_DELAY := 2.0
 const ROM_FOLDER := "~/Roms/n64"
+
+const SHIP_NOTE := (
+	"The first launch makes the game files from your ROM\nIf it"
+	+ " then asks to run the game, close it and press Play again"
+)
 
 const DEMO := [
 	{
@@ -49,6 +59,7 @@ const DEMO := [
 		),
 		"latest": "9.3.1",
 		"rom": "Ocarina of Time (USA) (Rev 2).z64",
+		"first_run": SHIP_NOTE,
 		"wanted":
 		[
 			"NTSC-U 1.0",
@@ -72,6 +83,7 @@ const DEMO := [
 		),
 		"latest": "5.0.1",
 		"rom": "Majora's Mask (USA).z64",
+		"first_run": SHIP_NOTE,
 		"wanted": ["NTSC-U 1.0", "NTSC-U GameCube"],
 	},
 	{
@@ -82,6 +94,11 @@ const DEMO := [
 		"A PC port of Star Fox 64 with widescreen, high frame rates and mod support.",
 		"latest": "v2.0.0",
 		"rom": "Star Fox 64 (USA) (Rev 1).z64",
+		"first_run":
+		(
+			"The first launch needs a mouse or keyboard once (the trackpad works): answer Yes"
+			+ " and pick sf64.z64\nLater launches do not"
+		),
 		"wanted": ["US 1.0", "US 1.1"],
 	},
 	{
@@ -92,6 +109,11 @@ const DEMO := [
 		"A PC port of Mario Kart 64 with widescreen, high frame rates and custom tracks.",
 		"latest": "1.0.0",
 		"rom": "Mario Kart 64 (USA).z64",
+		"first_run":
+		(
+			"The first launch needs a mouse or keyboard once (the trackpad works) to answer its"
+			+ " questions\nLater launches do not"
+		),
 		"wanted": ["US"],
 	},
 ]
@@ -112,6 +134,8 @@ var _play_left := {}
 var _jobs := {}
 var _art := {}
 var _art_wait := -1.0
+## Ports that have made their game files (PORT-17); a port that is not installed has not.
+var _extracted := {}
 
 
 func _init(scenario := "showcase") -> void:
@@ -136,9 +160,12 @@ func _init(scenario := "showcase") -> void:
 			},
 			"busy": {"action": "", "progress": -1.0, "detail": ""},
 			"running": false,
+			"first_run": demo.first_run,
 			"error": "",
 		}
 	_apply_scenario(scenario if scenario in SCENARIOS else "showcase")
+	for id in _ids:
+		_extracted[id] = _info[id].installed and scenario != "first-run"
 	if scenario == "art-late":
 		_art_wait = ART_DELAY
 	else:
@@ -212,6 +239,9 @@ func _apply_scenario(scenario: String) -> void:
 				_info[id].offline = true
 				_info[id].latest_version = ""
 				_info[id].update_available = false
+		"first-run":
+			for demo in DEMO:
+				_set_installed(demo.id, demo.latest)
 		"playing":
 			_set_installed(first, "9.3.1")
 			_info[first].running = true
@@ -245,6 +275,8 @@ func list() -> Array:
 func info(id: String) -> Dictionary:
 	var out: Dictionary = _info[id].duplicate(true)
 	out["art"] = _art.get(id)
+	if _extracted.get(id, false):
+		out["first_run"] = ""
 	return out
 
 
@@ -324,6 +356,7 @@ func _process(delta: float) -> void:
 			_play_left[id] -= delta
 			if _play_left[id] <= 0.0:
 				port.running = false
+				_extracted[id] = true
 				changed.emit(id)
 				exited.emit(id)
 
