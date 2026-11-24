@@ -249,15 +249,24 @@ static func start(root: String, port: Dictionary, base_env := {}, extra_args := 
 	return {"pid": pid, "error": ""}
 
 
+## When the installed version was unpacked (unix seconds): the installer writes the
+## executable then, and nothing writes it later. 0 when it is missing.
+static func installed_time(root: String, port: Dictionary) -> int:
+	var program := executable(root, port)
+	return FileAccess.get_modified_time(program) if FileAccess.file_exists(program) else 0
+
+
 ## PORT-9, after a run that started at `started` (unix seconds) and, if `settled`, kept
 ## going for the settle time. The archive is now the installed version's when the run ended
-## with it there and either settled or wrote it; then the placed copy is deleted.
-## {archive_current, placed}: `placed` is what is left of Anchorage's copy.
+## with it there and either wrote it, or settled with an archive no older than the
+## installed version (an outdated archive left open in a prompt never counts); then the
+## placed copy is deleted. {archive_current, placed}: what is left of Anchorage's copy.
 static func after_exit(
 	root: String, port: Dictionary, placed: String, roms_dir: String, started: int, settled: bool
 ) -> Dictionary:
 	var made := archive_time(root, port)
-	if made == 0 or not (settled or made >= started):
+	var kept := settled and made >= installed_time(root, port)
+	if made == 0 or not (kept or made >= started):
 		return {"archive_current": false, "placed": placed}
 	if not placed.is_empty() and not delete_placed(placed, port, root, roms_dir):
 		return {"archive_current": true, "placed": placed}

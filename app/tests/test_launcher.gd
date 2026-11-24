@@ -272,10 +272,44 @@ func test_an_archive_from_another_version_gets_the_rom_again() -> void:
 	var result := Launcher.prepare(_root, port, _rom_match(), false, "")
 	eq(result["placed"], data.path_join("fake.z64"), "placed although an archive exists")
 	check(FileAccess.file_exists(data.path_join("fake.z64")), "the ROM is there")
-	var after := Launcher.after_exit(_root, port, result["placed"], "", _now() + 60, true)
-	eq(after, {"archive_current": true, "placed": ""}, "a settled run kept the archive")
+	# The old archive is from before this version was installed.
+	_touch(data.path_join("fake.o2r"), _now() - 3600)
+	_touch(Launcher.executable(_root, port), _now() - 600)
+	var after := Launcher.after_exit(_root, port, result["placed"], "", _now() - 5, true)
+	eq(after, {"archive_current": false, "placed": result["placed"]}, "a settled run is not enough")
+	check(FileAccess.file_exists(data.path_join("fake.z64")), "so the copy stays for next time")
+	_write(data.path_join("fake.o2r"), "new o2r")
+	_touch(data.path_join("fake.o2r"), _now() - 60)
+	after = Launcher.after_exit(_root, port, result["placed"], "", _now() - 5, true)
+	eq(
+		after,
+		{"archive_current": true, "placed": ""},
+		"a settled run with an archive since install"
+	)
 	check(not FileAccess.file_exists(data.path_join("fake.z64")), "then the copy goes")
 	_done()
+
+
+## Finding: Shipwright's "Outdated ROM Archives" prompt left open past the settle time and
+## closed without regenerating marked the old archive current and deleted the copy, so the
+## next launch had no ROM (PORT-9).
+func test_a_long_run_that_kept_an_outdated_archive_keeps_the_rom() -> void:
+	var port := _install("launch_outdated")
+	var data := Installer.data_dir(_root, "fake")
+	_write(data.path_join("fake.o2r"), "outdated o2r")
+	_touch(data.path_join("fake.o2r"), _now() - 86400)
+	_touch(Launcher.executable(_root, port), _now() - 600)
+	var result := Launcher.prepare(_root, port, _rom_match(), false, "")
+	var after := Launcher.after_exit(_root, port, result["placed"], "", _now() - 30, true)
+	eq(after["archive_current"], false, "an archive older than the installed version")
+	check(FileAccess.file_exists(result["placed"]), "the ROM copy is still there")
+	result = Launcher.prepare(_root, port, _rom_match(), false, after["placed"])
+	eq(result["placed"], data.path_join("fake.z64"), "and placed for the next launch")
+	_done()
+
+
+func _touch(path: String, unix: int) -> void:
+	OS.execute("touch", ["-m", "-d", "@%d" % unix, path])
 
 
 ## Finding: a ROM in data/ that Anchorage did not write was deleted (PORT-7, PORT-9).
