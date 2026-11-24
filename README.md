@@ -72,8 +72,7 @@ Do this once, in Desktop Mode:
 4. Go back to Gaming Mode. Anchorage is in your library, under Non-Steam.
 
 The command runs the copy of the script attached to the latest release, so the script
-and the files it downloads always come from the same release. That also means it needs a
-published release: it works from the first release on.
+and the files it downloads always come from the same release.
 
 It downloads the latest release's AppImage to `~/Applications/Anchorage.AppImage`,
 checks it against the release's `SHA256SUMS`, adds a desktop entry and icon, and adds an
@@ -307,8 +306,6 @@ to make Anchorage forget.
   Mode and gamescope, and Steam Input. So are the SD card's real mount names. All of it has
   only been tried against fakes, in a headless sway and on a NixOS desktop. The code follows
   the documented behaviour of each, and a Deck may still disagree.
-- No release has been published yet, so the SteamOS command and the AppImage download have
-  nothing to fetch until the first one. `nix run` works now.
 - Four ports need a mouse, trackpad or keyboard on their first launch (see the table). That
   is their dialog, not Anchorage's.
 
