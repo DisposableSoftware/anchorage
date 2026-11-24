@@ -5,11 +5,14 @@ extends RefCounted
 ## and RetroDECK files are read as text, never run.
 
 const Ini := preload("res://src/ini.gd")
+const Roms := preload("res://src/roms.gd")
 
 const FILE_EXTENSIONS := ["z64", "n64", "v64", "zip"]
 const MEDIA := "/run/media"
 const MOUNTS_FILE := "/proc/self/mounts"
 const SEARCH_DEPTH := 4
+const MAX_SEARCH_FOLDERS := 20000
+const MAX_SETTINGS_BYTES := 1 << 20
 ## Current EmuDeck first (vars.sh: emudeckFolder="$HOME/.config/EmuDeck"), then the old one.
 const EMUDECK_SETTINGS := [".config/EmuDeck/settings.sh", "emudeck/settings.sh"]
 const RETRODECK_CONFIG := ".var/app/net.retrodeck.retrodeck/config/retrodeck"
@@ -217,7 +220,9 @@ static func read_mounts(path: String) -> String:
 
 ## Every mounted volume under `media`: [{path, label, sd}], the SD card first (a mmcblk
 ## device, or a mmcblk mount folder), then the rest by path. Both SteamOS styles count:
-## `/run/media/mmcblk0p1` and `/run/media/<user>/<label>`.
+## `/run/media/mmcblk0p1` and `/run/media/<user>/<label>`. Paths that resolve to the same
+## folder (newer SteamOS links the first to the second) are one volume, listed by its
+## /proc/self/mounts path, else by its real path.
 static func mounts(media: String, mounts_text: String) -> Array:
 	var devices := {}
 	for line in mounts_text.split("\n"):
@@ -239,16 +244,27 @@ static func mounts(media: String, mounts_text: String) -> Array:
 	for point in devices:
 		if DirAccess.dir_exists_absolute(point):
 			points[point] = true
-	var out := []
+	var volumes := {}
 	for path: String in points:
-		var name := path.get_file()
+		var real := Roms.real_path(path)
 		var sd: bool = (
-			String(devices.get(path, "")).begins_with("/dev/mmcblk") or name.begins_with("mmcblk")
+			String(devices.get(path, "")).begins_with("/dev/mmcblk")
+			or path.get_file().begins_with("mmcblk")
 		)
+		var rank := 0 if devices.has(path) else (1 if path == real else 2)
+		var volume: Dictionary = volumes.get(real, {"path": path, "rank": rank, "sd": false})
+		if rank < volume.rank:
+			volume.path = path
+			volume.rank = rank
+		volume.sd = volume.sd or sd
+		volumes[real] = volume
+	var out := []
+	for volume: Dictionary in volumes.values():
+		var name: String = volume.path.get_file()
 		var label := name
-		if sd:
+		if volume.sd:
 			label = "SD card" if name.begins_with("mmcblk") else "SD card (%s)" % name
-		out.append({"path": path, "label": label, "sd": sd})
+		out.append({"path": volume.path, "label": label, "sd": volume.sd})
 	out.sort_custom(
 		func(a: Dictionary, b: Dictionary) -> bool:
 			return a.sd and not b.sd or (a.sd == b.sd and a.path < b.path)
@@ -296,20 +312,37 @@ static func fallback(home: String) -> String:
 
 
 ## ROM-14: every folder with ROM-like files on `mount_list`, at most `depth` levels below
-## each mount, hidden folders skipped. Returns {status: "ok"|"no_card"|"aborted", results:
-## [{path, roms, label (the mount's), folder (the path on the mount)}]}: by mount, then
-## `n64` folders first, shallower first, then path.
-static func search(mount_list: Array, depth: int = SEARCH_DEPTH, stop := Callable()) -> Dictionary:
+## each mount, hidden folders skipped. A folder link is followed only to a folder inside
+## the same mount that was not searched yet, and at most `limit` folders are searched in
+## all. Returns {status: "ok"|"no_card"|"aborted", limited, results: [{path, roms, label
+## (the mount's), folder (the path on the mount)}]}: by mount, then `n64` folders first,
+## shallower first, then path.
+static func search(
+	mount_list: Array, depth: int = SEARCH_DEPTH, stop := Callable(), limit := MAX_SEARCH_FOLDERS
+) -> Dictionary:
 	if mount_list.is_empty():
-		return {"status": "no_card", "results": []}
+		return {"status": "no_card", "results": [], "limited": false}
 	var results := []
+	var searched := 0
+	var seen := {}
 	for mount in mount_list:
 		var found := []
-		var queue := [[String(mount.path), 0]]
-		while not queue.is_empty():
+		var root := Roms.real_path(mount.path)
+		if seen.has(root):
+			continue
+		seen[root] = true
+		# [path, level, real path]; a cursor, not pop_front, which copies the array.
+		var queue := [[String(mount.path), 0, root]]
+		var next := 0
+		while next < queue.size():
 			if stop.is_valid() and stop.call():
-				return {"status": "aborted", "results": results}
-			var item: Array = queue.pop_front()
+				return {"status": "aborted", "results": results, "limited": false}
+			if searched >= limit:
+				return {"status": "ok", "results": results, "limited": true}
+			searched += 1
+			var item: Array = queue[next]
+			queue[next] = null
+			next += 1
 			var count := rom_count(item[0])
 			if count > 0:
 				var on_mount := String(item[0]).substr(String(mount.path).length()).trim_prefix("/")
@@ -326,13 +359,22 @@ static func search(mount_list: Array, depth: int = SEARCH_DEPTH, stop := Callabl
 					)
 				)
 			if item[1] < depth:
+				var access := DirAccess.open(item[0])
 				for name in _folders(item[0]):
-					queue.append([String(item[0]).path_join(name), item[1] + 1])
+					var child := String(item[0]).path_join(name)
+					var real := String(item[2]).path_join(name)
+					if access != null and access.is_link(child):
+						real = Roms.real_path(child)
+						if not real.begins_with(root.path_join("")):
+							continue
+					if not seen.has(real):
+						seen[real] = true
+						queue.append([child, item[1] + 1, real])
 		found.sort_custom(_search_less)
 		for entry in found:
 			entry.erase("level")
 			results.append(entry)
-	return {"status": "ok", "results": results}
+	return {"status": "ok", "results": results, "limited": false}
 
 
 ## A listing for the chooser (ROM-11): {ok, path, roms, folders: [{name, path, roms}],
@@ -390,13 +432,18 @@ static func _subdirs(dir: String, hidden: bool) -> Array:
 	return names
 
 
+## The first MAX_SETTINGS_BYTES of a settings file, cut after its last whole line there
+## (so a cut never splits a UTF-8 character).
 static func _read(path: String) -> String:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		return ""
-	var text := file.get_as_text()
+	var data := file.get_buffer(MAX_SETTINGS_BYTES)
+	var more := not file.eof_reached() and file.get_position() < file.get_length()
 	file.close()
-	return text
+	if more:
+		data = data.slice(0, data.rfind(0x0A) + 1)
+	return data.get_string_from_utf8()
 
 
 ## Mount points in /proc/self/mounts write space, tab, newline and backslash as octal.

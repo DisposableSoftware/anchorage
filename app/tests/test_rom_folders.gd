@@ -178,12 +178,20 @@ func test_rom_count_counts_rom_like_files_only() -> void:
 	remove(_dir)
 
 
+func _link(target: String, rel: String) -> void:
+	var path := _dir.path_join(rel)
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	OS.execute("ln", ["-s", target, path])
+
+
+## SteamOS 3.5 and later: /run/media/mmcblk0p1 is a link to /run/media/<user>/<label>, and
+## /proc/self/mounts names only the second. The card is one volume, listed once.
 func test_mounts_in_both_styles_with_the_sd_card_first() -> void:
 	_setup("mounts")
 	var media := _media()
 	_folder("media/sda1")
-	_folder("media/mmcblk0p1")
 	_folder("media/deck/My Card")
+	_link(media.path_join("deck/My Card"), "media/mmcblk0p1")
 	_folder("media/deck/Backup")
 	_folder("media/deck/.hidden")
 	var mounts := (
@@ -200,14 +208,35 @@ func test_mounts_in_both_styles_with_the_sd_card_first() -> void:
 	var got := RomFolders.mounts(media, mounts)
 	eq(
 		got.map(func(m: Dictionary) -> String: return m.path.trim_prefix(media)),
-		["/deck/My Card", "/mmcblk0p1", "/deck/Backup", "/sda1"],
-		"/run/media/<dev> and /run/media/<user>/<label>; SD cards first, a gone mount left out"
+		["/deck/My Card", "/deck/Backup", "/sda1"],
+		"the linked card once, by the mount's path; SD card first, a gone mount left out"
 	)
 	eq(got[0].label, "SD card (My Card)", "a mmcblk device is the SD card whatever its name")
-	eq(got[1].label, "SD card", "mmcblk0p1 by its path")
-	eq(got[2].sd, false, "a USB drive")
-	eq(got[3].label, "sda1", "label")
+	eq(got[1].sd, false, "a USB drive")
+	eq(got[2].label, "sda1", "label")
+	var unlisted := RomFolders.mounts(media, "")
+	eq(
+		unlisted.map(func(m: Dictionary) -> String: return m.path.trim_prefix(media)),
+		["/deck/My Card", "/deck/Backup", "/sda1"],
+		"without /proc/self/mounts: once, by its real path"
+	)
+	eq(unlisted[0].label, "SD card (My Card)", "still the SD card (the link's name)")
+	_folder("media/deck/My Card/n64", 2)
+	eq(RomFolders.search(got).results.size(), 1, "and searched once")
 	eq(RomFolders.mounts(_dir.path_join("nothing"), ""), [], "no /run/media: no mounts")
+	remove(_dir)
+
+
+## Older SteamOS mounts the card at /run/media/mmcblk0p1 itself.
+func test_a_card_mounted_by_its_device_name() -> void:
+	_setup("mounts_old")
+	var media := _media()
+	_folder("media/mmcblk0p1")
+	_folder("media/deck/USB")
+	var mounts := "/dev/mmcblk0p1 %s/mmcblk0p1 ext4 rw 0 0" % media
+	for text in [mounts, ""]:
+		var got := RomFolders.mounts(media, text)
+		eq(got.map(func(m: Dictionary) -> String: return m.label), ["SD card", "USB"], text)
 	remove(_dir)
 
 
@@ -256,6 +285,57 @@ func test_search_without_a_card_and_stopping() -> void:
 		RomFolders.mounts(_media(), ""), 4, func() -> bool: return true
 	)
 	eq(stopped.status, "aborted", "stops when asked")
+	remove(_dir)
+
+
+## Finding: a `root -> /` link on a drive made the search walk the whole system.
+func test_search_follows_links_only_within_the_volume() -> void:
+	_setup("search_links")
+	var media := _media()
+	var card := media.path_join("mmcblk0p1")
+	_folder("media/mmcblk0p1/Emulation/roms/n64", 1)
+	_folder("outside/n64", 3)
+	_folder("media/deck/USB/n64", 2)
+	_folder("media/mmcblk0p1/deep/a/b/c/d/n64", 4)
+	_link("/", "media/mmcblk0p1/root")
+	_link(_dir.path_join("outside"), "media/mmcblk0p1/outside")
+	_link(media.path_join("deck/USB"), "media/mmcblk0p1/usb")
+	_link(card, "media/mmcblk0p1/Emulation/loop")
+	_link("..", "media/mmcblk0p1/Emulation/roms/up")
+	_link(card.path_join("deep/a/b/c/d/n64"), "media/mmcblk0p1/shortcut")
+	var result := RomFolders.search(RomFolders.mounts(media, ""))
+	eq(
+		result.results.map(func(r: Dictionary) -> String: return r.label + ":" + r.folder),
+		["SD card:Emulation/roms/n64", "SD card:shortcut", "USB:n64"],
+		"no / or other drive, no loop twice; a link to a folder on the card not yet seen (ROM-14)"
+	)
+	remove(_dir)
+
+
+func test_search_stops_after_the_folder_limit() -> void:
+	_setup("search_limit")
+	for i in 30:
+		_folder("media/mmcblk0p1/f%02d" % i, 1 if i == 29 else 0)
+	var mounts := RomFolders.mounts(_media(), "")
+	var whole := RomFolders.search(mounts)
+	eq([whole.results.size(), whole.limited], [1, false], "under the limit: everything")
+	var capped := RomFolders.search(mounts, 4, Callable(), 10)
+	eq([capped.status, capped.results.size(), capped.limited], ["ok", 0, true], "stops at 10")
+	eq(RomFolders.MAX_SEARCH_FOLDERS, 20000, "the limit ROM-14 names")
+	remove(_dir)
+
+
+func test_settings_files_are_read_to_one_mib() -> void:
+	_setup("settings_cap")
+	var home := _home()
+	var padding := "# padding padding padding padding padding padding padding padding\n".repeat(
+		25000
+	)
+	var path := home.path_join(".config/EmuDeck/settings.sh")
+	_write(path, "romsPath=/first/roms\n" + padding)
+	eq(RomFolders.emudeck_folder(home), "/first/roms/n64", "a big file: its first MiB is read")
+	_write(path, padding + "romsPath=/late/roms\n")
+	eq(RomFolders.emudeck_folder(home), "", "a line after the first MiB is not (ROM-15)")
 	remove(_dir)
 
 
