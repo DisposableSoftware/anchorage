@@ -95,3 +95,48 @@ func test_bad_entries_are_dropped_with_a_reason() -> void:
 func test_broken_json_is_an_error_not_a_crash() -> void:
 	eq(Catalog.parse("{nope")["ports"].size(), 0, "no ports")
 	eq(Catalog.parse("{nope")["errors"].size(), 1, "one error")
+
+
+func test_art_is_optional_and_a_bad_object_is_dropped_but_the_port_stays() -> void:
+	var catalog := Catalog.parse(FileAccess.get_file_as_string("res://tests/art_catalog.json"))
+	var ports: Array = catalog["ports"]
+	eq(ports.size(), 3, "all three ports stay (ART-1)")
+	eq(ports[0]["art"]["author"], "Some Artist", "the art object is kept")
+	check(not ports[1].has("art"), "a port without art has none")
+	check(not ports[2].has("art"), "art on another host is dropped (ART-4)")
+	eq(catalog["errors"].size(), 1, "and reported once")
+	check(str(catalog["errors"][0]).contains("bad-art"), "naming the port")
+
+
+func test_art_needs_every_field_and_a_steamgriddb_url() -> void:
+	var good := {
+		"url": "https://cdn.steamgriddb.com/grid/x.png",
+		"author": "A",
+		"source": "https://www.steamgriddb.com/grid/1",
+		"style": "alternate",
+	}
+	eq(Catalog.validate_art(good).size(), 0, "valid")
+	for key in good:
+		var broken := good.duplicate()
+		broken.erase(key)
+		eq(Catalog.validate_art(broken).size(), 1, "%s is required" % key)
+	var http := good.duplicate()
+	http["url"] = "http://cdn2.steamgriddb.com/grid/x.png"
+	check(Catalog.validate_art(http).size() > 0, "https only")
+	var elsewhere := good.duplicate()
+	elsewhere["source"] = "https://example.com/grid/1"
+	check(Catalog.validate_art(elsewhere).size() > 0, "source on steamgriddb.com")
+	check(Catalog.validate_art("x").size() > 0, "not an object")
+
+
+func test_shipped_art_is_complete_and_all_one_style() -> void:
+	var styles := {}
+	var count := 0
+	for port in Catalog.load_default()["ports"]:
+		if not port.has("art"):
+			continue
+		count += 1
+		eq(Catalog.validate_art(port["art"]).size(), 0, "%s art is valid (ART-1)" % port["id"])
+		styles[port["art"]["style"]] = true
+	check(styles.size() == 1, "every entry has the same style (ART-2): %s" % str(styles.keys()))
+	eq(count, 4, "every port has art")

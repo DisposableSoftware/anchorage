@@ -19,6 +19,7 @@ const State := preload("res://src/state.gd")
 const Http := preload("res://src/http.gd")
 const Roms := preload("res://src/roms.gd")
 const Launcher := preload("res://src/launcher.gd")
+const Art := preload("res://src/art.gd")
 
 const IDLE := {"action": "", "progress": -1.0, "detail": ""}
 const VERBS := {"install": "install", "update": "update", "launch": "start", "remove": "remove"}
@@ -36,6 +37,11 @@ var check_updates := true
 var catalog: Array = []
 ## Something with http.gd's methods; null means a new http.gd child.
 var http: Object = null
+## The same for cover art (ART-3). Null means a new http.gd child, unless `http` was given:
+## then that one serves the art too, so tests never reach the network.
+var art_http: Object = null
+## The art cache folder; empty means $XDG_CACHE_HOME/anchorage/art.
+var art_dir := ""
 var threaded := true
 ## Unix seconds; empty means the system clock.
 var clock := Callable()
@@ -61,6 +67,8 @@ var _active := {}
 ## Running ports: id -> {pid, started (msec), settled}.
 var _runs := {}
 var _poll_left := 0.0
+var _art := {}
+var _art_loader: RefCounted
 
 
 func _ready() -> void:
@@ -76,6 +84,7 @@ func _ready() -> void:
 	for port in catalog:
 		_ports[port["id"]] = port
 		_ids.append(port["id"])
+	var injected := http != null
 	if http == null:
 		http = Http.new()
 		add_child(http)
@@ -83,6 +92,7 @@ func _ready() -> void:
 	Installer.cleanup_stale(root)
 	set_process(false)
 	_scan()
+	_start_art(injected)
 	if Releases.check_due(_state.last_check(), _now(), check_updates):
 		_check()
 
@@ -120,6 +130,7 @@ func info(id: String) -> Dictionary:
 		"rom": _rom_info(port),
 		"busy": _busy.get(id, IDLE).duplicate(),
 		"running": _runs.has(id),
+		"art": _art.get(id),
 		"error": _errors.get(id, ""),
 	}
 
@@ -264,6 +275,37 @@ func _rom_info(port: Dictionary) -> Dictionary:
 func _emit_all() -> void:
 	for id in _ids:
 		changed.emit(id)
+
+
+# Cover art ---------------------------------------------------------------------------
+
+
+## ART-3: in the background, one file at a time, on its own HTTP object so it never waits
+## for or blocks a port download.
+func _start_art(http_was_given: bool) -> void:
+	var items := []
+	for port in catalog:
+		if port.has("art"):
+			items.append({"id": port["id"], "url": port["art"]["url"]})
+	if items.is_empty():
+		return
+	if art_http == null:
+		if http_was_given:
+			art_http = http
+		else:
+			art_http = Http.new()
+			art_http.redirect_check = Art.url_allowed
+			add_child(art_http)
+	if art_dir.is_empty():
+		art_dir = OS.get_cache_dir().path_join("anchorage").path_join("art")
+	_art_loader = Art.new(art_http, art_dir)
+	_art_loader.offload = _offload
+	_art_loader.fetch(items, _on_art)
+
+
+func _on_art(id: String, texture: Texture2D) -> void:
+	_art[id] = texture
+	changed.emit(id)
 
 
 # Installs and updates ----------------------------------------------------------------

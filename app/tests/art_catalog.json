@@ -1,0 +1,55 @@
+{
+  "ports": [
+    {
+      "id": "with-art",
+      "name": "With Art",
+      "game": "Game One",
+      "description": "Has cover art.",
+      "repo": "test/with-art",
+      "art": {
+        "url": "https://cdn2.steamgriddb.com/grid/0000000000000000000000000000000a.png",
+        "author": "Some Artist",
+        "source": "https://www.steamgriddb.com/grid/1",
+        "style": "alternate"
+      },
+      "asset_suffix": "-linux.zip",
+      "archive": ["a.o2r"],
+      "launch": { "executable": "a.appimage", "cwd": "data" },
+      "rom_place": "data_dir",
+      "rom_file": "a.z64",
+      "roms": [{ "label": "US", "sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }]
+    },
+    {
+      "id": "no-art",
+      "name": "No Art",
+      "game": "Game Two",
+      "description": "Has no cover art.",
+      "repo": "test/no-art",
+      "asset_suffix": "-linux.zip",
+      "archive": ["b.o2r"],
+      "launch": { "executable": "b.appimage", "cwd": "data" },
+      "rom_place": "data_dir",
+      "rom_file": "b.z64",
+      "roms": [{ "label": "US", "sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }]
+    },
+    {
+      "id": "bad-art",
+      "name": "Bad Art",
+      "game": "Game Three",
+      "description": "Its art is on the wrong host, so it is dropped but the port stays.",
+      "repo": "test/bad-art",
+      "art": {
+        "url": "https://example.com/grid/1.png",
+        "author": "Some Artist",
+        "source": "https://www.steamgriddb.com/grid/2",
+        "style": "alternate"
+      },
+      "asset_suffix": "-linux.zip",
+      "archive": ["c.o2r"],
+      "launch": { "executable": "c.appimage", "cwd": "data" },
+      "rom_place": "data_dir",
+      "rom_file": "c.z64",
+      "roms": [{ "label": "US", "sha1": "cccccccccccccccccccccccccccccccccccccccc" }]
+    }
+  ]
+}

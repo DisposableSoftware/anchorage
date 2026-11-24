@@ -22,6 +22,9 @@ const STALL_SECONDS := 60.0
 
 ## Lets http:// URLs through, for a local test server. Never set by the app.
 var allow_http := false
+## Decides where a redirect may go; empty means GitHub's hosts (`Releases.redirect_allowed`).
+## The cover art loader sets its own, so art redirects never reach other hosts (ART-4).
+var redirect_check := Callable()
 
 var _job := {}
 var _request: HTTPRequest
@@ -168,7 +171,11 @@ func _url_ok(url: String) -> bool:
 
 
 func _redirect_ok(url: String) -> bool:
-	return Releases.redirect_allowed(url) or (allow_http and url.begins_with("http://"))
+	if allow_http and url.begins_with("http://"):
+		return true
+	if redirect_check.is_valid():
+		return redirect_check.call(url)
+	return Releases.redirect_allowed(url)
 
 
 static func _header(headers: PackedStringArray, name: String) -> String:

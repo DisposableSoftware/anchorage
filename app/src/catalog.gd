@@ -27,11 +27,23 @@ extends RefCounted
 ##   roms          Array of {label, sha1}: the accepted ROMs. sha1 is 40 lowercase hex
 ##                 characters of the big-endian data. Order is priority (ROM-7); several
 ##                 hashes may share one label
+##   art           the cover art of the card (ART-1), an object (optional):
+##                   url     https URL of a SteamGridDB CDN image (cdn2.steamgriddb.com or
+##                           cdn.steamgriddb.com), a horizontal 920x430 grid
+##                   author  the artist's name on SteamGridDB
+##                   source  the asset's page on steamgriddb.com
+##                   style   the SteamGridDB style it was chosen from; the same for every
+##                           entry (ART-2)
+##               A bad `art` object is reported and dropped; the port stays, with its monogram.
 ##
 ## Values from this file are untrusted data to the rest of the code: `parse` drops any
 ## entry that breaks the schema and reports why.
 
+const Art := preload("res://src/art.gd")
+
 const PATH := "res://data/ports.json"
+const ART_KEYS := ["url", "author", "source", "style"]
+const ART_SOURCE := "https://www.steamgriddb.com/"
 const CWD_VALUES := ["data", "current"]
 const ROM_PLACES := ["data_dir", "cwd"]
 const STRING_KEYS := ["id", "name", "game", "description", "repo", "asset_suffix", "rom_file"]
@@ -65,7 +77,14 @@ static func parse(text: String) -> Dictionary:
 				errors.append("ports.json: %s: %s" % [label, problem])
 			continue
 		seen[raw["id"]] = true
-		ports.append(_normalise(raw))
+		var port := _normalise(raw)
+		if port.has("art"):
+			var art_problems := validate_art(port["art"])
+			for problem in art_problems:
+				errors.append("ports.json: %s: art: %s" % [label, problem])
+			if not art_problems.is_empty():
+				port.erase("art")
+		ports.append(port)
 	return {"ports": ports, "errors": errors}
 
 
@@ -116,6 +135,22 @@ static func validate(raw: Variant) -> PackedStringArray:
 			if not (rom is Dictionary and rom.get("label") is String and is_sha1(rom.get("sha1"))):
 				out.append("each rom needs a label and a 40 character lowercase hex sha1")
 				break
+	return out
+
+
+## What is wrong with an `art` object; empty when it is fine (ART-1, ART-4).
+static func validate_art(art: Variant) -> PackedStringArray:
+	var out := PackedStringArray()
+	if not art is Dictionary:
+		out.append("must be an object")
+		return out
+	for key in ART_KEYS:
+		if not (art.get(key) is String and not (art[key] as String).strip_edges().is_empty()):
+			out.append("%s must be a non-empty string" % key)
+	if art.get("url") is String and not Art.url_allowed(art["url"]):
+		out.append("url must be an https URL on cdn2.steamgriddb.com or cdn.steamgriddb.com")
+	if art.get("source") is String and not (art["source"] as String).begins_with(ART_SOURCE):
+		out.append("source must be a page on steamgriddb.com")
 	return out
 
 

@@ -6,6 +6,12 @@
       "game": "The Legend of Zelda: Ocarina of Time",
       "description": "The PC port of Ocarina of Time, with widescreen, a randomizer and many options.",
       "repo": "HarbourMasters/Shipwright",
+      "art": {
+        "url": "https://cdn2.steamgriddb.com/grid/8c7c866a13f952e17395811408d2fd1b.png",
+        "author": "Corgana",
+        "source": "https://www.steamgriddb.com/grid/30300",
+        "style": "alternate"
+      },
       "asset_suffix": ".appimage",
       "archive": ["oot.o2r", "oot-mq.o2r"],
       "launch": { "executable": "soh.appimage", "cwd": "data", "args": [] },
@@ -40,6 +46,12 @@
       "game": "The Legend of Zelda: Majora's Mask",
       "description": "The PC port of Majora's Mask, with widescreen, enhancements and mod support.",
       "repo": "2ship2harkinian/2ship2harkinian",
+      "art": {
+        "url": "https://cdn2.steamgriddb.com/grid/1bbd8746b185f6d539461fc40141577a.png",
+        "author": "Corgana",
+        "source": "https://www.steamgriddb.com/grid/30298",
+        "style": "alternate"
+      },
       "asset_suffix": "-linux.zip",
       "archive": ["mm.o2r"],
       "launch": { "executable": "2ship.appimage", "cwd": "data", "args": [] },
@@ -57,6 +69,12 @@
       "game": "Star Fox 64",
       "description": "The PC port of Star Fox 64, with widescreen and a modern controller layout.",
       "repo": "HarbourMasters/Starship",
+      "art": {
+        "url": "https://cdn2.steamgriddb.com/grid/fe93fd567b9aafe3cc3372a19309fc6a.png",
+        "author": "Corgana",
+        "source": "https://www.steamgriddb.com/grid/30303",
+        "style": "alternate"
+      },
       "asset_suffix": "-linux.zip",
       "archive": ["sf64.o2r"],
       "launch": { "executable": "starship.appimage", "cwd": "data", "args": [] },
@@ -74,6 +92,12 @@
       "game": "Mario Kart 64",
       "description": "The PC port of Mario Kart 64, with widescreen and online-ready improvements.",
       "repo": "HarbourMasters/SpaghettiKart",
+      "art": {
+        "url": "https://cdn2.steamgriddb.com/grid/58836fbe6a74d8fbef6dbce688905c71.png",
+        "author": "Corgana",
+        "source": "https://www.steamgriddb.com/grid/30299",
+        "style": "alternate"
+      },
       "asset_suffix": "spaghetti-linux.zip",
       "archive": ["mk64.o2r"],
       "launch": { "executable": "spaghetti.appimage", "cwd": "data", "args": [] },
