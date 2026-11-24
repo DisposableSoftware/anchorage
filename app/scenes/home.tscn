@@ -300,6 +300,12 @@ layout_mode = 2
 text = "Check for updates"
 alignment = 0
 
+[node name="RomFolderButton" type="Button" parent="MenuLayer/Menu/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "ROM folder"
+alignment = 0
+
 [node name="RemoveButton" type="Button" parent="MenuLayer/Menu/Box"]
 unique_name_in_owner = true
 layout_mode = 2

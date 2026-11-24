@@ -193,15 +193,17 @@ func test_info_has_the_contract_keys_in_catalog_order() -> void:
 
 
 func test_ports_has_every_method_and_signal_the_screens_use() -> void:
-	var ports: Node = Ports.new()
-	for method in (
-		["list", "info", "install", "update", "remove", "launch", "cancel", "refresh"]
-		+ ["dismiss_error"]
-	):
-		check(ports.has_method(method), method)
-	for sig in ["changed", "launched", "exited"]:
-		check(ports.has_signal(sig), sig)
-	ports.free()
+	for ports: Node in [Ports.new(), PortsFake.new()]:
+		for method in (
+			["list", "info", "install", "update", "remove", "launch", "cancel", "refresh"]
+			+ ["dismiss_error", "rom_folder_info", "set_rom_folder", "browse", "search_sd_card"]
+			+ ["cancel_search", "search_info"]
+		):
+			check(ports.has_method(method), method)
+		for sig in ["changed", "launched", "exited"] + ["rom_folder_changed", "folder_listed"]:
+			check(ports.has_signal(sig), sig)
+		check(ports.has_signal("search_changed"), "search_changed")
+		ports.free()
 
 
 ## What in `source` breaks PORT-14. Comments are skipped, names are whole words whatever the
@@ -600,8 +602,7 @@ func test_the_scan_runs_on_a_thread_and_its_cache_is_saved() -> void:
 	check(ports._scan_job != null, "a refresh during a scan runs one more after it")
 	ports._scan_job.join()
 	check(ports._scan_job == null, "and only one")
-	ports.roms_dir = _dir.path_join("unmounted")
-	ports.refresh()
+	ports._use_folder(_dir.path_join("unmounted"), "config")
 	ports._scan_job.join()
 	eq(ports.info("alpha").rom.label, "ROM folder not found", "an unmounted card")
 	cache = State.load_from(_dir.path_join("state/state.ini")).rom_cache()

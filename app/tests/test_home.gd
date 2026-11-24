@@ -120,7 +120,7 @@ func test_detail_shows_versions_and_rom_status() -> void:
 	home = _make("rom-missing")
 	detail = home.get_node("%Detail").shown_text()
 	check(detail.contains("NTSC-U 1.0, NTSC-U 1.1 and 6 more"), "versions it takes: " + detail)
-	check(detail.contains("Looked in ~/Roms/n64"), "folder scanned (ROM-9)")
+	check(detail.contains("Looked in ~/Emulation/roms/n64"), "folder scanned (ROM-9)")
 	_done(home)
 
 
@@ -160,7 +160,10 @@ func test_accept_runs_the_primary_action() -> void:
 		eq(_calls(home), case[2], "%s: accept on %s (HOME-4)" % [case[0], case[1]])
 		if case[1] == "spaghettikart":
 			var notice: String = home.get_node("%Detail").notice()
-			check(notice.contains("~/Roms/n64") and notice.contains("X"), "ROM hint: " + notice)
+			check(
+				notice.contains("~/Emulation/roms/n64") and notice.contains("X"),
+				"ROM hint: " + notice
+			)
 		_done(home)
 
 

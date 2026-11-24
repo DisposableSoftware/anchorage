@@ -35,7 +35,8 @@ static func make_ports(args: PackedStringArray, cfg: RefCounted = null) -> Node:
 	if at < 0 and ResourceLoader.exists(PORTS):
 		var ports: Node = load(PORTS).new()
 		if cfg != null:
-			ports.roms_dir = cfg.roms_directory
+			ports.roms_dir = cfg.roms_directory if cfg.roms_directory_set else ""
+			ports.config_file = Config.dir().path_join("config.ini")
 			ports.check_updates = cfg.check_updates
 		return ports
 	var scenario := "showcase"

@@ -9,6 +9,7 @@ extends RefCounted
 ##              <id>.archive = <tag that made the archive>   <id>.rom_placed = <path>
 ##   [updates]  last_check = <unix seconds>
 ##   [roms]     cache = <one line of JSON>  (owned by the ROM code: path -> entry)
+##              directory = <the ROM folder chosen in the app (ROM-12)>
 
 const Ini := preload("res://src/ini.gd")
 const FIELDS := ["installed", "latest", "archive", "rom_placed"]
@@ -17,6 +18,7 @@ var path := ""
 var _ports := {}
 var _last_check := 0
 var _rom_cache := {}
+var _rom_dir := ""
 
 
 ## $XDG_STATE_HOME/anchorage/state.ini (default ~/.local/state).
@@ -53,6 +55,7 @@ static func load_from(file_path: String) -> RefCounted:
 	var json := JSON.new()
 	if json.parse(parsed.get("roms", {}).get("cache", "")) == OK and json.data is Dictionary:
 		state._rom_cache = json.data
+	state._rom_dir = parsed.get("roms", {}).get("directory", "")
 	return state
 
 
@@ -115,6 +118,16 @@ func set_rom_cache(cache: Dictionary) -> void:
 	save()
 
 
+## The ROM folder chosen in the app, "" when none was (ROM-12).
+func rom_dir() -> String:
+	return _rom_dir
+
+
+func set_rom_dir(dir: String) -> void:
+	_rom_dir = _line(dir)
+	save()
+
+
 ## Writes a temp file beside the real one and renames it over, so a kill never leaves a
 ## half-written state.ini. Returns false (and warns) when it could not.
 func save() -> bool:
@@ -156,8 +169,12 @@ func _serialise() -> String:
 			if not value.is_empty():
 				out += "%s.%s = %s\n" % [_line(id), field, value]
 	out += "\n[updates]\nlast_check = %d\n" % _last_check
+	if not _rom_cache.is_empty() or not _rom_dir.is_empty():
+		out += "\n[roms]\n"
+	if not _rom_dir.is_empty():
+		out += "directory = %s\n" % _rom_dir
 	if not _rom_cache.is_empty():
-		out += "\n[roms]\ncache = %s\n" % JSON.stringify(_rom_cache)
+		out += "cache = %s\n" % JSON.stringify(_rom_cache)
 	return out
 
 

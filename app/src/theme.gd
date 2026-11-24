@@ -207,6 +207,13 @@ static func _buttons(t: Theme, c: Dictionary, bold: Font) -> void:
 		t.set_color(state, "DangerButton", readable(c.red, c.surface0, TEXT_CONTRAST))
 	t.set_color("font_disabled_color", "Button", c.overlay0)
 	t.set_type_variation("DangerButton", "Button")
+	# The current one of a list (the chooser's starting point): the selection fill, no ring.
+	var current := normal.duplicate() as StyleBoxFlat
+	current.bg_color = c.surface0.lerp(c.accent, 0.25)
+	current.border_color = current.bg_color
+	t.set_type_variation("CurrentButton", "Button")
+	t.set_stylebox("normal", "CurrentButton", current)
+	t.set_stylebox("hover", "CurrentButton", current)
 
 
 static func _progress(t: Theme, c: Dictionary) -> void:
