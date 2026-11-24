@@ -180,6 +180,19 @@ static func extract_zip(zip_path: String, dest: String) -> String:
 	return ""
 
 
+## The SHA-256 of a file in lowercase hex, read 1 MiB at a time; empty when it can't be read.
+static func sha256_of_file(path: String) -> String:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return ""
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	while file.get_position() < file.get_length():
+		ctx.update(file.get_buffer(1 << 20))
+	file.close()
+	return ctx.finish().hex_encode()
+
+
 ## A zip entry name that stays inside the folder it is unpacked to.
 static func safe_entry(entry: String) -> bool:
 	if entry.is_empty() or entry.begins_with("/") or entry.contains("\\"):
@@ -241,7 +254,7 @@ func _on_downloaded(port: Dictionary, release: Dictionary, result: Dictionary) -
 		return
 	_report("unpack", 0, 1)
 	_offload(
-		_unpack.bind(port, archive, release["asset"]["name"], download.path_join("staging")),
+		_unpack.bind(port, archive, release["asset"], download.path_join("staging")),
 		func(error: String) -> void: _on_unpacked(port, release, error)
 	)
 
@@ -266,10 +279,13 @@ func _on_unpacked(port: Dictionary, release: Dictionary, error: String) -> void:
 
 
 ## Runs on a worker thread: touches only files, never a node.
-func _unpack(port: Dictionary, archive: String, asset_name: String, staging: String) -> String:
+func _unpack(port: Dictionary, archive: String, asset: Dictionary, staging: String) -> String:
+	var digest: String = asset.get("sha256", "")
+	if not digest.is_empty() and sha256_of_file(archive) != digest:
+		return "The download does not match the release's SHA-256 digest"
 	DirAccess.make_dir_recursive_absolute(staging)
 	var executable: String = port["launch"]["executable"]
-	if asset_name.to_lower().ends_with(".zip"):
+	if (asset["name"] as String).to_lower().ends_with(".zip"):
 		var error := extract_zip(archive, staging)
 		if not error.is_empty():
 			return error

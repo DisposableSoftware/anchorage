@@ -179,6 +179,34 @@ func test_a_size_that_does_not_match_the_release_fails() -> void:
 	remove(_dir)
 
 
+func _sha256(path: String) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	ctx.update(FileAccess.get_file_as_bytes(path))
+	return ctx.finish().hex_encode()
+
+
+func test_the_sha256_digest_is_checked_when_the_release_has_one() -> void:
+	_setup("inst_digest")
+	_install_old()
+	var zip := _good_zip()
+	_http.files[ZIP_URL] = zip
+	var release := _release(zip)
+	release["asset"]["sha256"] = "0".repeat(64)
+	var result := _run("update", _port(), release)
+	check(not result["ok"], "a wrong digest fails (PORT-3)")
+	check("SHA-256" in result["error"], "says why: %s" % result["error"])
+	check(_old_is_intact(), "the old version stays")
+	check(not DirAccess.dir_exists_absolute(Installer.download_dir(_root, "starship")), "cleaned")
+	release["asset"]["sha256"] = _sha256(zip)
+	result = _run("update", _port(), release)
+	check(result["ok"], "the right digest installs: %s" % result["error"])
+	release["asset"].erase("sha256")
+	result = _run("update", _port(), release)
+	check(result["ok"], "no digest (Starship v2.0.0): the size is enough")
+	remove(_dir)
+
+
 func test_hostile_zip_entries_are_rejected_before_anything_is_written() -> void:
 	for bad in ["../evil.txt", "/abs/evil.txt", "a/../../evil.txt", "..\\evil.txt", "C:/evil.txt"]:
 		_setup("inst_evil")

@@ -6,7 +6,8 @@ extends RefCounted
 ## in the app, `res://tests/fake_http.gd` in tests. Nothing here blocks: results arrive in
 ## callbacks.
 ##
-## A release is {tag: String, published_at: String, asset: {name, url, size: int}}.
+## A release is {tag: String, published_at: String, asset: {name, url, size: int, sha256}};
+## `sha256` is the asset's digest in lowercase hex, empty when GitHub lists none.
 
 const API := "https://api.github.com/repos/%s/releases/latest"
 const CHECK_INTERVAL := 3600
@@ -27,27 +28,41 @@ static func parse_latest(port: Dictionary, data: Variant) -> Dictionary:
 	var tag: String = data["tag_name"]
 	if tag.is_empty() or data.get("draft") == true or data.get("prerelease") == true:
 		return {"ok": false, "error": "No stable release"}
-	for asset in data["assets"]:
-		if not (asset is Dictionary and asset.get("name") is String):
-			continue
-		if not (asset["name"] as String).to_lower().ends_with(port["asset_suffix"]):
-			continue
-		var url: Variant = asset.get("browser_download_url")
-		if not (url is String and url_allowed(port, url)):
-			return {"ok": false, "error": "Release %s has an asset from an unexpected URL" % tag}
-		var size := int(asset.get("size", 0))
-		if size <= 0:
-			return {"ok": false, "error": "Release %s lists an empty asset" % tag}
-		return {
-			"ok": true,
-			"release":
-			{
-				"tag": tag,
-				"published_at": str(data.get("published_at", "")),
-				"asset": {"name": asset["name"], "url": url, "size": size},
-			},
-		}
-	return {"ok": false, "error": "Release %s has no Linux download" % tag}
+	var matches := (data["assets"] as Array).filter(
+		func(asset: Variant) -> bool:
+			return (
+				asset is Dictionary
+				and asset.get("name") is String
+				and (asset["name"] as String).to_lower().ends_with(port["asset_suffix"])
+			)
+	)
+	if matches.is_empty():
+		return {"ok": false, "error": "Release %s has no Linux download" % tag}
+	if matches.size() > 1:
+		return {"ok": false, "error": "Release %s has more than one Linux download" % tag}
+	var asset: Dictionary = matches[0]
+	var url: Variant = asset.get("browser_download_url")
+	if not (url is String and url_allowed(port, url)):
+		return {"ok": false, "error": "Release %s has an asset from an unexpected URL" % tag}
+	var size := int(asset.get("size", 0))
+	if size <= 0:
+		return {"ok": false, "error": "Release %s lists an empty asset" % tag}
+	# GitHub lists "sha256:<hex>" for assets uploaded since mid 2025, null before (PORT-3).
+	var sha256 := ""
+	var digest: Variant = asset.get("digest")
+	if digest is String and (digest as String).to_lower().begins_with("sha256:"):
+		sha256 = (digest as String).substr(7).to_lower()
+		if not RegEx.create_from_string("^[0-9a-f]{64}$").search(sha256):
+			return {"ok": false, "error": "Release %s lists a broken digest" % tag}
+	return {
+		"ok": true,
+		"release":
+		{
+			"tag": tag,
+			"published_at": str(data.get("published_at", "")),
+			"asset": {"name": asset["name"], "url": url, "size": size, "sha256": sha256},
+		},
+	}
 
 
 ## PORT-13: only release assets of the catalog's own repo, over https from github.com.

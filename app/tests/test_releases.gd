@@ -69,6 +69,31 @@ func test_suffix_for_a_bare_appimage_and_a_fixed_name() -> void:
 	)
 
 
+func test_the_sha256_digest_is_kept_when_github_lists_one() -> void:
+	var hex := "e4bb775c9a0c3629ebac57e4b6ccba6d0b621d71ab201e9105aceef9141ad1f4"
+	var asset := _asset("Starship-Linux.zip")
+	asset["digest"] = "sha256:" + hex.to_upper()
+	var parsed := Releases.parse_latest(_port(), _release_json([asset]))
+	eq(parsed["release"]["asset"].get("sha256"), hex, "sha256 hex, lowercase")
+	asset["digest"] = null
+	parsed = Releases.parse_latest(_port(), _release_json([asset]))
+	eq(parsed["release"]["asset"].get("sha256"), "", "Starship v2.0.0 has none: size only")
+	asset["digest"] = "sha512:" + hex + hex
+	parsed = Releases.parse_latest(_port(), _release_json([asset]))
+	eq(parsed["release"]["asset"].get("sha256"), "", "another algorithm: size only")
+	for odd in ["sha256:xyz", "sha256:" + hex.left(10)]:
+		asset["digest"] = odd
+		parsed = Releases.parse_latest(_port(), _release_json([asset]))
+		check(not parsed["ok"], "a broken sha256 digest is refused: %s" % odd)
+
+
+func test_two_assets_with_the_suffix_are_refused() -> void:
+	var data := _release_json([_asset("a-Linux.zip"), _asset("b-Linux.zip")])
+	var parsed := Releases.parse_latest(_port(), data)
+	check(not parsed["ok"], "two matches: no guess (PORT-2)")
+	check("more than one" in parsed.get("error", ""), "says why: %s" % parsed.get("error"))
+
+
 func test_no_matching_asset_is_an_error_with_the_tag() -> void:
 	var parsed := Releases.parse_latest(_port(), _release_json([_asset("x-Windows.zip")]))
 	check(not parsed["ok"], "no match")
