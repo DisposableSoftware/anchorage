@@ -42,3 +42,15 @@ How Anchorage finds, installs, updates, launches and removes the HarbourMasters 
   - Under gamescope the ports force fullscreen and disable ImGui viewports themselves; their file pickers are unusable in game mode, which is why ROMs are placed before launch.
 - **Launching.** `app/src/launcher.gd` builds the child environment from Anchorage's own (`/proc/self/environ`) and starts the port through `/bin/sh`, which unsets and exports the differences, changes to the working directory, sends the output to `launch.log` and `exec`s the port. `OS.create_process` takes neither a working directory nor an environment, and changing Anchorage's own environment around the spawn would race its other threads. Exit is detected by polling `OS.is_process_running` from `Ports._process`.
 - The research behind these notes, with the accepted SHA1 list for every port, is in [docs/research/ports.md](../docs/research/ports.md). The catalog is the source of truth for hashes once it exists.
+
+## First launch (found by research, 2026-11)
+
+Every port makes its game files (`.o2r`) from the ROM on the first launch, and asks before it does. The prompts cannot all be answered with a gamepad (research: [docs/research/first-run-extraction.md](../docs/research/first-run-extraction.md), read from source at the release tags, not run on a Deck):
+
+- Shipwright and 2ship2harkinian use ImGui popups, whose gamepad navigation is off by default on Linux. Given the ROM as a command-line argument they extract straight away, with a progress popup and none of the "Generate one now?" prompts. After it they ask `Run SoH?`.
+- SpaghettiKart and Starship use `SDL_ShowMessageBox`, which takes mouse and keyboard only (the Deck's trackpad works as a mouse in the default non-Steam layout). SpaghettiKart skips its ROM picker when a valid `.z64` is in its working directory; Starship always shows a picker.
+
+| ID | Requirement | Status | Verified by |
+|----|-------------|--------|-------------|
+| `PORT-16` | For a port whose catalog `rom_place` is `argv` (Shipwright, 2ship2harkinian) and whose archive is missing, Anchorage passes the prepared ROM's path as a command-line argument, so the port extracts without asking. The ROM copy is written under the data folder and deleted once the archive exists. The other `rom_place` values behave as `PORT-9` says. | planned | `test_launcher` (fake port: argument present only while the archive is missing) |
+| `PORT-17` | The catalog gives each port a `first_run` text, and the detail panel shows it while the port has no archive. For SpaghettiKart and Starship it says that the first launch needs a mouse or keyboard once (the trackpad works) and that later launches do not; for Shipwright and 2ship2harkinian it says the first launch makes the game files and that Play must be pressed again if the port asks to run. Nothing is shown once the archive exists. | planned | `test_home`; screenshot |
