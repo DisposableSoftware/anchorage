@@ -312,7 +312,7 @@ func _show_playing(card: Control) -> void:
 	var variant := _cards.find(card) % Style.EMBLEM_COLORS.size()
 	_playing_emblem.theme_type_variation = "Emblem%d" % variant
 	_playing_monogram.theme_type_variation = "Monogram%d" % variant
-	_playing_monogram.text = PortState.monogram(info.game)
+	_playing_monogram.text = PortState.short_name(info)
 	_playing_game.text = PortState.split_title(info.game)[1]
 	_playing_note.text = "%s is running. Anchorage comes back when it closes." % info.name
 	_current = card

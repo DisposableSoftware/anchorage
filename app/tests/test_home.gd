@@ -367,6 +367,17 @@ func test_monogram_and_title_split() -> void:
 	eq(PortState.monogram("The Legend of Zelda: Majora's Mask"), "MM", "MM")
 	eq(PortState.monogram("Star Fox 64"), "SF64", "SF64")
 	eq(PortState.monogram("Mario Kart 64"), "MK64", "MK64")
+	eq(PortState.monogram("Super Mario 64"), "SM64", "SM64")
+	eq(PortState.short_name({"game": "Paper Mario", "monogram": "PM64"}), "PM64", "catalog's")
+	eq(PortState.short_name({"game": "Super Mario 64", "monogram": ""}), "SM64", "built")
+	var home := _make("fresh")
+	for id in {"ghostship": "SM64", "paperboat": "PM64", "lighthouse": "BK"}:
+		eq(
+			home.card_for(id).get_node("%Monogram").text,
+			{"ghostship": "SM64", "paperboat": "PM64", "lighthouse": "BK"}[id],
+			"%s card" % id
+		)
+	_done(home)
 	eq(PortState.split_title("Star Fox 64"), ["", "Star Fox 64"] as Array[String], "no kicker")
 
 
