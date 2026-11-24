@@ -49,6 +49,25 @@
             touch $out
           '';
         }
+        # INT-28, INT-29, INT-33, INT-34: the SteamOS installer against fake Steam folders and
+        # a fake GitHub on 127.0.0.1. The installer refuses anything but x86_64.
+        // nixpkgs.lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
+          steam-install =
+            pkgs.runCommand "anchorage-steam-install"
+              {
+                nativeBuildInputs = with pkgs; [
+                  (python3.withPackages (ps: [ ps.vdf ]))
+                  shellcheck
+                  curl
+                  desktop-file-utils
+                ];
+              }
+              ''
+                cp -r ${./scripts} scripts && cp -r ${./data} data && chmod -R u+w scripts data
+                bash scripts/manual/steam-install.sh
+                touch $out
+              '';
+        }
       );
 
       formatter = forAll (pkgs: pkgs.nixfmt);

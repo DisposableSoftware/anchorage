@@ -46,14 +46,14 @@ Also note anything the user should know before a release, without stopping for i
    - Keep commit lines that change what a user sees or installs, reworded as a plain sentence if the subject is terse.
    - Drop lines for work only developers see: skills, `CLAUDE.md`, spec-only edits, manual test scripts, `Reproduce …` commits.
    - If nothing is left, write one line that says what the release fixes or changes.
-3. **Build the AppImage** from the tagged commit, before pushing, so a build failure leaves nothing published: `nix develop -c scripts/build-appimage.sh` (`INT-25`, `INT-26`). It writes `dist/Anchorage-X.Y.Z-x86_64.AppImage`. If it fails, stop and show why: the commit and tag stay local.
+3. **Build the AppImage and stage the assets** from the tagged commit, before pushing, so a build failure leaves nothing published: `nix develop -c scripts/build-appimage.sh` (`INT-25`, `INT-26`) writes `dist/Anchorage-X.Y.Z-x86_64.AppImage`, then `scripts/release-assets.sh X.Y.Z` (`INT-28`, `INT-34`) stages everything the release attaches in `dist/vX.Y.Z/`: the AppImage, `steam-{portrait,wide,hero,logo,icon}.png`, the app icon SVG, `install-steamos.sh` pinned to this version, and `SHA256SUMS` over them. `scripts/install-steamos.sh` downloads these by name and checks them against `SHA256SUMS`, so a release without one of them breaks the SteamOS install. If either step fails, stop and show why: the commit and tag stay local.
 4. `NO_RELEASE_CHECK=1 git push origin main vX.Y.Z`.
-5. `gh release create vX.Y.Z --title "Anchorage X.Y.Z" -F NOTES dist/Anchorage-X.Y.Z-x86_64.AppImage`. The release must carry the AppImage: don't create it without.
+5. `gh release create vX.Y.Z --title "Anchorage X.Y.Z" -F NOTES dist/vX.Y.Z/*`. The release must carry every file in `dist/vX.Y.Z/`: do not create it without them.
 
-If the push fails, the release commit and tag stay local: report that and the commands to finish, and don't force anything. If `gh release create` fails after the push, show its error and the command to retry (with the AppImage). Never delete or move a tag that was pushed.
+If the push fails, the release commit and tag stay local: report that and the commands to finish, and don't force anything. If `gh release create` fails after the push, show its error and the command to retry (with `dist/vX.Y.Z/*`); if the release exists but lacks files, `gh release upload vX.Y.Z dist/vX.Y.Z/*` adds them. Never delete or move a tag that was pushed.
 
 ## 5. Report
 
 - What was pushed (the commit range), and the level with its reasons, or the override.
-- For a release: the tag, the release URL that `gh` printed, the AppImage that was attached (name and size), and the final notes.
+- For a release: the tag, the release URL that `gh` printed, the files that were attached (names, and the AppImage size), and the final notes.
 - Anything from step 2 the user should know: the verification backlog, `planned` rows the commits mention.

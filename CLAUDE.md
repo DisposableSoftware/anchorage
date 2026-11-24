@@ -82,6 +82,9 @@ scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a he
 scripts/release-check.sh recommended version bump since the last v* tag (spec delta)
 scripts/release.sh       bump, commit "Anchorage X.Y.Z", tag, draft notes (no push)
 scripts/build-appimage.sh builds the AppImage into dist/ (git-ignored)             INT-26
+scripts/release-assets.sh stages a release's files in dist/vX.Y.Z/: AppImage, Steam art, icon, pinned install-steamos.sh, SHA256SUMS   INT-28 INT-34
+scripts/install-steamos.sh SteamOS one-command install (curl | bash): AppImage, desktop entry, Steam shortcut and art; bash VDF reader/writer   INT-28 INT-29 INT-33 INT-34
+scripts/manual/steam-install.sh the installer against fake Steam folders and a fake GitHub (steam-install/: fixtures.py, check.py with ValvePython's vdf)   INT-28 INT-29 INT-33 INT-34
 .githooks/pre-push       on a push of main, offers to release
 data/                    desktop entry, metainfo, app icon and symbolic icon (drawn by tools/steam-art)   INT-2 INT-41 INT-42
 data/steam/              Steam library art: portrait, wide, hero, logo (SVG + PNG) and icon.png; generated   INT-27
@@ -116,11 +119,15 @@ spec/                    the specification
 
 ## Releasing
 
-`scripts/release-check.sh` recommends a bump from the commits since the last `v*` tag: major for `BREAKING` or a removed config key or binding, minor when a requirement became `done` or `partial`, patch for other package changes. `scripts/release.sh LEVEL NOTES` bumps `config/version` in `app/project.godot` and the metainfo, runs the tests, commits and tags, and drafts notes; then `git push origin main vX.Y.Z` and `gh release create vX.Y.Z -F NOTES`. With the hook enabled, pushing main offers all of this (`NO_RELEASE_CHECK=1` skips it). `/release` (`.claude/skills/release/`) runs all of this: it pushes main, releases a patch or minor bump without asking, and asks first for a major one. Otherwise ask before pushing.
+`scripts/release-check.sh` recommends a bump from the commits since the last `v*` tag: major for `BREAKING` or a removed config key or binding, minor when a requirement became `done` or `partial`, patch for other package changes. `scripts/release.sh LEVEL NOTES` bumps `config/version` in `app/project.godot` and the metainfo, runs the tests, commits and tags, and drafts notes; then `scripts/build-appimage.sh`, `scripts/release-assets.sh X.Y.Z` (stages `dist/vX.Y.Z/`), `git push origin main vX.Y.Z` and `gh release create vX.Y.Z -F NOTES dist/vX.Y.Z/*`. `scripts/install-steamos.sh` downloads those files by name and checks them against `SHA256SUMS`, so every release needs all of them. With the hook enabled, pushing main offers all of this (`NO_RELEASE_CHECK=1` skips it). `/release` (`.claude/skills/release/`) runs all of this: it pushes main, releases a patch or minor bump without asking, and asks first for a major one. Otherwise ask before pushing.
 
 ## Manual testing
 
 Prefer adding a script to `scripts/manual/` (source `lib.sh`, which has the guards below built in) over ad-hoc commands. Each script names the spec IDs it checks. Run it after `nix build`.
+
+### SteamOS installer
+
+`scripts/manual/steam-install.sh` (`nix flake check` runs it as `checks.x86_64-linux.steam-install`) tests `scripts/install-steamos.sh` without Steam or the network: fake HOMEs and Steam folders, a fake `pgrep` for "Steam is running", and a fake GitHub API and release on 127.0.0.1, which the installer reaches through `ANCHORAGE_API_URL` and `ANCHORAGE_DOWNLOAD_BASE` (test hooks only). It reads the results with ValvePython's `vdf`, never with the installer's own parser. `KEEP=1` keeps the temp dir. The installer reads nothing from stdin (it runs as `curl | bash`), and it uses only bash, curl and coreutils: no python3, jq or xxd. Steam showing the shortcut and its art can only be checked on a Deck. The decisions and sources are in `spec/integration.md`, "Implementation notes: the SteamOS installer".
 
 ### Fake ports and screenshots
 
