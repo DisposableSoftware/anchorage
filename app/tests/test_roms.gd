@@ -213,6 +213,102 @@ func test_scan_job_runs_on_a_thread() -> void:
 	remove(dir)
 
 
+## Quitting during a scan must not wait for the whole folder (ROM-4): the scan stops
+## between files and between zip entries once asked to.
+func test_a_scan_stops_when_asked() -> void:
+	var dir := temp_dir("roms-stop")
+	for i in 5:
+		_write(dir.path_join("r%d.z64" % i), _rom(i))
+	_zip(dir.path_join("z.zip"), {"a.z64": _rom(7), "b.z64": _rom(8), "c.z64": _rom(9)})
+	var asked := [0]
+	var stop := func() -> bool:
+		asked[0] += 1
+		return asked[0] > 2
+	var result := Roms.scan(dir, _hashes(), {}, Roms.MAX_ROM_SIZE, stop)
+	eq(result["status"], "aborted", "an aborted scan says so")
+	check(result["hashed"] <= 2, "stopped early: %d hashed" % result["hashed"])
+	var zip_only := temp_dir("roms-stop-zip")
+	_zip(zip_only.path_join("z.zip"), {"a.z64": _rom(7), "b.z64": _rom(8), "c.z64": _rom(9)})
+	asked[0] = 0
+	result = Roms.scan(zip_only, _hashes(), {}, Roms.MAX_ROM_SIZE, stop)
+	check(result["hashed"] < 3, "stopped between zip entries: %d hashed" % result["hashed"])
+	eq(result["cache"], {}, "a half-read zip is not cached")
+	remove(dir)
+	remove(zip_only)
+
+
+func test_a_scan_job_can_be_aborted() -> void:
+	var dir := temp_dir("roms-abort")
+	var big := PackedByteArray([0x80, 0x37, 0x12, 0x40])
+	big.resize(4 << 20)
+	for i in 30:
+		big[8] = i
+		_write(dir.path_join("r%02d.z64" % i), big)
+	var job := Roms.ScanJob.new()
+	var got := []
+	job.finished.connect(func(r: Dictionary): got.append(r))
+	job.start(dir, _hashes(), {})
+	job.abort()
+	job.join()
+	eq(got.size(), 1, "finished still comes")
+	eq(got[0]["status"], "aborted", "and says it stopped")
+	check(got[0]["hashed"] < 30, "before the end: %d of 30" % got[0]["hashed"])
+	remove(dir)
+
+
+## ROM-2: sizes come from the zip's central directory, so an oversized entry is skipped
+## without being read, and a file over the limit is never read whole.
+func test_zip_entry_sizes_come_from_the_central_directory() -> void:
+	var dir := temp_dir("roms-zipsize")
+	var big := PackedByteArray()
+	big.resize(5000)
+	_zip(dir.path_join("z.zip"), {"small.z64": _rom(1), "dir/big.n64": big})
+	var sizes := Roms.zip_sizes(dir.path_join("z.zip"))
+	eq([sizes.get("small.z64"), sizes.get("dir/big.n64")], [1024, 5000], "sizes by name")
+	_write(dir.path_join("junk.zip"), "not a zip".to_utf8_buffer())
+	eq(Roms.zip_sizes(dir.path_join("junk.zip")), {}, "not a zip: nothing")
+	remove(dir)
+
+
+## ROM-6: "next to its source" is decided on real paths, so a link into the ROM folder or
+## a path with `..` can't make prepare write there.
+func test_prepare_never_writes_into_the_rom_folder_through_a_link() -> void:
+	var dir := temp_dir("roms-guard")
+	var roms := dir.path_join("roms")
+	DirAccess.make_dir_recursive_absolute(roms)
+	_write(roms.path_join("a.z64"), _rom(1))
+	OS.execute("ln", ["-s", roms, dir.path_join("data")])
+	var before := _snapshot(roms)
+	var match: Dictionary = Roms.scan(roms, _hashes(), {})["matches"]["alpha"]
+	eq(
+		Roms.prepare(match, dir.path_join("data/alpha.z64")),
+		ERR_INVALID_PARAMETER,
+		"a data folder that links to the ROM folder"
+	)
+	eq(
+		Roms.prepare(match, dir.path_join("other/../roms/alpha.z64")),
+		ERR_INVALID_PARAMETER,
+		"a path with .."
+	)
+	eq(_snapshot(roms), before, "the ROM folder is unchanged")
+	eq(Roms.real_path(dir.path_join("data/alpha.z64")), roms.path_join("alpha.z64"), "real_path")
+	remove(dir)
+
+
+## The file is checked again when it is copied: one changed since the scan is not used.
+func test_prepare_checks_the_sha1_again() -> void:
+	var dir := temp_dir("roms-recheck")
+	var roms := dir.path_join("roms")
+	DirAccess.make_dir_recursive_absolute(roms)
+	_write(roms.path_join("a.z64"), _rom(1))
+	var match: Dictionary = Roms.scan(roms, _hashes(), {})["matches"]["alpha"]
+	_write(roms.path_join("a.z64"), _rom(2))
+	var out := dir.path_join("data/alpha.z64")
+	eq(Roms.prepare(match, out), ERR_FILE_CORRUPT, "changed since the scan")
+	check(not FileAccess.file_exists(out), "nothing written")
+	remove(dir)
+
+
 func test_expand_dir() -> void:
 	eq(Roms.expand_dir("~/Roms/n64"), OS.get_environment("HOME").path_join("Roms/n64"), "tilde")
 	eq(Roms.expand_dir("/x/y"), "/x/y", "absolute unchanged")

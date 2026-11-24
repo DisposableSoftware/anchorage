@@ -174,6 +174,13 @@ static func prepare(root: String, port: Dictionary, rom: Dictionary) -> Dictiona
 	if not rom.get("found", false) or str(rom.get("path", "")).is_empty():
 		return {"ok": true, "error": "", "placed": ""}
 	var err := Roms.prepare(rom, target)
+	if err == ERR_FILE_CORRUPT:
+		return {
+			"ok": false,
+			"error":
+			"%s changed since it was scanned. Refresh and try again." % rom["path"].get_file(),
+			"placed": "",
+		}
 	if err != OK:
 		return {
 			"ok": false,

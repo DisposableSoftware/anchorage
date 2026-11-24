@@ -24,9 +24,12 @@ extends RefCounted
 ## line. A failed or cancelled run leaves `current/` as it was and removes `download/`.
 
 const Releases := preload("res://src/releases.gd")
+const Roms := preload("res://src/roms.gd")
 const EXECUTABLE_MODE := 493  # rwxr-xr-x
 ## A copy of an extra file is made under this name beside its target, then renamed over it.
 const NEW_SUFFIX := ".anchorage-new"
+## The largest zip entry unpacked (the AppImages are 30 to 80 MB).
+const MAX_ENTRY_BYTES := 1 << 30
 
 ## Unpack on a worker thread (the app). Tests turn it off to run inline.
 var threaded := true
@@ -155,15 +158,20 @@ static func _is_link(path: String) -> bool:
 
 ## Unpacks `zip_path` into `dest`. Every entry is checked before anything is written.
 ## Returns an error text, empty on success.
-static func extract_zip(zip_path: String, dest: String) -> String:
+static func extract_zip(zip_path: String, dest: String, max_entry := MAX_ENTRY_BYTES) -> String:
 	var zip := ZIPReader.new()
 	if zip.open(zip_path) != OK:
 		return "The download is not a valid zip file"
 	var entries := zip.get_files()
+	# ZIPReader reads an entry whole, so its size is checked first, from the central directory.
+	var sizes := Roms.zip_sizes(zip_path)
 	for entry in entries:
 		if not safe_entry(entry):
 			zip.close()
 			return "The zip has an unsafe entry “%s”" % entry
+		if int(sizes.get(entry, max_entry + 1)) > max_entry:
+			zip.close()
+			return "The zip entry “%s” is too large to unpack" % entry
 	for entry in entries:
 		var target := dest.path_join(entry)
 		if entry.ends_with("/"):

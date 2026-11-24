@@ -369,6 +369,18 @@ func test_extra_folders_are_copied_to_data_and_replaced_on_update() -> void:
 	remove(_dir)
 
 
+func test_a_zip_entry_over_the_limit_is_refused_before_it_is_read() -> void:
+	_setup("inst_entry_limit")
+	var zip := _dir.path_join("big.zip")
+	_zip(zip, {"small.txt": "x", "big.bin": "y".repeat(5000)})
+	var dest := _dir.path_join("dest")
+	var error := Installer.extract_zip(zip, dest, 1000)
+	eq(error, "The zip entry “big.bin” is too large to unpack", "refused by its listed size")
+	check(not DirAccess.dir_exists_absolute(dest), "nothing written")
+	eq(Installer.extract_zip(zip, dest), "", "under the default limit it unpacks")
+	remove(_dir)
+
+
 func test_a_write_error_while_unpacking_fails() -> void:
 	_setup("inst_full")
 	if not FileAccess.file_exists("/dev/full"):

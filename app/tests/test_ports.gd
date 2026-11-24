@@ -397,6 +397,36 @@ func test_launch_places_the_rom_runs_and_comes_back() -> void:
 	_free(ports)
 
 
+## A launch while the ROM scan runs (the one at start has no ROMs yet) waits for it, so the
+## ROM is placed (PORT-9, ROM-4).
+func test_a_launch_during_a_scan_waits_for_its_result() -> void:
+	_setup("ports_launch_scan")
+	_put_rom()
+	_publish("alpha", "1.0")
+	var ports := _make()
+	ports.install("alpha")
+	ports.get_parent().remove_child(ports)
+	ports.free()
+	ports = _make(false, true)
+	var placed := []
+	var data := _dir.path_join("ports/alpha/data")
+	ports.launched.connect(
+		func(_id: String) -> void:
+			placed.append(FileAccess.file_exists(data.path_join("alpha.z64")))
+	)
+	check(ports._scan_job != null, "the start scan runs")
+	ports.launch("alpha")
+	eq(ports.info("alpha").busy.detail, "Looking for ROMs", "the launch waits for the scan")
+	var tree := Engine.get_main_loop() as SceneTree
+	for _i in 200:
+		if not placed.is_empty():
+			break
+		await tree.process_frame
+	eq(placed, [true], "launched once, with the ROM in place")
+	_wait_exit(ports, "alpha")
+	_free(ports)
+
+
 func test_a_port_that_fails_at_once_shows_why() -> void:
 	_setup("ports_crash")
 	_publish("alpha", "1.0", 0.0, 127)

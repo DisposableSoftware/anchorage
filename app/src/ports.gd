@@ -59,6 +59,9 @@ var _roms := {}
 var _scan_status := ""
 var _scan_job: RefCounted
 var _scan_again := false
+## Launches asked for while a scan ran: they start with its result (the first scan at start
+## has no ROMs yet).
+var _launch_after_scan: Array[String] = []
 var _checking := false
 ## Installs and updates waiting for the one download at a time (PORT-12), and the
 ## running one: {action, id, installer, cancelled, ended}.
@@ -101,6 +104,7 @@ func _exit_tree() -> void:
 	_queue.clear()
 	if _scan_job != null:
 		_scan_job.finished.disconnect(_on_scanned)
+		_scan_job.abort()
 		_scan_job.join()
 		_scan_job = null
 	if not _active.is_empty() and _active.get("installer") != null:
@@ -169,6 +173,16 @@ func launch(id: String) -> void:
 	if not _ports.has(id) or _is_busy(id) or not _installed(id):
 		return
 	_errors.erase(id)
+	if _scan_job != null:
+		_busy[id] = {"action": "launch", "progress": -1.0, "detail": "Looking for ROMs"}
+		_launch_after_scan.append(id)
+		changed.emit(id)
+		return
+	_prepare_launch(id)
+
+
+## Places the ROM and the extra files on the worker pool, then starts the port (PORT-9).
+func _prepare_launch(id: String) -> void:
 	_busy[id] = {"action": "launch", "progress": -1.0, "detail": "Getting ready"}
 	changed.emit(id)
 	var port: Dictionary = _ports[id]
@@ -480,6 +494,10 @@ func _on_scanned(result: Dictionary) -> void:
 	if _scan_status == "ok" and result["cache"] != _state.rom_cache():
 		_state.set_rom_cache(result["cache"])
 	_emit_all()
+	var waiting := _launch_after_scan
+	_launch_after_scan = []
+	for id in waiting:
+		_prepare_launch(id)
 	if _scan_again:
 		_scan_again = false
 		_scan()
