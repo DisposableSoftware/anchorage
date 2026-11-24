@@ -32,6 +32,7 @@ scripts/test.sh                # unit tests + spec conformance tests (headless)
 cd app && gdlint src tests && gdformat --check src tests    # must pass; `gdformat src tests` fixes
 nix build                      # package -> ./result/bin/anchorage (also runs the tests)
 scripts/build-appimage.sh      # AppImage for SteamOS -> dist/Anchorage-X.Y.Z-x86_64.AppImage (INT-25)
+scripts/render-steam-art.sh    # redraw the icons and data/steam/ (nix-shell, pinned); --check after edits
 nix flake check
 git config core.hooksPath .githooks   # once per clone: enables the pre-push release check
 ```
@@ -40,7 +41,7 @@ The flake only sees git-tracked files. Run `git add` on new files before `nix bu
 
 ## Code layout
 
-Keep this table current: one line per file, with the spec IDs it implements. The Godot project is `app/` (`app/project.godot`); `spec/`, `data/`, `nix/` and `scripts/` sit beside it.
+Keep this table current: one line per file, with the spec IDs it implements. The Godot project is `app/` (`app/project.godot`); `spec/`, `data/`, `nix/`, `scripts/` and `tools/` sit beside it.
 
 ```
 app/project.godot        engine settings: viewport 1280x720, stretch, renderer, app ID (config/name), version   LOOK-1 WIN-3
@@ -79,8 +80,12 @@ scripts/release-check.sh recommended version bump since the last v* tag (spec de
 scripts/release.sh       bump, commit "Anchorage X.Y.Z", tag, draft notes (no push)
 scripts/build-appimage.sh builds the AppImage into dist/ (git-ignored)             INT-26
 .githooks/pre-push       on a push of main, offers to release
-data/                    desktop entry, metainfo, icon                            INT-2 INT-41
+data/                    desktop entry, metainfo, app icon and symbolic icon (drawn by tools/steam-art)   INT-2 INT-41 INT-42
+data/steam/              Steam library art: portrait, wide, hero, logo (SVG + PNG) and icon.png; generated   INT-27
 data/themes/             the style guide's Catppuccin CSS files, for test_palette   LOOK-3
+app/icon.svg             Godot project and window icon: a copy of the app icon (test_steam_art checks)   INT-42
+tools/steam-art/         generate.py draws the icons and Steam art as SVG; shell.nix pins its tools   INT-27 INT-42
+scripts/render-steam-art.sh runs generate.py and renders data/steam/*.png; --check fails on stale files   INT-27
 nix/                     package.nix, appimage.nix (+ AppRun), nixos-module.nix, hm-module.nix   INT-2x
 spec/                    the specification
 ```

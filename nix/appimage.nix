@@ -68,6 +68,7 @@ stdenvNoCC.mkDerivation {
     install -Dm755 build/anchorage $AppDir/usr/bin/anchorage
     install -Dm644 data/${appId}.desktop -t $AppDir/usr/share/applications
     install -Dm644 data/${appId}.svg -t $AppDir/usr/share/icons/hicolor/scalable/apps
+    install -Dm644 data/${appId}-symbolic.svg -t $AppDir/usr/share/icons/hicolor/symbolic/apps
     install -Dm644 data/${appId}.metainfo.xml -t $AppDir/usr/share/metainfo
     install -Dm644 app/data/config.example.ini app/data/keybindings.example.ini -t $AppDir/usr/share/doc/anchorage
 

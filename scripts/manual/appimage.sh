@@ -57,7 +57,8 @@ unsquashfs -q -d "$T/x" -o "$off" "$IMG" >/dev/null
 ID=io.github.DisposableSoftware.Anchorage
 for f in AppRun usr/bin/anchorage "$ID.desktop" "$ID.svg" .DirIcon \
          "usr/share/applications/$ID.desktop" "usr/share/metainfo/$ID.metainfo.xml" \
-         "usr/share/icons/hicolor/scalable/apps/$ID.svg" usr/share/doc/anchorage/config.example.ini; do
+         "usr/share/icons/hicolor/scalable/apps/$ID.svg" "usr/share/icons/hicolor/symbolic/apps/$ID-symbolic.svg" \
+         usr/share/doc/anchorage/config.example.ini; do
   check "has $f" yes "$([ -e "$T/x/$f" ] && echo yes)"
 done
 check "AppRun and binary are executable" yes "$([ -x "$T/x/AppRun" ] && [ -x "$T/x/usr/bin/anchorage" ] && echo yes)"

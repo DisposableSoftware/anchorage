@@ -53,6 +53,7 @@ stdenv.mkDerivation {
       --add-flags "--main-pack $out/share/anchorage/anchorage.pck"
     install -Dm644 data/io.github.DisposableSoftware.Anchorage.desktop -t $out/share/applications
     install -Dm644 data/io.github.DisposableSoftware.Anchorage.svg -t $out/share/icons/hicolor/scalable/apps
+    install -Dm644 data/io.github.DisposableSoftware.Anchorage-symbolic.svg -t $out/share/icons/hicolor/symbolic/apps
     install -Dm644 data/io.github.DisposableSoftware.Anchorage.metainfo.xml -t $out/share/metainfo
     install -Dm644 app/data/config.example.ini app/data/keybindings.example.ini -t $out/share/doc/anchorage
     runHook postInstall
