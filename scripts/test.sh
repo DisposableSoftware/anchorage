@@ -6,13 +6,13 @@
 set -uo pipefail
 cd "$(dirname "$0")/../app"
 home=$(mktemp -d); trap 'rm -rf "$home"' EXIT
-out=$(env HOME="$home" XDG_CONFIG_HOME="$home/config" XDG_CACHE_HOME="$home/cache" \
+test_output=$(env HOME="$home" XDG_CONFIG_HOME="$home/config" XDG_CACHE_HOME="$home/cache" \
   XDG_DATA_HOME="$home/data" XDG_STATE_HOME="$home/state" \
   ANCHORAGE_TEST_SENTINEL="a=b c" \
   godot --headless --path . -s tests/run.gd 2>&1)
 status=$?
-echo "$out"
-if grep -qE 'SCRIPT ERROR|Parse Error|Failed to load script|Unicode parsing error' <<<"$out"; then
+echo "$test_output"
+if grep -qE 'SCRIPT ERROR|Parse Error|Failed to load script|Unicode parsing error' <<<"$test_output"; then
   echo "test.sh: script errors above" >&2; status=1
 fi
 # An engine error is followed by its "at:" line and a GDScript backtrace. It is allowed only
@@ -36,7 +36,7 @@ unexpected=$(awk -v allowed="$ALLOWED" '
   }
   { flush() }
   END { flush() }
-' <<<"$out")
+' <<<"$test_output")
 if [ -n "$unexpected" ]; then
   echo "test.sh: unexpected engine errors:" >&2
   echo "$unexpected" >&2
