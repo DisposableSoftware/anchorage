@@ -44,11 +44,19 @@ theme_override_constants/margin_bottom = 28
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Cards" type="HBoxContainer" parent="Layout/Content/Column"]
+[node name="CardsScroll" type="ScrollContainer" parent="Layout/Content/Column"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 1.4
+horizontal_scroll_mode = 3
+vertical_scroll_mode = 0
+
+[node name="Cards" type="HBoxContainer" parent="Layout/Content/Column/CardsScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 theme_override_constants/separation = 24
 
 [node name="Detail" type="PanelContainer" parent="Layout/Content/Column"]

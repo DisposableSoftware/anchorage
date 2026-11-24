@@ -42,7 +42,12 @@ done
 open showcase
 keys -k Right
 shot "$OUT/$res-showcase-second.png"
-keys -k Left o
+# A catalog of more than four ports scrolls the row with focus (HOME-1).
+keys -k Right -k Right -k Right -k Right -k Right
+shot "$OUT/$res-showcase-last.png"
+keys -k Left -k Left -k Left
+shot "$OUT/$res-showcase-back.png"
+keys -k Left -k Left -k Left -k Left o
 shot "$OUT/$res-menu.png"
 keys -k Down -k Down -k Return
 shot "$OUT/$res-confirm.png"

@@ -9,6 +9,12 @@ const CardScene := preload("res://scenes/card.tscn")
 const Keys := preload("res://src/keys.gd")
 const PortState := preload("res://src/ui/port_state.gd")
 const Style := preload("res://src/theme.gd")
+## Cards that share the row's width; a longer row scrolls sideways (HOME-1).
+const FULL_ROW := 4
+## How much of a longer row is in view, in cards: four and part of the fifth.
+const CARDS_IN_VIEW := 4.3
+## The part of a neighbour card kept in view beside the focused one.
+const PEEK := 0.3
 
 var ports: Node
 var mode := Mode.HOME
@@ -16,6 +22,7 @@ var _cards: Array[Control] = []
 ## The card the open menu, dialog or overlay is about, and gets focus back afterwards.
 var _current: Control
 
+@onready var _cards_scroll: ScrollContainer = %CardsScroll
 @onready var _cards_box: HBoxContainer = %Cards
 @onready var _detail: PanelContainer = %Detail
 @onready var _hint_bar: PanelContainer = %HintBar
@@ -64,6 +71,8 @@ func _ready() -> void:
 		button.mouse_entered.connect(button.grab_focus)
 	if _cards.is_empty():
 		return
+	_cards_scroll.resized.connect(_size_cards)
+	_size_cards()
 	_link_focus(_cards, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP, SIDE_BOTTOM)
 	_link_focus(
 		[_play_button, _update_button, _check_button, _remove_button],
@@ -91,6 +100,60 @@ static func _link_focus(row: Array, back: Side, forward: Side, side_a: Side, sid
 		control.set_focus_neighbor(side_b, own)
 		control.set_focus_neighbor(back, control.get_path_to(row[maxi(i - 1, 0)]))
 		control.set_focus_neighbor(forward, control.get_path_to(row[mini(i + 1, row.size() - 1)]))
+
+
+## Up to FULL_ROW cards share the width. A longer row gets cards a little narrower than a
+## four-card row, so part of the next one shows and says the row goes on.
+func _size_cards() -> void:
+	var width := 0.0
+	if _cards.size() > FULL_ROW and _cards_scroll.size.x > 0.0:
+		var gaps := _separation() * FULL_ROW
+		width = floorf((_cards_scroll.size.x - gaps) / CARDS_IN_VIEW)
+	for card in _cards:
+		card.custom_minimum_size.x = width
+	# The scroll range follows the new sizes only after the container sorts its children.
+	_scroll_to_current.call_deferred()
+
+
+func _separation() -> float:
+	return float(_cards_box.get_theme_constant("separation"))
+
+
+func _scroll_to_current() -> void:
+	if _current != null:
+		_scroll_to(_current)
+
+
+## Scrolls the row so `card` is in full view, with PEEK of a card beside it on each side
+## that has more cards (HOME-1). Positions come from the index, not the layout, which may
+## not have caught up with a resize yet.
+func _scroll_to(card: Control) -> void:
+	var view := _cards_scroll.size.x
+	var width := card.custom_minimum_size.x
+	if width <= 0.0 or view <= 0.0:
+		_cards_scroll.scroll_horizontal = 0
+		return
+	var gap := _separation()
+	var index := _cards.find(card)
+	var left := index * (width + gap)
+	var right := left + width
+	if index > 0:
+		left -= gap + width * PEEK
+	if index < _cards.size() - 1:
+		right += gap + width * PEEK
+	var scroll := float(_cards_scroll.scroll_horizontal)
+	if left < scroll:
+		scroll = left
+	elif right > scroll + view:
+		scroll = right - view
+	var total := _cards.size() * (width + gap) - gap
+	_cards_scroll.scroll_horizontal = int(roundf(clampf(scroll, 0.0, maxf(total - view, 0.0))))
+
+
+## True when `card` lies wholly inside the visible part of the row.
+func card_in_view(card: Control) -> bool:
+	var view := Rect2(_cards_scroll.global_position, _cards_scroll.size).grow(0.5)
+	return view.encloses(card.get_global_rect())
 
 
 func focused_card() -> Control:
@@ -183,6 +246,7 @@ func _on_card_focused(card: Control) -> void:
 	if mode != Mode.HOME:
 		return
 	_current = card
+	_scroll_to(card)
 	_refresh_view()
 
 

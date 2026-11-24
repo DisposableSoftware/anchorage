@@ -20,15 +20,15 @@ export XDG_STATE_HOME=$T/state
 RING="srgb(203,166,247)"
 BASE="srgb(30,30,46)"
 MANTLE="srgb(24,24,37)"
-# Left edge of card N (0-based) at 1280x720: 40 px margin, 282 px cards, 24 px gaps.
-edge() { echo $((41 + $1 * 306)); }
 pixel() { magick "$1" -format "%[pixel:p{$2,$3}]" info: | sed 's/srgba(\(.*\),1)/srgb(\1)/'; }
-ring_on() { # ring_on SHOT: the card with the focus ring, or "none"
-  local i
-  for i in 0 1 2 3; do
-    [ "$(pixel "$1" "$(edge $i)" 200)" = "$RING" ] && { echo "$i"; return; }
-  done
-  echo none
+# The fake has seven ports, so at 1280x720 the row scrolls (HOME-1): 40 px margin, cards of
+# floor((1200 - 4 * 24) / 4.3) = 256 px, 24 px gaps, a 1936 px row in a 1200 px view.
+# Screen x of the focus ring's left edge for card N at scroll S.
+ring_at() { echo $((40 + $1 * 280 - $2)); }
+ring_x() { # ring_x SHOT: x of the first focus-ring pixel across the cards, or "none"
+  local x
+  x=$(magick "$1" -crop 1280x1+0+200 +repage txt:- | grep -i -m1 '#CBA6F7' | cut -d, -f1)
+  echo "${x:-none}"
 }
 
 launch "$T/cfg" -- --fake-ports fresh
@@ -36,24 +36,32 @@ swaymsg fullscreen enable >/dev/null
 sleep 1.5
 check "window is 1280x720" "1280 720" "$(size)"
 shot "$OUT/start.png"
-check "focus starts on the first card (HOME-1)" 0 "$(ring_on "$OUT/start.png")"
+check "focus starts on the first card (HOME-1)" "$(ring_at 0 0)" "$(ring_x "$OUT/start.png")"
 check "background is base (LOOK-6)" "$BASE" "$(pixel "$OUT/start.png" 2 2)"
 check "hint bar reaches the corner" "$MANTLE" "$(pixel "$OUT/start.png" 1277 717)"
 
 keys -k Return
 keys -k Right
 shot "$OUT/installing.png"
-check "right moves focus while a download runs (HOME-1, HOME-13)" 1 "$(ring_on "$OUT/installing.png")"
+check "right moves focus while a download runs (HOME-1, HOME-13)" "$(ring_at 1 0)" \
+  "$(ring_x "$OUT/installing.png")"
+keys -k Right -k Right -k Right
+shot "$OUT/fifth.png"
+# The fifth card and part of the sixth in view: 4 * 280 + 256 + 24 + 77 - 1200 = 277.
+check "the row scrolls to the fifth card" "$(ring_at 4 277)" "$(ring_x "$OUT/fifth.png")"
 keys -k Right -k Right -k Right
 shot "$OUT/last.png"
-check "focus stops at the last card" 3 "$(ring_on "$OUT/last.png")"
+check "focus stops at the last card, scrolled to the end" "$(ring_at 6 736)" "$(ring_x "$OUT/last.png")"
 
 keys o
 shot "$OUT/menu.png"
-check "options moves focus into the menu (HOME-5)" none "$(ring_on "$OUT/menu.png")"
+check "options moves focus into the menu (HOME-5)" none "$(ring_x "$OUT/menu.png")"
 keys -k Escape
 shot "$OUT/closed.png"
-check "back returns focus to the card" 3 "$(ring_on "$OUT/closed.png")"
+check "back returns focus to the card" "$(ring_at 6 736)" "$(ring_x "$OUT/closed.png")"
+keys -k Left -k Left -k Left -k Left -k Left -k Left -k Left
+shot "$OUT/first.png"
+check "left scrolls back to the first card" "$(ring_at 0 0)" "$(ring_x "$OUT/first.png")"
 
 sleep 6
 shot "$OUT/installed.png"
