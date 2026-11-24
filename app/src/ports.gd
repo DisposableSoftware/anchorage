@@ -150,12 +150,19 @@ func remove(id: String) -> void:
 	if not _ports.has(id) or _is_busy(id) or not _installed(id):
 		return
 	_errors.erase(id)
-	var result := Installer.remove(root, id)
-	if result["ok"]:
-		_state.clear_installed(id)
-	else:
-		_errors[id] = _error_text("remove", id, result["error"])
+	_busy[id] = {"action": "remove", "progress": -1.0, "detail": ""}
 	changed.emit(id)
+	_offload(
+		Installer.remove.bind(root, id),
+		func(result: Dictionary) -> void:
+			_busy.erase(id)
+			if result["ok"]:
+				_state.clear_installed(id)
+			else:
+				_errors[id] = _error_text("remove", id, result["error"])
+			changed.emit(id),
+		{"ok": false, "error": "Deleting stopped with an internal error"}
+	)
 
 
 func launch(id: String) -> void:
@@ -209,7 +216,7 @@ func poll() -> void:
 		if OS.is_process_running(run["pid"]):
 			if not run["settled"] and elapsed >= settle_seconds:
 				run["settled"] = true
-				Installer.cleanup_previous(root, id)
+				_offload(Installer.cleanup_previous.bind(root, id), func(_r: Variant) -> void: pass)
 			continue
 		var code := OS.get_process_exit_code(run["pid"])
 		_runs.erase(id)

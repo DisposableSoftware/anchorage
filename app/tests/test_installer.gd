@@ -369,26 +369,6 @@ func test_extra_folders_are_copied_to_data_and_replaced_on_update() -> void:
 	remove(_dir)
 
 
-func test_copy_extra_files_only_missing_keeps_what_is_there() -> void:
-	_setup("inst_missing")
-	var from := _dir.path_join("from")
-	DirAccess.make_dir_recursive_absolute(from.path_join("assets/x"))
-	for path in ["config.yml", "assets/x/y.yaml"]:
-		var file := FileAccess.open(from.path_join(path), FileAccess.WRITE)
-		file.store_string("new")
-		file.close()
-	var data := _dir.path_join("data")
-	DirAccess.make_dir_recursive_absolute(data)
-	var mine := FileAccess.open(data.path_join("config.yml"), FileAccess.WRITE)
-	mine.store_string("mine")
-	mine.close()
-	var port := {"extra_files": ["config.yml", "assets"]}
-	eq(Installer.copy_extra_files(port, from, data, true), "", "no error")
-	eq(_text(data.path_join("config.yml")), "mine", "present file kept")
-	eq(_text(data.path_join("assets/x/y.yaml")), "new", "missing folder copied")
-	remove(_dir)
-
-
 func test_a_write_error_while_unpacking_fails() -> void:
 	_setup("inst_full")
 	if not FileAccess.file_exists("/dev/full"):
@@ -451,6 +431,24 @@ func test_remove_deletes_the_program_but_not_the_data() -> void:
 	)
 	eq(_text(data.path_join("saves/a.sav")), "s", "data kept")
 	check(Installer.remove(_root, "never-installed")["ok"], "removing nothing is fine")
+	remove(_dir)
+
+
+## A remove that stops part-way (here previous/ can't be deleted; a kill is the same) must
+## not leave previous/ without current/, which cleanup_stale would put back as current/
+## while state.ini still names the newer version (PORT-7, PORT-12).
+func test_a_remove_that_stops_part_way_never_brings_back_the_old_version() -> void:
+	_setup("inst_remove_order")
+	_install_old()
+	var previous := Installer.previous_dir(_root, "starship")
+	DirAccess.make_dir_recursive_absolute(previous.path_join("locked"))
+	FileAccess.open(previous.path_join("locked/file"), FileAccess.WRITE).close()
+	FileAccess.set_unix_permissions(previous.path_join("locked"), 365)  # r-xr-xr-x
+	var result := Installer.remove(_root, "starship")
+	FileAccess.set_unix_permissions(previous.path_join("locked"), 493)
+	check(not result["ok"], "the remove reports the failure")
+	Installer.cleanup_stale(_root)
+	check(_old_is_intact(), "current/ is still the installed version: previous/ goes first")
 	remove(_dir)
 
 

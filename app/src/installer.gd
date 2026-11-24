@@ -25,6 +25,8 @@ extends RefCounted
 
 const Releases := preload("res://src/releases.gd")
 const EXECUTABLE_MODE := 493  # rwxr-xr-x
+## A copy of an extra file is made under this name beside its target, then renamed over it.
+const NEW_SUFFIX := ".anchorage-new"
 
 ## Unpack on a worker thread (the app). Tests turn it off to run inline.
 var threaded := true
@@ -76,9 +78,11 @@ func cancel() -> void:
 		_http.cancel_download()
 
 
-## PORT-7: deletes the program, never `data/`.
+## PORT-7: deletes the program, never `data/`. `current/` goes last: a remove that stops
+## part-way must not leave `previous/` alone, which `cleanup_stale` would put back.
+## Slow for a big port: run it off the main thread.
 static func remove(root: String, id: String) -> Dictionary:
-	for dir in [current_dir(root, id), previous_dir(root, id), download_dir(root, id)]:
+	for dir in [previous_dir(root, id), download_dir(root, id), current_dir(root, id)]:
 		rm_rf(dir)
 		if DirAccess.dir_exists_absolute(dir):
 			return {"ok": false, "error": "Could not delete %s" % dir}
@@ -254,32 +258,40 @@ func _on_downloaded(port: Dictionary, release: Dictionary, result: Dictionary) -
 		return
 	_report("unpack", 0, 1)
 	_offload(
-		_unpack.bind(port, archive, release["asset"], download.path_join("staging")),
-		func(error: String) -> void: _on_unpacked(port, release, error),
-		"Unpacking stopped with an internal error"
+		_place.bind(port, archive, release["asset"], download),
+		func(placed: Dictionary) -> void: _on_placed(port, release, placed),
+		{"error": "Unpacking stopped with an internal error", "swapped": false}
 	)
 
 
-func _on_unpacked(port: Dictionary, release: Dictionary, error: String) -> void:
-	if _cancelled:
+func _on_placed(port: Dictionary, release: Dictionary, placed: Dictionary) -> void:
+	if placed["swapped"]:
+		_report("finish", 1, 1)
+		_finish(port, {"ok": true, "cancelled": false, "error": "", "version": release["tag"]})
+	elif _cancelled:
 		_finish(port, _cancel_result())
-		return
-	if not error.is_empty():
-		_finish(port, _failure(error))
-		return
-	var staging := download_dir(_root, port["id"]).path_join("staging")
-	error = copy_extra_files(port, staging, data_dir(_root, port["id"]))
+	else:
+		_finish(port, _failure(placed["error"]))
+
+
+## Runs on a worker thread (HOME-13), touching only files: checks and unpacks the download,
+## copies the extra files into data/, swaps the new version in and deletes download/.
+## {error, swapped}. Once the swap is done a cancel comes too late and is ignored.
+func _place(port: Dictionary, archive: String, asset: Dictionary, download: String) -> Dictionary:
+	var staging := download.path_join("staging")
+	var error := _unpack(port, archive, asset, staging)
+	if error.is_empty() and _cancelled:
+		error = "Cancelled"
 	if error.is_empty():
-		_report("finish", 0, 1)
+		error = copy_extra_files(port, staging, data_dir(_root, port["id"]))
+	if error.is_empty() and _cancelled:
+		error = "Cancelled"
+	if error.is_empty():
 		error = swap(port_dir(_root, port["id"]), staging)
-	if not error.is_empty():
-		_finish(port, _failure(error))
-		return
-	_report("finish", 1, 1)
-	_finish(port, {"ok": true, "cancelled": false, "error": "", "version": release["tag"]})
+	rm_rf(download)
+	return {"error": error, "swapped": error.is_empty()}
 
 
-## Runs on a worker thread: touches only files, never a node.
 func _unpack(port: Dictionary, archive: String, asset: Dictionary, staging: String) -> String:
 	var digest: String = asset.get("sha256", "")
 	if not digest.is_empty() and sha256_of_file(archive) != digest:
@@ -308,7 +320,10 @@ func _unpack(port: Dictionary, archive: String, asset: Dictionary, staging: Stri
 
 ## PORT-10: copies the catalog's extra files and folders from `from` (the unpacked release)
 ## into `data`, named by their last path part. With `only_missing` an extra already in
-## `data` is left alone (PORT-9, before a launch). Returns an error text, empty on success.
+## `data` is left alone (PORT-9, before a launch). Each copy is made beside the target and
+## renamed over it, so a failed or killed copy never leaves half a folder under the real
+## name, and a link at the target is replaced, not written through. Slow for Starship's
+## `assets/`: run it off the main thread. Returns an error text, empty on success.
 static func copy_extra_files(
 	port: Dictionary, from: String, data: String, only_missing := false
 ) -> String:
@@ -317,17 +332,22 @@ static func copy_extra_files(
 			return "Could not create %s" % data
 		var source := from.path_join(extra)
 		var target := data.path_join((extra as String).get_file())
-		if (
-			only_missing
-			and (FileAccess.file_exists(target) or DirAccess.dir_exists_absolute(target))
-		):
+		if only_missing and (_is_link(target) or _exists(target)):
 			continue
-		if DirAccess.dir_exists_absolute(source):
-			rm_rf(target)
-			if not copy_tree(source, target):
-				return "Could not copy %s" % extra
-		elif DirAccess.copy_absolute(source, target) != OK:
+		var fresh := target + NEW_SUFFIX
+		rm_rf(fresh)
+		var copied := (
+			copy_tree(source, fresh)
+			if DirAccess.dir_exists_absolute(source)
+			else copy_file(source, fresh)
+		)
+		if not copied:
+			rm_rf(fresh)
 			return "Could not copy %s" % extra
+		rm_rf(target)
+		if DirAccess.rename_absolute(fresh, target) != OK:
+			rm_rf(fresh)
+			return "Could not put %s in place" % extra
 	return ""
 
 
@@ -340,7 +360,7 @@ static func copy_tree(from: String, to: String) -> bool:
 	for name in dir.get_files():
 		if dir.is_link(from.path_join(name)):
 			continue
-		if DirAccess.copy_absolute(from.path_join(name), to.path_join(name)) != OK:
+		if not copy_file(from.path_join(name), to.path_join(name)):
 			return false
 	for name in dir.get_directories():
 		if dir.is_link(from.path_join(name)):
@@ -350,8 +370,20 @@ static func copy_tree(from: String, to: String) -> bool:
 	return true
 
 
-## Runs `work` on the worker pool; a task that ends without a result of the fallback's type
-## (a script error inside it) hands `fallback` to `finished`.
+## Copies one file. A source that can't be read fails here, quietly, instead of in
+## DirAccess.copy_absolute, which prints an engine error.
+static func copy_file(from: String, to: String) -> bool:
+	var probe := FileAccess.open(from, FileAccess.READ)
+	if probe == null:
+		return false
+	probe.close()
+	return DirAccess.copy_absolute(from, to) == OK
+
+
+static func _exists(path: String) -> bool:
+	return FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path)
+
+
 func _offload(work: Callable, finished: Callable, fallback: Variant) -> void:
 	var tree := Engine.get_main_loop() as SceneTree
 	if not threaded or tree == null:

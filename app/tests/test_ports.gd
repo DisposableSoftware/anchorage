@@ -464,6 +464,29 @@ func test_remove_keeps_data_and_forgets_the_version() -> void:
 	_free(ports)
 
 
+## HOME-13: deleting a port runs on the worker pool; meanwhile it shows as removing.
+func test_remove_runs_off_the_main_thread() -> void:
+	_setup("ports_remove_async")
+	_publish("alpha", "1.0")
+	var ports := _make(false, true)
+	var tree := Engine.get_main_loop() as SceneTree
+	ports.install("alpha")
+	for _i in 200:
+		if ports.info("alpha").installed and ports.info("alpha").busy.action == "":
+			break
+		await tree.process_frame
+	check(ports.info("alpha").installed, "installed")
+	ports.remove("alpha")
+	eq(ports.info("alpha").busy.action, "remove", "busy removing while the worker deletes")
+	for _i in 200:
+		if ports.info("alpha").busy.action == "":
+			break
+		await tree.process_frame
+	check(not ports.info("alpha").installed, "removed")
+	eq(ports.info("alpha").error, "", "no error")
+	_free(ports)
+
+
 func test_rom_status_names_what_is_wanted_and_where_it_looked() -> void:
 	_setup("ports_rom")
 	var ports := _make()
