@@ -70,7 +70,7 @@ Do this once, in Desktop Mode, with Steam left open:
    Leave Steam running: in Desktop Mode the controller only works as a mouse and keyboard
    while Steam is open. To type the command, press Steam + X for the on-screen keyboard.
    Or open this page in Firefox, copy the command, and paste it into Konsole with
-   Ctrl+Shift+V (or right-click with the left trigger and choose Paste).
+   Ctrl+Shift+V.
 3. The script downloads everything first. Then it closes Steam for a few seconds (it
    counts down from 5, and Ctrl+C in that time cancels with nothing changed), adds the
    shortcut, and starts Steam again by itself. Steam overwrites its shortcut file when it
