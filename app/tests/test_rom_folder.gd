@@ -16,13 +16,17 @@ const ChooserScene := preload("res://scenes/rom_folder.tscn")
 
 var _dir := ""
 var _rom := PackedByteArray()
+## Beta's ROM: another game, so a folder can hold one port's ROM and not the other's.
+var _beta_rom := PackedByteArray()
 
 
 func _setup(name: String) -> void:
 	_dir = temp_dir(name)
 	_rom = PackedByteArray([0x80, 0x37, 0x12, 0x40])
+	_beta_rom = _rom.duplicate()
 	for i in 60:
 		_rom.append(i)
+		_beta_rom.append(200 - i)
 
 
 func _home() -> String:
@@ -44,7 +48,21 @@ func _catalog() -> Array:
 			"rom_place": "data_dir",
 			"rom_file": "alpha.z64",
 			"roms": [{"label": "US", "sha1": Roms.sha1_of(_rom)}],
-		}
+		},
+		{
+			"id": "beta",
+			"name": "Beta",
+			"game": "Game beta",
+			"description": "About beta",
+			"repo": "test/beta",
+			"asset_suffix": "-linux.zip",
+			"archive": ["beta.o2r"],
+			"launch": {"executable": "beta.appimage", "cwd": "data", "args": []},
+			"extra_files": [],
+			"rom_place": "data_dir",
+			"rom_file": "beta.z64",
+			"roms": [{"label": "US", "sha1": Roms.sha1_of(_beta_rom)}],
+		},
 	]
 
 
@@ -54,6 +72,16 @@ func _put_rom(rel: String) -> String:
 	DirAccess.make_dir_recursive_absolute(dir)
 	var file := FileAccess.open(dir.path_join("Alpha (USA).z64"), FileAccess.WRITE)
 	file.store_buffer(_rom)
+	file.close()
+	return dir
+
+
+## Writes beta's ROM into `rel` and returns the folder.
+func _put_beta_rom(rel: String) -> String:
+	var dir := _dir.path_join(rel)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var file := FileAccess.open(dir.path_join("Beta (USA).z64"), FileAccess.WRITE)
+	file.store_buffer(_beta_rom)
 	file.close()
 	return dir
 
@@ -159,6 +187,27 @@ func test_a_chosen_folder_is_stored_and_rescanned_at_once() -> void:
 	eq(ports.rom_folder_info().full, chosen, "a chosen folder beats detection on the next start")
 	ports.set_rom_folder("relative/path")
 	eq(ports.rom_folder_info().full, chosen, "a relative path is refused")
+	_free(ports)
+	remove(_dir)
+
+
+## The bug from the Deck (ROM-17): a folder chosen for a second game replaced the first
+## folder, so the first game went back to ROM missing.
+func xfail_a_second_folder_keeps_the_first_games_rom() -> void:
+	_setup("folder_second")
+	var first := _put_rom("Games/A")
+	var second := _put_beta_rom("Games/B")
+	var ports := _make()
+	ports.set_rom_folder(first)
+	check(ports.info("alpha").rom.found, "game 1 found in folder A")
+	check(not ports.info("beta").rom.found, "game 2 not yet")
+	ports.set_rom_folder(second)
+	check(ports.info("beta").rom.found, "game 2 found in folder B")
+	check(ports.info("alpha").rom.found, "game 1 still found after folder B was chosen")
+	_free(ports)
+	ports = _make()
+	check(ports.info("alpha").rom.found, "game 1 found after a restart")
+	check(ports.info("beta").rom.found, "game 2 found after a restart")
 	_free(ports)
 	remove(_dir)
 
