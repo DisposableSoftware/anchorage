@@ -215,28 +215,35 @@ On a desktop, run `anchorage` (or the AppImage). The window has the Wayland app 
 Later launches need nothing. The detail panel shows the first-launch note until the port
 has made its game files, and lists the ROM versions it accepts while none is found.
 
-### ROM folder
+### ROM folders
 
-Anchorage uses the first of these that holds ROM files:
+Your ROMs can be in more than one folder. Anchorage scans:
 
-1. The folder set as `[roms] directory` in `config.ini`.
-2. The folder you chose in the app.
-3. EmuDeck's ROM folder, read from `~/.config/EmuDeck/settings.sh` (or the older
-   `~/emudeck/settings.sh`), and RetroDECK's, read from its `retrodeck.json` (or the older
-   `retrodeck.cfg`). Both are only read, never run.
-4. `~/Emulation/roms/n64`, `~/retrodeck/roms/n64` and `~/Roms/n64`.
-5. On the SD card and other drives under `/run/media`: `Emulation/roms/n64`,
-   `retrodeck/roms/n64`, `roms/n64`, `ROMs/n64` or `n64`, in any upper or lower case.
-6. A search of the SD card and other drives, four folders deep.
+1. The folders set as `[roms] directory` in `config.ini`, if any. Separate several with `;`.
+2. Otherwise, the folders you chose in the app.
+3. Otherwise, one folder it finds by itself, the first of these that holds ROM files:
+   - EmuDeck's ROM folder, read from `~/.config/EmuDeck/settings.sh` (or the older
+     `~/emudeck/settings.sh`), and RetroDECK's, read from its `retrodeck.json` (or the older
+     `retrodeck.cfg`). Both are only read, never run.
+   - `~/Emulation/roms/n64`, `~/retrodeck/roms/n64` and `~/Roms/n64`.
+   - On the SD card and other drives under `/run/media`: `Emulation/roms/n64`,
+     `retrodeck/roms/n64`, `roms/n64`, `ROMs/n64` or `n64`, in any upper or lower case.
+   - A search of the SD card and other drives, four folders deep.
 
-To pick a folder yourself, choose ROM folder in a port's menu, or press <kbd>A</kbd> on a
-`ROM missing` card and <kbd>A</kbd> again on the hint it shows. The chooser starts in the current folder, lists your home and every
-drive, shows how many ROM files each folder holds, and has Search the SD card at the top.
-Press <kbd>Y</kbd> to use the folder you are in. Your choice is remembered in `state.ini`.
+To add a folder, choose ROM folder in a port's menu, or press <kbd>A</kbd> on a
+`ROM missing` card and <kbd>A</kbd> again on the hint it shows. The chooser starts in your
+first ROM folder, lists your home and every drive, shows how many ROM files each folder
+holds, and has Search the SD card at the top. Press <kbd>Y</kbd> to add the folder you are
+in. A new folder is added to the ones you chose before, so a game found in one folder stays
+found when you add another folder for a second game. Your ROM folders are listed on the
+left, with how many ports use each one, or `Not found` while its drive is unplugged (the
+other folders still work). Press <kbd>A</kbd> on one to remove it; remove them all and
+Anchorage looks for a folder by itself again. If two folders hold a ROM for the same port,
+the folder you added first wins. Your folders are remembered in `state.ini`.
 
 Anchorage reads `.z64`, `.n64` and `.v64` files and `.zip` files (every ROM inside them, up
-to 64 MiB each), directly in that folder, and identifies them by SHA-1. It only reads the
-ROM folder: it never writes, moves, renames or deletes anything there, and it never uploads
+to 64 MiB each), directly in each folder, and identifies them by SHA-1. It only reads the
+ROM folders: it never writes, moves, renames or deletes anything there, and it never uploads
 anything. Before a port's first launch it writes a copy of the ROM into that port's own data
 folder, and deletes the copy once the port has made its game files. Anchorage never
 downloads ROMs: bring your own.
@@ -294,7 +301,8 @@ flavor = mocha
 accent = mauve
 
 [roms]
-# unset: Anchorage finds the folder, or you choose it in the app; set: this wins
+# unset: Anchorage finds the folder, or you choose folders in the app; set: this wins
+# several folders: separate them with ';'
 directory = ~/Roms/n64
 
 [ports]
@@ -317,7 +325,7 @@ reports. Unknown names and keys are skipped with a warning.
 
 `state.ini` holds what Anchorage remembers between runs: the installed and latest version
 of each port, the version that made its game files, the ROM copy it placed, the last update
-check, the ROM scan cache and the ROM folder you chose. It is not a settings file; delete it
+check, the ROM scan cache and the ROM folders you chose. It is not a settings file; delete it
 to make Anchorage forget.
 
 ## Status and known limitations
