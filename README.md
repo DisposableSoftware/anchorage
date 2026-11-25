@@ -361,7 +361,7 @@ to make Anchorage forget.
 ## Status and known limitations
 
 - **Tried on a real Steam Deck:** the SteamOS install command (it closes and restarts Steam
-  by itself), the shortcut in Game Mode, and installing and running all seven ports, with
+  by itself), the shortcut in Game Mode, and installing all seven ports, with
   their first launches done with the trackpads. Nothing else has been checked there yet.
 - **Still only tried against fakes, in a headless sway and on a NixOS desktop:** the SD card's
   real mount names, EmuDeck and RetroDECK folders, Steam Input, and everything newer than
