@@ -21,6 +21,12 @@ const FULL_ROW := 4
 const CARDS_IN_VIEW := 4.3
 ## The part of a neighbour card kept in view beside the focused one.
 const PEEK := 0.3
+## The Playing overlay's cover: this share of the width, at most as tall as leaves room for
+## the text below it (PLAYING_TEXT_HEIGHT with margins), between these widths (HOME-16).
+const PLAYING_ART_SHARE := 0.56
+const PLAYING_TEXT_HEIGHT := 330.0
+const PLAYING_ART_MIN := 240.0
+const PLAYING_ART_MAX := 920.0
 ## UPD-9: Steam may count the app as ended when the old process quits.
 const RESTART_TEXT := (
 	"Restart now closes Anchorage and opens the new version. If Steam then shows Anchorage"
@@ -76,6 +82,8 @@ var _self_started := false
 @onready var _playing_layer: Control = %PlayingLayer
 @onready var _playing_emblem: PanelContainer = %PlayingEmblem
 @onready var _playing_monogram: Label = %PlayingMonogram
+@onready var _playing_art_tile: PanelContainer = %PlayingArtTile
+@onready var _playing_art: TextureRect = %PlayingArt
 @onready var _playing_game: Label = %PlayingGame
 @onready var _playing_note: Label = %PlayingNote
 
@@ -380,6 +388,8 @@ func _on_changed(id: String) -> void:
 	if card == null:
 		return
 	card.show_port(ports.info(id), _cards.find(card))
+	if mode == Mode.PLAYING and card == _current:
+		_show_playing_art(ports.info(id).get("art"))
 	if card == _current:
 		_refresh_view()
 
@@ -648,11 +658,28 @@ func _show_playing(card: Control) -> void:
 	_playing_monogram.text = PortState.short_name(info)
 	_playing_game.text = PortState.split_title(info.game)[1]
 	_playing_note.text = "%s is running. Anchorage comes back when it closes." % info.name
+	_show_playing_art(info.get("art"))
 	_current = card
 	mode = Mode.PLAYING
 	_playing_layer.visible = true
 	get_viewport().gui_release_focus()
 	_hint_bar.show_hints(_hints())
+
+
+## The cover (HOME-16) is as wide as the screen allows with the text below it. The
+## monogram tile takes the same size, so the art arriving moves nothing.
+func _show_playing_art(texture: Variant) -> void:
+	var width := clampf(
+		minf(size.x * PLAYING_ART_SHARE, (size.y - PLAYING_TEXT_HEIGHT) * Style.ART_ASPECT),
+		PLAYING_ART_MIN,
+		PLAYING_ART_MAX
+	)
+	var tile := Vector2(roundf(width), roundf(width / Style.ART_ASPECT))
+	_playing_emblem.custom_minimum_size = tile
+	_playing_art_tile.custom_minimum_size = tile
+	_playing_art.texture = texture as Texture2D
+	_playing_art_tile.visible = _playing_art.texture != null
+	_playing_emblem.visible = _playing_art.texture == null
 
 
 func _on_exited(id: String) -> void:

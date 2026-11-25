@@ -70,7 +70,7 @@ app/src/roms.gd          ROM scan of one folder or of every folder in order (Sca
 app/src/rom_folders.gd   ROM folder detection (EmuDeck, RetroDECK, defaults, mounts), SD card search (SearchJob), chooser listings   ROM-10 ROM-14 ROM-15 ROM-16
 app/scenes/rom_folder.tscn + app/src/ui/rom_folder.gd   the ROM folder chooser: chosen folders (remove), starting points, folders, search, config.ini notice   ROM-11 ROM-12 ROM-14 ROM-17
 app/src/art.gd           cover art: download one at a time, cache by URL hash, size and type checks, decode   ART-3 ART-4 ART-6
-app/src/ui/home.gd       home screen logic: focus, accept, port and app menus, Remove and Quit dialogs, Playing, hints, cards for fetched ports and their toast; the update chip, entry and dialog   HOME PORT-23 UPD-3 UPD-9
+app/src/ui/home.gd       home screen logic: focus, accept, port and app menus, Remove and Quit dialogs, Playing (with the cover, HOME-16), hints, cards for fetched ports and their toast; the update chip, entry and dialog   HOME PORT-23 UPD-3 UPD-9
 app/src/ui/card.gd       a card: cover-shaped tile (art or emblem), titles, badge, New badge, progress, focus/selection look   HOME-2 HOME-12 LOOK-9 PORT-23
 app/src/ui/toast.gd      a short notice at the top that hides itself (the catalog notice)   PORT-23
 app/src/ui/detail.gd     detail panel: description or first-launch note, versions, ROM status, progress, errors   HOME-3 HOME-8 HOME-9 PORT-17
@@ -81,6 +81,7 @@ app/data/                config.example.ini + keybindings.example.ini (first-run
 app/data/ports.json      the port catalog (schema, version, ports); docs/adding-a-port.md says how to add one   PORT-1 PORT-18
 app/tests/               run.gd (runner; awaits tests that await; TESTS=name runs one file), case.gd (base), test_*.gd; test_spec.gd checks spec <-> code
 app/tests/test_home_row.gd the screen at 1280x720, 1280x800, 1920x1080, 1920x1200: seven cards scroll with focus; whole cover; 16:10 height to the detail panel; fullest panel, hint bar, menus and first-run notes fit   HOME-1 PORT-17 LOOK-9
+app/tests/test_home_playing.gd the Playing overlay's cover: art in place of the monogram, fallback, arriving late, fit at four sizes   HOME-16
 app/tests/test_app_menu.gd the app menu and the Quit question   HOME-14 HOME-15 KEY-7
 app/tests/test_http.gd   http.gd against a local TCPServer: redirects, stall, cancel, size limit, JSON, text, local http only   PORT-4 PORT-13 PORT-19
 app/tests/test_catalog_update.gd the fetched catalog: strict checks, hostile entries, argv not shell, merge, cache, hour, notice, New badge, repos   PORT-18 .. PORT-23
