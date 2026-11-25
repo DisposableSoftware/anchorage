@@ -14,13 +14,14 @@ The order of approved work: `planned` requirements, and `partial` ones with a kn
 5. **Cover art:** `ART-1` to `ART-7`. The catalog curation waits for the user's SteamGridDB API key (`STEAMGRIDDB_API_KEY`); the loader and card layout can be built first.
 6. **ROM folder chooser:** `ROM-10` to `ROM-16` (including the SD card search and out-of-the-box EmuDeck and RetroDECK support, an MVP requirement). Today the folder can only be set in `config.ini`, which a controller-only user cannot do.
 7. **More ports (catalog only, `PROD-13`):** Lighthouse (Banjo-Kazooie), PaperBoat (Paper Mario 64) and Ghostship (Super Mario 64) have Linux releases. Each needs its ROM hashes, launch quirks, first-run behaviour and cover art researched, as was done for the first four.
-9. **Bug from the Deck, black bars above and below (`WIN-6`, `CONF-10`):** the app asked gamescope for a 1280×720 window instead of going fullscreen. Fix first.
-10. **Update Anchorage from Game Mode (`UPD-1` to `UPD-10`):** requested by the user after 0.2.0 worked on a Deck.
-11. **Installer without a keyboard (`INT-35`):** found on a real Deck with 0.1.0: quitting Steam by hand leaves no way to press Enter. The installer closes and restarts Steam itself.
-12. **Enhancements requested after 0.1.0:** 16:10 layout (`LOOK-9`), controller quit and the app menu (`KEY-7`, `HOME-14`, `HOME-15`), and catalog updates so new ports appear without an app release (`PORT-18` to `PORT-23`).
-13. **Steam install and artwork:** `INT-27` to `INT-29` and `INT-33`: custom Steam artwork (starting with concepts the user chooses from) and `scripts/install-steamos.sh`, plus the README `curl` install command (`INT-34`). Needs the release AppImage. Untestable on a real Deck from here.
-14. **Polish to the family's quality bar:** `INT-42`, `INT-43`, icon, metainfo screenshots, README with screenshots, `docs/`, man-page-equivalent docs, a code review pass.
-15. Later: `CONF-4` on Hyprland and gamescope.
+9. **Cover art on the Playing overlay (`HOME-16`):** requested by the user.
+10. **Bug from the Deck, black bars above and below (`WIN-6`, `CONF-10`):** the app asked gamescope for a 1280×720 window instead of going fullscreen. Fix first.
+11. **Update Anchorage from Game Mode (`UPD-1` to `UPD-10`):** requested by the user after 0.2.0 worked on a Deck.
+12. **Installer without a keyboard (`INT-35`):** found on a real Deck with 0.1.0: quitting Steam by hand leaves no way to press Enter. The installer closes and restarts Steam itself.
+13. **Enhancements requested after 0.1.0:** 16:10 layout (`LOOK-9`), controller quit and the app menu (`KEY-7`, `HOME-14`, `HOME-15`), and catalog updates so new ports appear without an app release (`PORT-18` to `PORT-23`).
+14. **Steam install and artwork:** `INT-27` to `INT-29` and `INT-33`: custom Steam artwork (starting with concepts the user chooses from) and `scripts/install-steamos.sh`, plus the README `curl` install command (`INT-34`). Needs the release AppImage. Untestable on a real Deck from here.
+15. **Polish to the family's quality bar:** `INT-42`, `INT-43`, icon, metainfo screenshots, README with screenshots, `docs/`, man-page-equivalent docs, a code review pass.
+16. Later: `CONF-4` on Hyprland and gamescope.
 
 ## Verification backlog
 
