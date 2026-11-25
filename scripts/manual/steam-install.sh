@@ -1,14 +1,15 @@
 #! /usr/bin/env nix-shell
-#! nix-shell -i bash -p "python3.withPackages (ps: [ ps.vdf ])" shellcheck curl desktop-file-utils util-linux
+#! nix-shell -i bash -p "python3.withPackages (ps: [ ps.vdf ])" shellcheck curl desktop-file-utils util-linux godot
 # shellcheck shell=bash
-# Spec: INT-28, INT-29, INT-33, INT-34, INT-35.
+# Spec: INT-28, INT-29, INT-33, INT-34, INT-35, UPD-7.
 # Runs scripts/install-steamos.sh the way `curl ... | bash` does, against fake HOME and
 # Steam folders, a fake GitHub API and fake release assets served from 127.0.0.1, and a
 # fake Steam (steam, flatpak and pgrep commands first in PATH) that runs, quits after
 # -shutdown or never, and logs each call. The results are read back with an independent
 # VDF parser (ValvePython's vdf, scripts/manual/steam-install/check.py) and compared
 # byte for byte with the files before. Nothing outside a temp dir is touched, and no real
-# Steam, release or network is used. Also runs shellcheck on the scripts.
+# Steam, release or network is used. Also runs shellcheck on the scripts. A self-update
+# (UPD-7) is made by the app's own code (godot runs app/tests/self_update_swap.gd).
 # Usage: scripts/manual/steam-install.sh   (KEEP=1 keeps the temp dir)
 # `nix flake check` runs it as checks.x86_64-linux.steam-install.
 set -euo pipefail
@@ -685,5 +686,34 @@ run no-release "$H7"
 expect_fail "missing release assets" "Could not download"
 [[ ! -e $H7/Applications/Anchorage.AppImage ]] || fail "missing assets: installed something"
 ok "a bad checksum, a missing curl and a release without assets fail and install nothing"
+
+echo "# after Anchorage updated itself (UPD-7)"
+H20=$T/home20
+steam_home "$H20" 20
+latest 1.2.0
+run self-fresh "$H20"
+expect_ok "install before a self-update"
+A20=$H20/Applications/Anchorage.AppImage
+M20=$H20/.local/state/anchorage-installer/files.sha256
+NEW=$(sha "$T/fake-1.3.0.AppImage")
+LOG=$T/self-swap.log
+mkdir -p "$T/godot"
+HOME=$T/godot XDG_DATA_HOME=$T/godot XDG_CONFIG_HOME=$T/godot XDG_CACHE_HOME=$T/godot \
+  godot --headless --path app -s res://tests/self_update_swap.gd -- "$M20" "$A20" \
+  "$T/fake-1.3.0.AppImage" >"$LOG" 2>&1 || fail "the app's swap failed"
+[[ $(sha "$A20") == "$NEW" && $(sha "$A20.previous") == $(sha "$T/fake-1.2.0.AppImage") ]] ||
+  fail "self-update: not swapped"
+grep -qxF "$NEW  $A20" "$M20" || fail "self-update: the record does not list the new hash"
+rm -f "$A20.previous" # what the new version does once it has run 10 s
+latest 1.3.0
+before=$(tree_state "$H20")
+run self-rerun "$H20"
+expect_ok "rerun after a self-update"
+grep -q 'Anchorage 1.3.0 is already installed. Nothing to do.' "$LOG" || fail "rerun after a self-update: not a no-op"
+[[ $(tree_state "$H20") == "$before" ]] || fail "rerun after a self-update: files changed"
+run self-uninstall "$H20" --uninstall
+expect_ok "uninstall after a self-update"
+[[ ! -e $A20 ]] || fail "uninstall after a self-update kept the AppImage"
+ok "after a self-update a rerun changes nothing and --uninstall still removes the AppImage"
 
 echo "$PASS checks passed"

@@ -93,8 +93,9 @@ Piping a script from the internet into bash is a leap of faith, so read it first
 source is [`scripts/install-steamos.sh`](https://github.com/DisposableSoftware/anchorage/blob/main/scripts/install-steamos.sh),
 and each release attaches a copy with only that release's version filled in.
 
-- **Update:** run the same command again. When the installed version is the latest, it
-  does nothing.
+- **Update:** Anchorage updates itself from Game Mode (see [Usage](#updating-anchorage-from-game-mode)).
+  Running the same command again works too; when the installed version is the latest, it
+  does nothing, also after Anchorage updated itself.
 - **Remove:** `curl -fsSL https://github.com/DisposableSoftware/anchorage/releases/latest/download/install-steamos.sh | bash -s -- --uninstall`
   removes the shortcut and only the files the script wrote, as its record lists them;
   artwork you set yourself stays. Your ports, saves and settings stay too; it lists their
@@ -182,7 +183,8 @@ it from your library; it opens fullscreen on the row of cards.
 3. <kbd>Y</kbd> opens the port's menu: Play, Update, Check for updates, ROM folder and
    Remove. Remove asks first, and keeps your saves and settings.
 4. <kbd>Menu</kbd> (the ☰ button, <kbd>Start</kbd> on other gamepads) opens Anchorage's
-   own menu: Check for updates and new ports, ROM folder and Quit Anchorage.
+   own menu: Check for updates and new ports, ROM folder and Quit Anchorage, and, when
+   there is a newer Anchorage, Update Anchorage first.
 5. To quit, choose Quit Anchorage in that menu, or press <kbd>B</kbd> on the cards with
    nothing to cancel and confirm with Quit (focus starts on Stay).
 
@@ -190,6 +192,28 @@ Anchorage checks for updates and new ports when it starts (at most once an hour)
 you press <kbd>X</kbd>. A card with `Update available` updates on <kbd>A</kbd>, and its menu
 still has Play. A new port gets its card at the end of the row, marked `New` until you
 move to it.
+
+### Updating Anchorage from Game Mode
+
+When a newer Anchorage is out, an `Update 0.3.0` chip shows next to the name at the bottom,
+and <kbd>Menu</kbd> starts with `Update Anchorage to 0.3.0`. Choose it: Anchorage downloads
+the new AppImage next to the old one, checks it against the release's checksums and that it
+starts, and then swaps it in. <kbd>B</kbd> cancels the download. Then choose Restart now, or
+Later to keep playing with this version until you quit. Restart now closes Anchorage and
+opens the new one; if Steam shows Anchorage as closed instead, start it again from your
+library.
+
+- It waits while a port downloads, installs or runs (`Finish what is running first`), and it
+  never touches your ports, saves or settings. It replaces only the AppImage: new Steam
+  artwork comes with the installer.
+- The old version stays as `~/Applications/Anchorage.AppImage.previous` until the new one
+  has run for 10 seconds. If a new version does not start at all, put the old one back from
+  Desktop Mode: `mv ~/Applications/Anchorage.AppImage.previous ~/Applications/Anchorage.AppImage`.
+- Only the AppImage updates itself. A Nix build or a checkout says `Updates come from how
+  you installed it` in that menu: update those the way you installed them.
+- It reads nothing from a release but its version number, files and checksums. Like the
+  installer, it trusts this repository's releases: the checksums catch a broken download,
+  not a bad release.
 
 **Controller layout:** Anchorage expects the Xbox-style gamepad that Steam Input gives a
 non-Steam game: <kbd>A</kbd> accepts, <kbd>B</kbd> goes back. If the buttons do nothing, open
@@ -336,6 +360,9 @@ to make Anchorage forget.
   Mode and gamescope, and Steam Input. So are the SD card's real mount names. All of it has
   only been tried against fakes, in a headless sway and on a NixOS desktop. The code follows
   the documented behaviour of each, and a Deck may still disagree.
+- Updating Anchorage from Game Mode has only been tried from a NixOS desktop against a fake
+  release: whether Steam keeps the restarted Anchorage in Game Mode is unconfirmed (start it
+  again from the library if it does not come back).
 - Four ports need a mouse, trackpad or keyboard on their first launch (see the table). That
   is their dialog, not Anchorage's.
 

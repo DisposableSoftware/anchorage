@@ -49,14 +49,16 @@ app/export_presets.cfg   the "Linux" pack preset (nix/package.nix) and the "AppI
 app/scenes/main.tscn     the root node; main.gd adds the Ports service and the home screen   WIN-1
 app/scenes/home.tscn     the home screen: cards row, detail panel, hint bar, port menu, app menu, dialog, Playing   HOME
 app/scenes/card.tscn     one port card                                            HOME-1 HOME-2
-app/src/main.gd          startup: config, bindings, theme, Ports (real or fake), window, quit   WIN-1 WIN-4 CONF-8 CONF-9
+app/src/main.gd          startup: config, bindings, theme, Ports and the self-update (real or fake), window, quit   WIN-1 WIN-4 CONF-8 CONF-9 UPD
 app/src/ini.gd           INI reader (Godot's ConfigFile can't read unquoted values) CONF-1
 app/src/config.gd        config.ini + keybindings.ini, first-run files            CONF KEY-2
 app/src/keys.gd          Keys.BINDINGS, key and gamepad tokens, InputMap setup, hint labels   KEY HOME-11
 app/src/palette.gd       the four Catppuccin palettes (the only hex colours)      LOOK-3
 app/src/theme.gd         builds the one Theme: type variations, "Palette" colours, contrast   LOOK-2 LOOK-5 LOOK-6 LOOK-8
 app/src/ports.gd         Ports, the one service screens use: state, queue, checks, scans of every ROM folder, launches, art, catalog merge and notice   PORT-5 PORT-6 PORT-9 PORT-12 PORT-14 PORT-17 ROM-4 ROM-5 ROM-9 ROM-17 ART-3 PORT-18 PORT-20 PORT-21 PORT-23
-app/src/ports_fake.gd    stand-in for Ports with demo data and scenarios (tests, screenshots); new-ports adds a port with its notice   PORT-14 PORT-23
+app/src/ports_fake.gd    stand-in for Ports with demo data and scenarios (tests, screenshots); new-ports adds a port with its notice; self-* scenarios   PORT-14 PORT-23 UPD
+app/src/self_update.gd   Anchorage updates its own AppImage: release check, download, checks, swap, .previous, installer record, restart command, ANCHORAGE_RELEASES_URL hook   UPD-1 .. UPD-10
+app/src/self_update_fake.gd stand-in for the self-update in the self-* scenarios (tests, screenshots)   UPD-3
 app/src/catalog.gd       reads and checks data/ports.json and fetched catalogs (schema in the header), merge by id   PORT-1 PORT-16 PORT-17 PORT-19 PORT-20 PORT-22 ART-1
 app/src/catalog_update.gd the fetched catalog: URL and ANCHORAGE_CATALOG_URL hook, fetch, cache file, notice text   PORT-18 PORT-19 PORT-21 PORT-23
 app/src/releases.gd      latest release from the GitHub API, asset choice and digest, update-check rule, redirect hosts; assets only from the entry's own repo   PORT-2 PORT-3 PORT-5 PORT-13 PORT-22
@@ -68,7 +70,7 @@ app/src/roms.gd          ROM scan of one folder or of every folder in order (Sca
 app/src/rom_folders.gd   ROM folder detection (EmuDeck, RetroDECK, defaults, mounts), SD card search (SearchJob), chooser listings   ROM-10 ROM-14 ROM-15 ROM-16
 app/scenes/rom_folder.tscn + app/src/ui/rom_folder.gd   the ROM folder chooser: chosen folders (remove), starting points, folders, search, config.ini notice   ROM-11 ROM-12 ROM-14 ROM-17
 app/src/art.gd           cover art: download one at a time, cache by URL hash, size and type checks, decode   ART-3 ART-4 ART-6
-app/src/ui/home.gd       home screen logic: focus, accept, port and app menus, Remove and Quit dialogs, Playing, hints, cards for fetched ports and their toast   HOME PORT-23
+app/src/ui/home.gd       home screen logic: focus, accept, port and app menus, Remove and Quit dialogs, Playing, hints, cards for fetched ports and their toast; the update chip, entry and dialog   HOME PORT-23 UPD-3 UPD-9
 app/src/ui/card.gd       a card: cover-shaped tile (art or emblem), titles, badge, New badge, progress, focus/selection look   HOME-2 HOME-12 LOOK-9 PORT-23
 app/src/ui/toast.gd      a short notice at the top that hides itself (the catalog notice)   PORT-23
 app/src/ui/detail.gd     detail panel: description or first-launch note, versions, ROM status, progress, errors   HOME-3 HOME-8 HOME-9 PORT-17
@@ -85,16 +87,18 @@ app/tests/test_catalog_update.gd the fetched catalog: strict checks, hostile ent
 app/tests/test_art.gd    art.gd with fake HTTP; art_catalog.json is its test catalog   ART
 app/tests/test_rom_folders.gd, test_rom_folder.gd   ROM folder detection and search over fake trees; Ports' folder API and the chooser screen   ROM-10 .. ROM-17
 app/tests/test_rom_folder_list.gd several ROM folders in Ports: adding, removing, unmounted, first wins, config.ini list, old state.ini (rom_folder_case.gd: the shared temp tree)   ROM-17
+app/tests/test_self_update.gd self_update.gd with fake HTTP and fake AppImages (checks, swap, record, busy ports, restart), the chip, entry and dialog   UPD-1 .. UPD-10
+app/tests/self_update_swap.gd the app's swap on real files, for scripts/manual/steam-install.sh   UPD-7
 app/tests/fake_http.gd   http.gd stand-in that answers from memory and local files (json, text, files)
 scripts/test.sh          runs app/tests headless with every XDG folder in a temp dir; fails on script, Unicode and engine errors (allowlist for the tests that break input on purpose)
-scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway); art.sh fetches the real cover art (ART), e2e.sh installs and starts the real ports, catalog.sh serves a catalog from 127.0.0.1 (PORT-18 .. PORT-23)
+scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway); art.sh fetches the real cover art (ART), e2e.sh installs and starts the real ports, catalog.sh serves a catalog from 127.0.0.1 (PORT-18 .. PORT-23), self-update.sh updates the real AppImage from 127.0.0.1 (UPD)
 scripts/check-no-roms.sh   refuses ROM-like names, N64 ROM headers and files over 5 MiB (PROD-14)
 scripts/release-check.sh recommended version bump since the last v* tag (spec delta)
 scripts/release.sh       bump, commit "Anchorage X.Y.Z", tag, draft notes (no push)
 scripts/build-appimage.sh builds the AppImage into dist/ (git-ignored)             INT-26
 scripts/release-assets.sh stages a release's files in dist/vX.Y.Z/: AppImage, Steam art, icon, pinned install-steamos.sh, SHA256SUMS   INT-28 INT-34
 scripts/install-steamos.sh SteamOS one-command install (curl | bash): AppImage, desktop entry, Steam shortcut and art; bash VDF reader/writer; closes and restarts Steam   INT-28 INT-29 INT-33 INT-34 INT-35
-scripts/manual/steam-install.sh the installer against fake Steam folders, a fake Steam client and a fake GitHub (steam-install/: fixtures.py, check.py with ValvePython's vdf)   INT-28 INT-29 INT-33 INT-34 INT-35
+scripts/manual/steam-install.sh the installer against fake Steam folders, a fake Steam client and a fake GitHub (steam-install/: fixtures.py, check.py with ValvePython's vdf); a rerun after the app's own swap   INT-28 INT-29 INT-33 INT-34 INT-35 UPD-7
 .githooks/pre-push       on every push refuses ROMs and large files (scripts/check-no-roms.sh, PROD-14); on a push of main, offers to release
 data/                    desktop entry, metainfo, app icon and symbolic icon (drawn by tools/steam-art)   INT-2 INT-41 INT-42
 data/steam/              Steam library art: portrait, wide, hero, logo (SVG + PNG) and icon.png; generated   INT-27
@@ -143,6 +147,10 @@ Prefer adding a script to `scripts/manual/` (source `lib.sh`, which has the guar
 ### Catalog updates
 
 The app fetches `app/data/ports.json` from `main` (`PORT-18`). `ANCHORAGE_CATALOG_URL` (test hook only: `http://127.0.0.1:<port>/...` or `https://raw.githubusercontent.com/...`) points it elsewhere. `scripts/manual/catalog.sh` serves the shipped catalog plus a made-up port, a hostile entry and a future one from 127.0.0.1 and checks the notice, the `New` badge, the cache and the refusals in a sandboxed HOME, with screenshots: `HEADLESS_RES=1280x720 HEADLESS_SCALE=1 OUT=/tmp/shots scripts/manual/headless.sh scripts/manual/catalog.sh`. Maintainers add ports with [docs/adding-a-port.md](docs/adding-a-port.md); a change to `ports.json` on `main` reaches every user, so review it like code.
+
+### Self-update
+
+`scripts/manual/self-update.sh` runs the real AppImage (build it first) from a temp `~/Applications`, offers it the next patch version from 127.0.0.1 through `ANCHORAGE_RELEASES_URL` (test hook only: a plain `http://127.0.0.1:<port>/` URL, and the assets on the same origin) and drives the update with keys: chip, entry, progress, swap, `.previous`, the installer's record, Restart now, the new process. It re-runs itself in a user, mount and network namespace with an empty `binfmt_misc` (NixOS's appimage binfmt handler would otherwise catch the `--appimage-version` check) and only loopback: `mkdir -p ~/.cache/ae && TMPDIR=~/.cache/ae RUNNER=steam-run HEADLESS_RES=1280x720 HEADLESS_SCALE=1 OUT=/tmp/shots scripts/manual/headless.sh scripts/manual/self-update.sh`. It uses extract-and-run; the FUSE mount and Steam's tracking of the restarted copy need a Deck. The fake has `self-update`, `self-busy`, `self-downloading`, `self-ready` and `self-unsupported` scenarios (`--fake-ports self-ready`).
 
 ### Fake ports and screenshots
 

@@ -61,10 +61,12 @@
                   curl
                   desktop-file-utils
                   util-linux
+                  godot
                 ];
               }
               ''
-                cp -r ${./scripts} scripts && cp -r ${./data} data && chmod -R u+w scripts data
+                cp -r ${./scripts} scripts && cp -r ${./data} data && cp -r ${./app} app
+                chmod -R u+w scripts data app
                 bash scripts/manual/steam-install.sh
                 touch $out
               '';
