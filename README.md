@@ -17,7 +17,7 @@
 > Like any good anchorage, it is a sheltered place to leave your boats, and it says nothing
 > about whether they float. Bug reports will be read with great affection and then ignored.
 
-![The home screen in Catppuccin Mocha: seven port cards with cover art, Ship of Harkinian focused and ready to play, with its details below](docs/screenshots/home.png)
+![The home screen in Catppuccin Mocha: port cards with their cover art, Ship of Harkinian focused and ready to play with its details below, and a hint bar ending in Menu](docs/screenshots/home.png)
 
 Anchorage (`anchorage`) installs, updates and launches the [HarbourMasters](https://github.com/HarbourMasters)
 PC ports of N64 games. It is one non-Steam game in your Steam library: start it in Game
@@ -49,8 +49,8 @@ the right one. It never downloads ROMs.
 
 | | |
 |---|---|
-| ![Starship downloading at 42 percent, with a progress bar on its card and in the detail panel](docs/screenshots/installing.png) | ![The ROM folder chooser at ~/Emulation/roms, with the n64 folder highlighted and its count of six ROM files](docs/screenshots/rom-folder.png) |
-| ![The options menu for Ship of Harkinian: Play, Check for updates, ROM folder and Remove](docs/screenshots/menu.png) | ![Catppuccin Latte with the blue accent, scrolled to Ghostship and its first-launch note](docs/screenshots/latte.png) |
+| ![Starship downloading at 42 percent, with a progress bar on its card and in the detail panel, and its first-launch note in place of the description](docs/screenshots/installing.png) | ![The ROM folder chooser with two chosen folders, the SD card one marked Not found, and the folder search on the right](docs/screenshots/rom-folder.png) |
+| ![The Anchorage menu with Update Anchorage to 0.4.0, Check for updates and new ports, ROM folder and Quit, and an update chip in the hint bar](docs/screenshots/menu.png) | ![Catppuccin Latte with the blue accent: Starship focused, with its first-launch note](docs/screenshots/latte.png) |
 
 ## Install
 
@@ -393,8 +393,14 @@ The scripts in [`scripts/manual/`](scripts/manual) drive the app in a headless s
 every state (`shots.sh`, `rom-folder.sh`), the window sizes from 720p to 4K, the AppImage,
 the SteamOS installer against fake Steam folders (`steam-install.sh`), and an end-to-end
 run that installs and starts the real ports (`e2e.sh`). The README screenshots are
-1280×720 shots of the demo data, with the cover art fetched from SteamGridDB at the time.
+1280×720 shots of the demo data (below).
 The pre-push hook refuses ROMs and large files (`scripts/check-no-roms.sh`).
+
+To redraw the README and metainfo screenshots, run `nix build && scripts/screenshots.sh`. It
+fetches the seven covers from SteamGridDB's CDN into a temp folder (never inside the
+repository, never committed), shows them through the fake ports'
+`ANCHORAGE_FAKE_ART_DIR`, takes the five shots headless at 1280×720 in a fresh sandbox and
+optimises them into `docs/screenshots/`. Look at each one before you commit it.
 
 The port list is `app/data/ports.json`, and Anchorage fetches it from `main`, so a new port
 needs no new release. [`docs/adding-a-port.md`](docs/adding-a-port.md) covers the fields,

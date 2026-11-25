@@ -31,23 +31,23 @@
   <url type="bugtracker">https://github.com/DisposableSoftware/anchorage/issues</url>
   <screenshots>
     <screenshot type="default">
-      <caption>The home screen, with a card and cover art for each port</caption>
+      <caption>The home screen: a card with cover art for each port, and the Menu hint in the hint bar</caption>
       <image>https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/docs/screenshots/home.png</image>
     </screenshot>
     <screenshot>
-      <caption>A port downloading, with its progress</caption>
+      <caption>A port downloading, with its progress and its first-launch note</caption>
       <image>https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/docs/screenshots/installing.png</image>
     </screenshot>
     <screenshot>
-      <caption>The ROM folder chooser</caption>
+      <caption>The ROM folder chooser, with several folders chosen</caption>
       <image>https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/docs/screenshots/rom-folder.png</image>
     </screenshot>
     <screenshot>
-      <caption>A port's options menu</caption>
+      <caption>The Anchorage menu, with an update waiting</caption>
       <image>https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/docs/screenshots/menu.png</image>
     </screenshot>
     <screenshot>
-      <caption>Catppuccin Latte with the blue accent</caption>
+      <caption>Catppuccin Latte with the blue accent, and a first-launch note</caption>
       <image>https://raw.githubusercontent.com/DisposableSoftware/anchorage/main/docs/screenshots/latte.png</image>
     </screenshot>
   </screenshots>
