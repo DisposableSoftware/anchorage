@@ -24,6 +24,9 @@ extends Node
 ##   new-ports    as showcase; 1 s in (or on `add_new_ports` when `simulate` is off) a
 ##                catalog fetch adds NEW_DEMO at the end, with its notice and `New` badge
 ##                (PORT-23)
+##   self-*       Anchorage's own update (UPD), shown by `self_update_fake.gd`: self-update
+##                (a newer version, no port busy), self-busy (the same over showcase, with
+##                its install running), self-downloading, self-ready, self-unsupported
 ##
 ## The ROM folder chooser (ROM-11) browses a small made-up tree (TREE, ROM_COUNTS) under
 ## /home/deck and two drives; the SD card search (ROM-14) answers SEARCH_RESULTS after
@@ -58,6 +61,11 @@ const SCENARIOS := [
 	"new-ports",
 	"rom-folders",
 	"rom-unplugged",
+	"self-update",
+	"self-busy",
+	"self-downloading",
+	"self-ready",
+	"self-unsupported",
 ]
 const NEW_DELAY := 1.0
 ## The port the `new-ports` scenario's catalog fetch adds.
@@ -358,7 +366,11 @@ static func _demo_art(index: int) -> Texture2D:
 func _apply_scenario(scenario: String) -> void:
 	var first: String = _ids[0]
 	match scenario:
-		"showcase", "art-late", "rom-config", "no-card", "new-ports":
+		"self-update", "self-downloading", "self-ready", "self-unsupported":
+			_set_installed("soh", "9.3.1")
+			_set_installed("2ship", "5.0.0")
+			_set_installed("spaghettikart", "1.0.0")
+		"showcase", "art-late", "rom-config", "no-card", "new-ports", "self-busy":
 			_set_installed("soh", "9.3.1")
 			_set_installed("2ship", "5.0.0")
 			_set_busy("starship", "install", 0.42, "33.6 MB of 80 MB")

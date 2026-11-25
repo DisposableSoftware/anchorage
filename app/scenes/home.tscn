@@ -234,6 +234,23 @@ layout_mode = 2
 theme_type_variation = &"Brand"
 text = "Anchorage"
 
+[node name="ChipGap" type="Control" parent="Layout/HintBar/Row"]
+custom_minimum_size = Vector2(12, 0)
+layout_mode = 2
+
+[node name="UpdateChip" type="PanelContainer" parent="Layout/HintBar/Row"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"Badge_update"
+
+[node name="UpdateChipText" type="Label" parent="Layout/HintBar/Row/UpdateChip"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BadgeText_update"
+
 [node name="Spacer" type="Control" parent="Layout/HintBar/Row"]
 layout_mode = 2
 size_flags_horizontal = 3
@@ -349,6 +366,12 @@ text = "Anchorage"
 custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
 
+[node name="SelfUpdateButton" type="Button" parent="AppMenuLayer/AppMenu/Box"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+alignment = 0
+
 [node name="CatalogButton" type="Button" parent="AppMenuLayer/AppMenu/Box"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -400,6 +423,13 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(1, 0)
 layout_mode = 2
 autowrap_mode = 3
+
+[node name="ConfirmProgress" type="ProgressBar" parent="ConfirmLayer/Confirm/Box"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+show_percentage = false
 
 [node name="Gap" type="Control" parent="ConfirmLayer/Confirm/Box"]
 custom_minimum_size = Vector2(0, 12)

@@ -6,6 +6,8 @@ const Config := preload("res://src/config.gd")
 const Keys := preload("res://src/keys.gd")
 const Style := preload("res://src/theme.gd")
 const PortsFake := preload("res://src/ports_fake.gd")
+const SelfUpdate := preload("res://src/self_update.gd")
+const SelfUpdateFake := preload("res://src/self_update_fake.gd")
 const HomeScene := preload("res://scenes/home.tscn")
 const PORTS := "res://src/ports.gd"
 
@@ -23,8 +25,11 @@ func _ready() -> void:
 		window.size = Vector2i(cfg.width, cfg.height)
 	var ports := make_ports(OS.get_cmdline_user_args(), cfg)
 	add_child(ports)
+	var self_update := make_self_update(OS.get_cmdline_user_args(), ports, cfg)
+	add_child(self_update)
 	var home := HomeScene.instantiate()
 	home.ports = ports
+	home.self_update = self_update
 	home.quit_requested.connect(quit)
 	add_child(home)
 
@@ -44,6 +49,21 @@ static func make_ports(args: PackedStringArray, cfg: RefCounted = null) -> Node:
 	if at >= 0 and at + 1 < args.size() and not args[at + 1].begins_with("--"):
 		scenario = args[at + 1]
 	return PortsFake.new(scenario)
+
+
+## UPD: Anchorage's own update next to the ports it waits for (UPD-8); the fake's
+## stand-in with the fake ports, in that scenario's state.
+static func make_self_update(args: PackedStringArray, ports: Node, cfg: RefCounted = null) -> Node:
+	var at := args.find("--fake-ports")
+	if at < 0 and not ports is PortsFake:
+		var real: Node = SelfUpdate.new()
+		real.ports = ports
+		if cfg != null:
+			real.check_updates = cfg.check_updates
+		return real
+	var fake: Node = SelfUpdateFake.new(args[at + 1] if at >= 0 and at + 1 < args.size() else "")
+	fake.ports = ports
+	return fake
 
 
 func _unhandled_input(event: InputEvent) -> void:

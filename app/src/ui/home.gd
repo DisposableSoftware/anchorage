@@ -7,7 +7,7 @@ extends Control
 ## The user chose to quit (HOME-14, HOME-15); main.gd quits as it does for `quit`.
 signal quit_requested
 
-enum Mode { HOME, MENU, APP_MENU, CONFIRM, PLAYING, CHOOSER }
+enum Mode { HOME, MENU, APP_MENU, CONFIRM, PLAYING, CHOOSER, UPDATE }
 
 const CardScene := preload("res://scenes/card.tscn")
 const ChooserScene := preload("res://scenes/rom_folder.tscn")
@@ -21,8 +21,17 @@ const FULL_ROW := 4
 const CARDS_IN_VIEW := 4.3
 ## The part of a neighbour card kept in view beside the focused one.
 const PEEK := 0.3
+## UPD-9: Steam may count the app as ended when the old process quits.
+const RESTART_TEXT := (
+	"Restart now closes Anchorage and opens the new version. If Steam then shows Anchorage"
+	+ " as closed, start it again from your library. Later keeps this version until you"
+	+ " quit, and the next start uses %s."
+)
 
 var ports: Node
+## Anchorage's own update (spec/update.md), set with `ports` by main.gd: self_update.gd or
+## self_update_fake.gd. Without one there is no update to show.
+var self_update: Object
 var mode := Mode.HOME
 var _cards: Array[Control] = []
 ## The card the open menu, dialog or overlay is about, and gets focus back afterwards.
@@ -32,6 +41,11 @@ var _chooser: Control
 ## What the open confirmation does when confirmed: remove the port or quit.
 var _on_confirmed: Callable
 var _toast: Control
+## The update in use, the version the toast announced (UPD-3), and whether the user started
+## an update whose end gets the dialog.
+var _self: Object
+var _toasted := ""
+var _self_started := false
 
 @onready var _cards_scroll: ScrollContainer = %CardsScroll
 @onready var _cards_box: HBoxContainer = %Cards
@@ -50,6 +64,10 @@ var _toast: Control
 @onready var _catalog_button: Button = %CatalogButton
 @onready var _app_rom_folder_button: Button = %AppRomFolderButton
 @onready var _quit_button: Button = %QuitButton
+@onready var _self_button: Button = %SelfUpdateButton
+@onready var _update_chip: PanelContainer = %UpdateChip
+@onready var _update_chip_text: Label = %UpdateChipText
+@onready var _confirm_progress: ProgressBar = %ConfirmProgress
 @onready var _confirm_layer: Control = %ConfirmLayer
 @onready var _confirm_title: Label = %ConfirmTitle
 @onready var _confirm_body: Label = %ConfirmBody
@@ -69,6 +87,9 @@ func _ready() -> void:
 	_toast = Toast.new()
 	add_child(_toast)
 	ports.notice_changed.connect(_on_notice)
+	_self = self_update if self_update != null else NoUpdate.new()
+	_self.changed.connect(_on_self_update)
+	_self_button.pressed.connect(_on_self_button)
 	ports.changed.connect(_on_changed)
 	ports.launched.connect(_on_launched)
 	ports.exited.connect(_on_exited)
@@ -80,13 +101,14 @@ func _ready() -> void:
 	_catalog_button.pressed.connect(_on_check)
 	_app_rom_folder_button.pressed.connect(_on_rom_folder)
 	_quit_button.pressed.connect(quit_requested.emit)
-	_cancel_button.pressed.connect(_close)
+	_cancel_button.pressed.connect(_on_cancel_pressed)
 	_confirm_button.pressed.connect(func() -> void: _on_confirmed.call())
 	_hint_bar.hint_clicked.connect(_on_hint_clicked)
 	var menu := [_play_button, _update_button, _check_button, _rom_folder_button, _remove_button]
-	var app_menu := [_catalog_button, _app_rom_folder_button, _quit_button]
+	var app_menu := [_self_button, _catalog_button, _app_rom_folder_button, _quit_button]
 	for button in menu + app_menu + [_cancel_button, _confirm_button]:
 		button.mouse_entered.connect(button.grab_focus)
+	_on_self_update()
 	if _cards.is_empty():
 		return
 	_cards_scroll.resized.connect(_size_cards)
@@ -239,6 +261,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			handled = event.is_action_pressed("ui_cancel")
 			if handled:
 				_close()
+		Mode.UPDATE:
+			handled = event.is_action_pressed("ui_cancel")
+			if handled:
+				_on_cancel_pressed()
 		Mode.APP_MENU:
 			handled = event.is_action_pressed("ui_cancel") or event.is_action_pressed("menu")
 			if handled:
@@ -264,7 +290,7 @@ func _home_input(event: InputEvent) -> bool:
 	elif event.is_action_pressed("options"):
 		_open_menu()
 	elif event.is_action_pressed("refresh"):
-		ports.refresh()
+		_refresh()
 	elif event.is_action_pressed("menu"):
 		open_app_menu()
 	else:
@@ -368,7 +394,7 @@ func _hints() -> Array:
 	match mode:
 		Mode.MENU, Mode.APP_MENU:
 			return [["ui_accept", "Select"], ["ui_cancel", "Close"]]
-		Mode.CONFIRM:
+		Mode.CONFIRM, Mode.UPDATE:
 			return [["ui_accept", "Select"], ["ui_cancel", _cancel_button.text]]
 		Mode.PLAYING:
 			return [["quit", "Quit Anchorage"]]
@@ -415,7 +441,13 @@ func _on_update() -> void:
 
 func _on_check() -> void:
 	_close()
+	_refresh()
+
+
+## HOME-6, UPD-2: the ports, the catalog, the ROMs, and Anchorage itself.
+func _refresh() -> void:
 	ports.refresh()
+	_self.check(true)
 
 
 func _on_rom_folder() -> void:
@@ -440,10 +472,103 @@ func _on_confirm_remove() -> void:
 	ports.remove(id)
 
 
-## The app menu (HOME-14): catalog check, ROM folder, Quit.
+## The app menu (HOME-14): Anchorage's own update (UPD-3), catalog check, ROM folder, Quit.
 func open_app_menu() -> void:
+	_show_self_entry()
 	_set_modal(Mode.APP_MENU, _app_menu_layer, false)
-	_catalog_button.grab_focus()
+	(_self_button if _self_button.focus_mode == FOCUS_ALL else _catalog_button).grab_focus()
+
+
+## UPD-3: the chip and the toast; the dialog follows the update while it is open, and
+## opens when an update the user started is ready or failed.
+func _on_self_update() -> void:
+	var info: Dictionary = _self.info()
+	_update_chip.visible = not info.version.is_empty() and info.state != "none"
+	_update_chip_text.text = (
+		("Restart for %s" if info.state == "ready" else "Update %s") % [info.version]
+	)
+	if info.state == "available" and info.version != _toasted:
+		_toasted = info.version
+		_toast.show_text("Anchorage %s is available" % info.version)
+	if mode == Mode.UPDATE:
+		_show_self_dialog()
+	elif mode == Mode.APP_MENU:
+		_show_self_entry()
+	elif mode == Mode.HOME and _self_started and info.state in ["ready", "failed"]:
+		_show_self_dialog()
+
+
+## UPD-1, UPD-3, UPD-8: the app menu's first entry, or the line that says why there is none.
+func _show_self_entry() -> void:
+	var info: Dictionary = _self.info()
+	var text := ""
+	match info.state:
+		"unsupported":
+			text = "Updates come from how you installed it"
+		"available", "failed":
+			text = "Update Anchorage to %s" % info.version
+			if info.blocked:
+				text = "Finish what is running first"
+		"waiting", "downloading", "verifying":
+			text = "Updating Anchorage to %s" % info.version
+		"ready":
+			text = "Restart for Anchorage %s" % info.version
+	_self_button.text = text
+	_self_button.visible = not text.is_empty()
+	_self_button.disabled = info.state == "unsupported"
+	_self_button.focus_mode = FOCUS_NONE if _self_button.disabled or text.is_empty() else FOCUS_ALL
+
+
+func _on_self_button() -> void:
+	if _self.info().state in ["available", "failed"]:
+		_self_started = true
+		_self.start()
+	_show_self_dialog()
+
+
+## UPD-4, UPD-9: progress with Cancel, then Restart now and Later, or why it failed.
+func _show_self_dialog() -> void:
+	var info: Dictionary = _self.info()
+	_menu_layer.visible = false
+	_app_menu_layer.visible = false
+	match info.state:
+		"waiting", "downloading", "verifying":
+			var title := "Updating Anchorage to %s" % info.version
+			_confirm(title, info.detail, ["Cancel", "", ""], Callable(), false)
+			_confirm_progress.visible = info.progress >= 0.0
+			_confirm_progress.value = maxf(info.progress, 0.0) * 100.0
+		"ready":
+			var title := "Anchorage %s is ready" % info.version
+			_confirm(
+				title, RESTART_TEXT % info.version, ["Later", "Restart now", ""], _on_restart, false
+			)
+			_self_started = false
+		"failed":
+			var lines: PackedStringArray = info.error.split("\n", true, 1)
+			_confirm(
+				lines[0], lines[1] if lines.size() > 1 else "", ["Close", "", ""], Callable(), false
+			)
+			_self_started = false
+		_:
+			_close()
+			return
+	mode = Mode.UPDATE
+	_hint_bar.show_hints(_hints())
+
+
+func _on_restart() -> void:
+	var error: String = _self.restart()
+	if error.is_empty():
+		quit_requested.emit()
+		return
+	_confirm("Could not restart “Anchorage”", error, ["Close", "", ""], Callable(), false)
+
+
+func _on_cancel_pressed() -> void:
+	if mode == Mode.UPDATE and _self.info().state in ["waiting", "downloading", "verifying"]:
+		_self_started = false
+		_self.cancel()
+	_close()
 
 
 ## Back with nothing to cancel or dismiss (HOME-15). Focus starts on Stay, so a stray
@@ -461,6 +586,8 @@ func _confirm(
 	_confirm_body.visible = not body.is_empty()
 	_cancel_button.text = buttons[0]
 	_confirm_button.text = buttons[1]
+	_confirm_button.visible = not buttons[1].is_empty()
+	_confirm_progress.visible = false
 	_confirm_button.theme_type_variation = buttons[2]
 	_on_confirmed = on_confirmed
 	_set_modal(Mode.CONFIRM, _confirm_layer, about_card)
@@ -531,3 +658,25 @@ func _show_playing(card: Control) -> void:
 func _on_exited(id: String) -> void:
 	if mode == Mode.PLAYING and _current.port_id == id:
 		_close()
+
+
+## Stands in when there is no self-update service: nothing newer, ever.
+class NoUpdate:
+	extends RefCounted
+
+	signal changed
+
+	func info() -> Dictionary:
+		return {"state": "none", "version": "", "progress": -1.0, "detail": "", "blocked": false}
+
+	func check(_manual := false) -> void:
+		pass
+
+	func start() -> void:
+		pass
+
+	func cancel() -> void:
+		pass
+
+	func restart() -> String:
+		return ""
