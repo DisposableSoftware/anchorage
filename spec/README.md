@@ -11,6 +11,7 @@ This folder is the source of truth for what Anchorage does. The code implements 
 | [keybindings.md](keybindings.md) | `KEY` | Default bindings, user overrides |
 | [appearance.md](appearance.md) | `LOOK` | Styling and display scale |
 | [home.md](home.md) | `HOME` | The home screen: port cards, details, actions, hint bar |
+| [update.md](update.md) | `UPD` | Updating Anchorage itself from Game Mode |
 | [ports.md](ports.md) | `PORT` | Catalog, install, update, launch, remove |
 | [art.md](art.md) | `ART` | Cover art from SteamGridDB |
 | [roms.md](roms.md) | `ROM` | Finding and preparing the user's ROMs |
