@@ -66,20 +66,46 @@ theme_override_constants/separation = 24
 
 [node name="PlacesPanel" type="PanelContainer" parent="Layout/Content/Column/Body"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(300, 0)
+custom_minimum_size = Vector2(400, 0)
 layout_mode = 2
 theme_type_variation = &"DetailPanel"
 
-[node name="Box" type="VBoxContainer" parent="Layout/Content/Column/Body/PlacesPanel"]
+[node name="SideScroll" type="ScrollContainer" parent="Layout/Content/Column/Body/PlacesPanel"]
+unique_name_in_owner = true
 layout_mode = 2
+follow_focus = true
+horizontal_scroll_mode = 0
+
+[node name="Box" type="VBoxContainer" parent="Layout/Content/Column/Body/PlacesPanel/SideScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 12
 
-[node name="PlacesTitle" type="Label" parent="Layout/Content/Column/Body/PlacesPanel/Box"]
+[node name="ChosenTitle" type="Label" parent="Layout/Content/Column/Body/PlacesPanel/SideScroll/Box"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"FieldName"
+text = "Your ROM folders"
+
+[node name="Chosen" type="VBoxContainer" parent="Layout/Content/Column/Body/PlacesPanel/SideScroll/Box"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ChosenGap" type="Control" parent="Layout/Content/Column/Body/PlacesPanel/SideScroll/Box"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 4)
+layout_mode = 2
+
+[node name="PlacesTitle" type="Label" parent="Layout/Content/Column/Body/PlacesPanel/SideScroll/Box"]
 layout_mode = 2
 theme_type_variation = &"FieldName"
 text = "Start from"
 
-[node name="Places" type="VBoxContainer" parent="Layout/Content/Column/Body/PlacesPanel/Box"]
+[node name="Places" type="VBoxContainer" parent="Layout/Content/Column/Body/PlacesPanel/SideScroll/Box"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 8

@@ -21,13 +21,39 @@ func test_round_trip() -> void:
 	eq(again.rom_cache()["/roms/a b=c.z64"]["size"], 3.0, "cache, odd path kept")
 	again.clear_installed("soh")
 	eq(State.load_from(path).installed_version("soh"), "", "cleared and saved")
-	again.set_rom_dir("/run/media/deck/My Card/roms/n64\n[ports]")
+	again.set_rom_dirs(["/run/media/deck/My Card/roms/n64\n[ports]", "/a;b", "", "/a;b"])
 	eq(
-		State.load_from(path).rom_dir(),
-		"/run/media/deck/My Card/roms/n64 [ports]",
-		"the chosen ROM folder (ROM-12), on one line"
+		State.load_from(path).rom_dirs(),
+		["/run/media/deck/My Card/roms/n64 [ports]", "/a;b"],
+		"the chosen ROM folders in order (ROM-12, ROM-17), each on one line, once"
 	)
 	eq(State.load_from(path).rom_cache().size(), 1, "next to the cache")
+	remove(dir)
+
+
+## ROM-12: an older state.ini kept one folder as `[roms] directory`; it loads as a list of
+## one, and the first folder is still written there for an older Anchorage.
+func test_an_old_single_rom_folder_loads_as_a_list() -> void:
+	var dir := temp_dir("state_roms_old")
+	var path := dir.path_join("state.ini")
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string("[ports]\nsoh.installed = 9.3.1\n\n[roms]\ndirectory = /home/deck/Roms\n")
+	file.close()
+	var state := State.load_from(path)
+	eq(state.rom_dirs(), ["/home/deck/Roms"], "one folder")
+	eq(state.installed_version("soh"), "9.3.1", "the rest as before")
+	state.set_rom_dirs(state.rom_dirs() + ["/run/media/deck/SD/n64"])
+	var text := FileAccess.get_file_as_string(path)
+	check(text.contains('directories = ["/home/deck/Roms","/run/media/deck/SD/n64"]'), text)
+	check(text.contains("directory = /home/deck/Roms\n"), "the first one for older versions")
+	eq(State.load_from(path).rom_dirs().size(), 2, "the list wins over the single key")
+	state.set_rom_dirs([])
+	eq(State.load_from(path).rom_dirs(), [], "none left")
+	check(not FileAccess.get_file_as_string(path).contains("directory"), "and nothing written")
+	file = FileAccess.open(path, FileAccess.WRITE)
+	file.store_string('[roms]\ndirectories = {"odd": 1}\ndirectory = /x\n')
+	file.close()
+	eq(State.load_from(path).rom_dirs(), ["/x"], "a broken list falls back to the single key")
 	remove(dir)
 
 

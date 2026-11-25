@@ -205,12 +205,45 @@ func test_scan_job_runs_on_a_thread() -> void:
 	var job := Roms.ScanJob.new()
 	var got := []
 	job.finished.connect(func(r: Dictionary): got.append(r))
-	job.start(dir, _hashes(), {})
+	job.start([dir], _hashes(), {})
 	job.join()
 	eq(got.size(), 1, "finished emitted once")
 	job.join()
 	eq(got.size(), 1, "join twice does not emit twice")
 	eq(got[0]["matches"]["alpha"]["found"], true, "result delivered")
+	remove(dir)
+
+
+## ROM-17, ROM-7: every folder is scanned in order, the first folder with a match wins for
+## a port, a missing folder is skipped (its cache entries kept) and a repeat is scanned once.
+func test_scan_all_folders_in_order() -> void:
+	var dir := temp_dir("roms-all")
+	var first := dir.path_join("first")
+	var second := dir.path_join("second")
+	var gone := dir.path_join("unmounted")
+	for folder in [first, second]:
+		DirAccess.make_dir_recursive_absolute(folder)
+	_write(first.path_join("alpha eu.z64"), _rom(2))
+	_write(second.path_join("alpha us.z64"), _rom(1))
+	_write(second.path_join("beta.z64"), _rom(3))
+	var old_key := "%s|1024|5" % gone.path_join("beta.z64")
+	var cache := {old_key: [{"sha1": Roms.sha1_of(_rom(3)), "entry": "", "order": "z64"}]}
+	var result := Roms.scan_all([gone, first, second, first + "/"], _hashes(), cache)
+	eq(result["status"], "ok", "ok when any folder could be read")
+	eq(result["dirs"], [gone, first, second, first + "/"], "the folders as given")
+	eq(
+		result["folders"].map(func(f: Dictionary) -> String: return f["status"]),
+		["missing", "ok", "ok", "skipped"],
+		"a missing folder is skipped, a repeat is scanned once"
+	)
+	eq(result["matches"]["alpha"]["path"], first.path_join("alpha eu.z64"), "first folder wins")
+	eq(result["matches"]["beta"]["path"], second.path_join("beta.z64"), "the second folder's")
+	eq(result["folders"][1]["ports"], ["alpha"], "the ports each folder serves")
+	eq(result["folders"][2]["ports"], ["beta"], "beta from the second (alpha was taken)")
+	check(result["cache"].has(old_key), "the unmounted folder's cache is kept")
+	eq(result["cache"].size(), 4, "and every file seen")
+	eq(Roms.scan_all([gone], _hashes(), {})["status"], "missing", "missing when none is there")
+	eq(Roms.scan_all([], _hashes(), {})["status"], "missing", "and when there is no folder")
 	remove(dir)
 
 
@@ -248,7 +281,7 @@ func test_a_scan_job_can_be_aborted() -> void:
 	var job := Roms.ScanJob.new()
 	var got := []
 	job.finished.connect(func(r: Dictionary): got.append(r))
-	job.start(dir, _hashes(), {})
+	job.start([dir], _hashes(), {})
 	job.abort()
 	job.join()
 	eq(got.size(), 1, "finished still comes")

@@ -55,7 +55,7 @@ app/src/config.gd        config.ini + keybindings.ini, first-run files          
 app/src/keys.gd          Keys.BINDINGS, key and gamepad tokens, InputMap setup, hint labels   KEY HOME-11
 app/src/palette.gd       the four Catppuccin palettes (the only hex colours)      LOOK-3
 app/src/theme.gd         builds the one Theme: type variations, "Palette" colours, contrast   LOOK-2 LOOK-5 LOOK-6 LOOK-8
-app/src/ports.gd         Ports, the one service screens use: state, queue, checks, scans, launches, art, catalog merge and notice   PORT-5 PORT-6 PORT-9 PORT-12 PORT-14 PORT-17 ROM-4 ROM-5 ROM-9 ART-3 PORT-18 PORT-20 PORT-21 PORT-23
+app/src/ports.gd         Ports, the one service screens use: state, queue, checks, scans of every ROM folder, launches, art, catalog merge and notice   PORT-5 PORT-6 PORT-9 PORT-12 PORT-14 PORT-17 ROM-4 ROM-5 ROM-9 ROM-17 ART-3 PORT-18 PORT-20 PORT-21 PORT-23
 app/src/ports_fake.gd    stand-in for Ports with demo data and scenarios (tests, screenshots); new-ports adds a port with its notice   PORT-14 PORT-23
 app/src/catalog.gd       reads and checks data/ports.json and fetched catalogs (schema in the header), merge by id   PORT-1 PORT-16 PORT-17 PORT-19 PORT-20 PORT-22 ART-1
 app/src/catalog_update.gd the fetched catalog: URL and ANCHORAGE_CATALOG_URL hook, fetch, cache file, notice text   PORT-18 PORT-19 PORT-21 PORT-23
@@ -63,10 +63,10 @@ app/src/releases.gd      latest release from the GitHub API, asset choice and di
 app/src/http.gd          HTTPRequest wrapper: JSON, text with a size limit, downloads with progress, redirects followed by hand and checked   PORT-4 PORT-13 PORT-19
 app/src/installer.gd     download, digest, unpack, swap current/previous (worker), remove, stale cleanup, extra files   PORT-3 PORT-6 PORT-7 PORT-10
 app/src/launcher.gd      child environment, /bin/sh spawn, ROM placement and argument, placed-copy cleanup   PORT-8 PORT-9 PORT-15 PORT-16
-app/src/state.gd         state.ini: installed and latest tags, archive version, placed ROM, last check, ROM scan cache, catalog check time and new ports   PORT-11 PORT-23
-app/src/roms.gd          ROM scan (ScanJob thread, abort), zip sizes, SHA1 identification, big-endian prepare, real paths   ROM
+app/src/state.gd         state.ini: installed and latest tags, archive version, placed ROM, last check, ROM scan cache, chosen ROM folders (and the old single key), catalog check time and new ports   PORT-11 PORT-23 ROM-12
+app/src/roms.gd          ROM scan of one folder or of every folder in order (ScanJob thread, abort), zip sizes, SHA1 identification, big-endian prepare, real paths   ROM
 app/src/rom_folders.gd   ROM folder detection (EmuDeck, RetroDECK, defaults, mounts), SD card search (SearchJob), chooser listings   ROM-10 ROM-14 ROM-15 ROM-16
-app/scenes/rom_folder.tscn + app/src/ui/rom_folder.gd   the ROM folder chooser: starting points, folders, search, config.ini notice   ROM-11 ROM-12 ROM-14
+app/scenes/rom_folder.tscn + app/src/ui/rom_folder.gd   the ROM folder chooser: chosen folders (remove), starting points, folders, search, config.ini notice   ROM-11 ROM-12 ROM-14 ROM-17
 app/src/art.gd           cover art: download one at a time, cache by URL hash, size and type checks, decode   ART-3 ART-4 ART-6
 app/src/ui/home.gd       home screen logic: focus, accept, port and app menus, Remove and Quit dialogs, Playing, hints, cards for fetched ports and their toast   HOME PORT-23
 app/src/ui/card.gd       a card: cover-shaped tile (art or emblem), titles, badge, New badge, progress, focus/selection look   HOME-2 HOME-12 LOOK-9 PORT-23
@@ -83,7 +83,8 @@ app/tests/test_app_menu.gd the app menu and the Quit question   HOME-14 HOME-15 
 app/tests/test_http.gd   http.gd against a local TCPServer: redirects, stall, cancel, size limit, JSON, text, local http only   PORT-4 PORT-13 PORT-19
 app/tests/test_catalog_update.gd the fetched catalog: strict checks, hostile entries, argv not shell, merge, cache, hour, notice, New badge, repos   PORT-18 .. PORT-23
 app/tests/test_art.gd    art.gd with fake HTTP; art_catalog.json is its test catalog   ART
-app/tests/test_rom_folders.gd, test_rom_folder.gd   ROM folder detection and search over fake trees; Ports' folder API and the chooser screen   ROM-10 .. ROM-16
+app/tests/test_rom_folders.gd, test_rom_folder.gd   ROM folder detection and search over fake trees; Ports' folder API and the chooser screen   ROM-10 .. ROM-17
+app/tests/test_rom_folder_list.gd several ROM folders in Ports: adding, removing, unmounted, first wins, config.ini list, old state.ini (rom_folder_case.gd: the shared temp tree)   ROM-17
 app/tests/fake_http.gd   http.gd stand-in that answers from memory and local files (json, text, files)
 scripts/test.sh          runs app/tests headless with every XDG folder in a temp dir; fails on script, Unicode and engine errors (allowlist for the tests that break input on purpose)
 scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway); art.sh fetches the real cover art (ART), e2e.sh installs and starts the real ports, catalog.sh serves a catalog from 127.0.0.1 (PORT-18 .. PORT-23)
@@ -145,10 +146,10 @@ The app fetches `app/data/ports.json` from `main` (`PORT-18`). `ANCHORAGE_CATALO
 
 ### Fake ports and screenshots
 
-`--fake-ports [SCENARIO]` after `--` starts the app with `app/src/ports_fake.gd` instead of the real service (it is also used while `app/src/ports.gd` doesn't exist): `./result/bin/anchorage -- --fake-ports error`, or `godot --path app -- --fake-ports offline`. Scenarios: `showcase` (default: one card per state), `fresh`, `installing`, `updating`, `rom-missing`, `error`, `offline`, `playing`, `art-late`, `first-run` (every port installed without its game files: the first-launch notes), `rom-config` (the ROM folder set in `config.ini`), `no-card` (no SD card or drive), `new-ports` (a catalog fetch adds a port 1 s in: its card, `New` badge and notice); the list and what each sets are at the top of `ports_fake.gd`. Actions in the fake play out over time (a download takes 6 s, a launched port runs 8 s); the scenarios' own busy states stay still, so screenshots repeat.
+`--fake-ports [SCENARIO]` after `--` starts the app with `app/src/ports_fake.gd` instead of the real service (it is also used while `app/src/ports.gd` doesn't exist): `./result/bin/anchorage -- --fake-ports error`, or `godot --path app -- --fake-ports offline`. Scenarios: `showcase` (default: one card per state), `fresh`, `installing`, `updating`, `rom-missing`, `error`, `offline`, `playing`, `art-late`, `first-run` (every port installed without its game files: the first-launch notes), `rom-config` (two ROM folders set in `config.ini`), `rom-folders` (two chosen ROM folders), `rom-unplugged` (the same with the SD card out), `no-card` (no SD card or drive), `new-ports` (a catalog fetch adds a port 1 s in: its card, `New` badge and notice); the list and what each sets are at the top of `ports_fake.gd`. Actions in the fake play out over time (a download takes 6 s, a launched port runs 8 s); the scenarios' own busy states stay still, so screenshots repeat.
 
 - `scripts/manual/shots.sh SIZE` takes a screenshot of every scenario, the options menu, the Remove dialog, the app menu, the Quit question and latte with blue: `HEADLESS_RES=1280x720 HEADLESS_SCALE=1 OUT=/tmp/shots scripts/manual/headless.sh scripts/manual/shots.sh 1280x720`. `FLAVOR` and `ACCENT` change the look for the whole run.
-- `scripts/manual/rom-folder.sh SIZE` takes screenshots of the ROM folder chooser (`ROM-11`, `ROM-12`, `ROM-14`), same usage as `shots.sh`.
+- `scripts/manual/rom-folder.sh SIZE` takes screenshots of the ROM folder chooser (`ROM-11`, `ROM-12`, `ROM-14`, `ROM-17`), same usage as `shots.sh`.
 - `scripts/manual/home.sh` (1280×720) drives focus with keys and finds the focus ring by its colour, including while a download runs.
 - To try the UI from a checkout without `nix build`, run `godot --headless --path app --import` once (it imports the font), then pass `BIN=` a script that runs `godot --path app "$@"`.
 

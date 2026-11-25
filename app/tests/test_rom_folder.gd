@@ -1,135 +1,17 @@
-extends "res://tests/case.gd"
+extends "res://tests/rom_folder_case.gd"
 ## The ROM folder in `Ports` (ROM-10, ROM-12, ROM-13, ROM-14) over fake home and mount
-## trees, and the chooser screen (ROM-11) over ports_fake and over the real Ports on a temp
-## tree, driven with input events like test_home.
+## trees, and the chooser screen (ROM-11, its list of chosen folders: ROM-17) over
+## ports_fake and over the real Ports on a temp tree, driven with input events like
+## test_home. Several folders in `Ports` are in test_rom_folder_list.
 
-const Ports := preload("res://src/ports.gd")
 const PortsFake := preload("res://src/ports_fake.gd")
-const FakeHttp := preload("res://tests/fake_http.gd")
-const State := preload("res://src/state.gd")
-const Roms := preload("res://src/roms.gd")
 const RomFolders := preload("res://src/rom_folders.gd")
 const Keys := preload("res://src/keys.gd")
 const Style := preload("res://src/theme.gd")
 const HomeScene := preload("res://scenes/home.tscn")
 const ChooserScene := preload("res://scenes/rom_folder.tscn")
-
-var _dir := ""
-var _rom := PackedByteArray()
-## Beta's ROM: another game, so a folder can hold one port's ROM and not the other's.
-var _beta_rom := PackedByteArray()
-
-
-func _setup(name: String) -> void:
-	_dir = temp_dir(name)
-	_rom = PackedByteArray([0x80, 0x37, 0x12, 0x40])
-	_beta_rom = _rom.duplicate()
-	for i in 60:
-		_rom.append(i)
-		_beta_rom.append(200 - i)
-
-
-func _home() -> String:
-	return _dir.path_join("home/deck")
-
-
-func _catalog() -> Array:
-	return [
-		{
-			"id": "alpha",
-			"name": "Alpha",
-			"game": "Game alpha",
-			"description": "About alpha",
-			"repo": "test/alpha",
-			"asset_suffix": "-linux.zip",
-			"archive": ["alpha.o2r"],
-			"launch": {"executable": "alpha.appimage", "cwd": "data", "args": []},
-			"extra_files": [],
-			"rom_place": "data_dir",
-			"rom_file": "alpha.z64",
-			"roms": [{"label": "US", "sha1": Roms.sha1_of(_rom)}],
-		},
-		{
-			"id": "beta",
-			"name": "Beta",
-			"game": "Game beta",
-			"description": "About beta",
-			"repo": "test/beta",
-			"asset_suffix": "-linux.zip",
-			"archive": ["beta.o2r"],
-			"launch": {"executable": "beta.appimage", "cwd": "data", "args": []},
-			"extra_files": [],
-			"rom_place": "data_dir",
-			"rom_file": "beta.z64",
-			"roms": [{"label": "US", "sha1": Roms.sha1_of(_beta_rom)}],
-		},
-	]
-
-
-## Writes the matching ROM into `rel` (under the test folder) and returns the folder.
-func _put_rom(rel: String) -> String:
-	var dir := _dir.path_join(rel)
-	DirAccess.make_dir_recursive_absolute(dir)
-	var file := FileAccess.open(dir.path_join("Alpha (USA).z64"), FileAccess.WRITE)
-	file.store_buffer(_rom)
-	file.close()
-	return dir
-
-
-## Writes beta's ROM into `rel` and returns the folder.
-func _put_beta_rom(rel: String) -> String:
-	var dir := _dir.path_join(rel)
-	DirAccess.make_dir_recursive_absolute(dir)
-	var file := FileAccess.open(dir.path_join("Beta (USA).z64"), FileAccess.WRITE)
-	file.store_buffer(_beta_rom)
-	file.close()
-	return dir
-
-
-func _write(rel: String, text: String) -> void:
-	var path := _dir.path_join(rel)
-	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	file.store_string(text)
-	file.close()
-
-
-func _make(roms_dir := "", threaded := false) -> Node:
-	var ports: Node = Ports.new()
-	ports.root = _dir.path_join("ports")
-	ports.state_path = _dir.path_join("state/state.ini")
-	ports.roms_dir = roms_dir
-	ports.config_file = _home().path_join(".config/anchorage/config.ini")
-	ports.home = _home()
-	ports.media_dir = _dir.path_join("media")
-	ports.mounts_file = "/nonexistent/mounts"
-	ports.check_updates = false
-	ports.catalog = _catalog()
-	ports.http = FakeHttp.new()
-	ports.threaded = threaded
-	ports.clock = func() -> int: return 1_800_000_000
-	(Engine.get_main_loop() as SceneTree).root.add_child(ports)
-	return ports
-
-
-func _free(ports: Node) -> void:
-	ports.get_parent().remove_child(ports)
-	ports.free()
-
-
-func _state_text() -> String:
-	return FileAccess.get_file_as_string(_dir.path_join("state/state.ini"))
-
-
-## Waits frame by frame until `until` holds; a failure after `seconds`.
-func _frames(until: Callable, seconds := 10.0) -> void:
-	var deadline := Time.get_ticks_msec() + int(seconds * 1000)
-	while not until.call():
-		if Time.get_ticks_msec() > deadline:
-			check(false, "timed out after %.0f s waiting" % seconds)
-			return
-		await (Engine.get_main_loop() as SceneTree).process_frame
-
+const ChooserScript := preload("res://src/ui/rom_folder.gd")
+const CHOSEN_SD := "/run/media/mmcblk0p1/Emulation/roms/n64"
 
 # Ports --------------------------------------------------------------------------------
 
@@ -187,27 +69,6 @@ func test_a_chosen_folder_is_stored_and_rescanned_at_once() -> void:
 	eq(ports.rom_folder_info().full, chosen, "a chosen folder beats detection on the next start")
 	ports.set_rom_folder("relative/path")
 	eq(ports.rom_folder_info().full, chosen, "a relative path is refused")
-	_free(ports)
-	remove(_dir)
-
-
-## The bug from the Deck (ROM-17): a folder chosen for a second game replaced the first
-## folder, so the first game went back to ROM missing.
-func xfail_a_second_folder_keeps_the_first_games_rom() -> void:
-	_setup("folder_second")
-	var first := _put_rom("Games/A")
-	var second := _put_beta_rom("Games/B")
-	var ports := _make()
-	ports.set_rom_folder(first)
-	check(ports.info("alpha").rom.found, "game 1 found in folder A")
-	check(not ports.info("beta").rom.found, "game 2 not yet")
-	ports.set_rom_folder(second)
-	check(ports.info("beta").rom.found, "game 2 found in folder B")
-	check(ports.info("alpha").rom.found, "game 1 still found after folder B was chosen")
-	_free(ports)
-	ports = _make()
-	check(ports.info("alpha").rom.found, "game 1 found after a restart")
-	check(ports.info("beta").rom.found, "game 2 found after a restart")
 	_free(ports)
 	remove(_dir)
 
@@ -362,7 +223,7 @@ func _press(node: Control, keycode: Key) -> void:
 
 func _focus_text(node: Control) -> String:
 	var focus := node.get_viewport().gui_get_focus_owner()
-	return focus.text if focus is Button else ""
+	return focus.get_meta("text", focus.text) if focus is Button else ""
 
 
 func test_the_options_menu_opens_the_chooser_in_the_rom_folder() -> void:
@@ -434,6 +295,68 @@ func test_open_a_folder_and_use_it() -> void:
 	_done(home)
 
 
+## ROM-11, ROM-17 over ports_fake: two chosen folders listed above the places; Use this
+## folder adds a third, accept on a chosen one removes it.
+func test_the_chooser_lists_adds_and_removes_folders() -> void:
+	var home := _home_screen("rom-folders")
+	home.open_chooser()
+	var chooser: Control = home.chooser()
+	eq(chooser.current_path(), "/home/deck/Emulation/roms/n64", "starts in the first folder")
+	eq(
+		chooser.chosen_texts(),
+		["~/Emulation/roms/n64 · 5 ports", "SD card › Emulation/roms/n64 · 1 port"],
+		"listed"
+	)
+	eq(chooser.place_texts(), ["Home", "SD card", "Backup"], "then the places")
+	check(chooser.shown_text().contains("Now 2 folders, chosen here"), chooser.shown_text())
+	_press(home, KEY_DOWN)
+	check(chooser.shown_text().contains("is one of your ROM folders"), chooser.shown_text())
+	_press(home, KEY_LEFT)
+	_press(home, KEY_UP)
+	eq(_focus_text(home), "SD card › Emulation/roms/n64", "up from Home: the last chosen")
+	check(chooser.shown_text().contains("1 port takes the ROM from here"), chooser.shown_text())
+	check(chooser.hint_text().contains("Remove"), "accept removes: " + chooser.hint_text())
+	_press(home, KEY_UP)
+	eq(_focus_text(home), "~/Emulation/roms/n64", "the first")
+	check(chooser.shown_text().contains("5 ports take the ROM from here"), chooser.shown_text())
+	_press(home, KEY_DOWN)
+	_press(home, KEY_ENTER)
+	eq(home.ports.calls.back(), ["remove_rom_folder", CHOSEN_SD], "accept removes it")
+	eq(chooser.chosen_texts(), ["~/Emulation/roms/n64 · 5 ports"], "the list follows")
+	eq(_focus_text(home), "~/Emulation/roms/n64", "focus stays in the list")
+	check(home.chooser() != null, "the chooser stays open")
+	_press(home, KEY_RIGHT)
+	_press(home, KEY_ESCAPE)
+	eq(chooser.current_path(), "/home/deck/Emulation/roms", "up")
+	_press(home, KEY_O)
+	eq(home.ports.calls.back(), ["set_rom_folder", "/home/deck/Emulation/roms"], "Y adds")
+	eq(home.chooser(), null, "and closes")
+	eq(
+		home.ports.rom_folder_info().chosen,
+		["/home/deck/Emulation/roms/n64", "/home/deck/Emulation/roms"],
+		"added after the other"
+	)
+	_done(home)
+
+
+func test_an_unplugged_chosen_folder_is_marked() -> void:
+	var home := _home_screen("rom-unplugged")
+	home.open_chooser()
+	var chooser: Control = home.chooser()
+	eq(
+		chooser.chosen_texts(),
+		["~/Emulation/roms/n64 · 5 ports", CHOSEN_SD + " · Not found"],
+		"the card's folder is not found (ROM-17)"
+	)
+	eq(chooser.place_texts(), ["Home"], "the card is out")
+	var short := ChooserScript._short
+	eq(short.call("~/Emulation/roms/n64"), "~/Emulation/roms/n64", "short names stay whole")
+	eq(short.call("SD card › Emulation/roms/n64"), "SD card › …/roms/n64", "a drive keeps its name")
+	eq(short.call(CHOSEN_SD), "/run/media/…/roms/n64", "the row shortens a long path")
+	eq(short.call("~/Games/Nintendo 64/US/n64"), "~/…/US/n64", "home")
+	_done(home)
+
+
 func test_the_rom_missing_hint_leads_to_the_chooser() -> void:
 	var home := _home_screen("rom-missing")
 	_press(home, KEY_ENTER)
@@ -497,8 +420,9 @@ func test_a_folder_set_in_config_ini_is_only_shown() -> void:
 	home.open_chooser()
 	var chooser: Control = home.chooser()
 	var text: String = chooser.shown_text()
-	check(text.contains("The ROM folder is set in config.ini"), "says so (ROM-12): " + text)
-	check(text.contains("/mnt/games/n64"), "names the folder")
+	check(text.contains("The ROM folders are set in config.ini"), "says so (ROM-12): " + text)
+	check(text.contains("/mnt/games/n64, /mnt/usb/n64"), "names the folders (CONF-8)")
+	check(text.contains("names them"), text)
 	check(text.contains("~/.config/anchorage/config.ini"), "and the file")
 	eq(chooser.row_texts(), [], "nothing to choose")
 	_press(home, KEY_O)
@@ -544,12 +468,15 @@ func test_the_chooser_over_the_real_service_on_a_temp_tree() -> void:
 	DirAccess.make_dir_recursive_absolute(_dir.path_join("media/mmcblk0p1"))
 	var ports := _make()
 	ports.set_rom_folder(_home())
+	eq(_chosen(ports), [n64, _home()], "the found folder with its game is kept (ROM-10)")
+	ports.remove_rom_folder(n64)
 	check(not ports.info("alpha").rom.found, "home holds no ROM")
 	var host := _host()
 	var chooser := ChooserScene.instantiate()
 	chooser.ports = ports
 	host.add_child(chooser)
 	eq(chooser.current_path(), _home(), "starts in the ROM folder")
+	eq(chooser.chosen_texts(), ["~ · No port uses it"], "the chosen folder is listed (ROM-17)")
 	eq(chooser.row_texts(), ["Search the SD card", "Use this folder", "Emulation"], "no .var")
 	eq(chooser.place_texts(), ["Home", "SD card"], "the card is a starting point")
 	_press(chooser, KEY_DOWN)
@@ -562,8 +489,58 @@ func test_the_chooser_over_the_real_service_on_a_temp_tree() -> void:
 	_press(chooser, KEY_ENTER)
 	eq(chooser.current_path(), n64, "opened")
 	_press(chooser, KEY_O)
-	eq(ports.rom_folder_info().full, n64, "chosen")
+	eq(_chosen(ports), [_home(), n64], "added (ROM-17)")
 	check(ports.info("alpha").rom.found, "the cards update without a restart (ROM-13)")
+	_done(chooser)
+	_free(ports)
+	remove(_dir)
+
+
+## ROM-17 on the real service: the chooser lists the chosen folders with their state, and
+## accept on one removes it; the list and the cards follow.
+func test_the_chooser_lists_and_removes_chosen_folders() -> void:
+	_setup("chooser_list")
+	# Made after the start, so ROM-10 finds nothing to keep.
+	var ports := _make()
+	var first := _put_rom("home/deck/Games/A")
+	var card := _put_beta_rom("media/mmcblk0p1/n64")
+	var gone := _put_beta_rom("media/usb/n64")
+	ports.set_rom_folder(first)
+	ports.set_rom_folder(card)
+	ports.set_rom_folder(gone)
+	remove(_dir.path_join("media/usb"))
+	ports.refresh()
+	var host := _host()
+	var chooser := ChooserScene.instantiate()
+	chooser.ports = ports
+	host.add_child(chooser)
+	eq(chooser.current_path(), first, "starts in the first folder")
+	eq(
+		chooser.chosen_texts(),
+		["~/Games/A · 1 port", "SD card › n64 · 1 port", gone + " · Not found"],
+		"the chosen folders in order, the missing one marked"
+	)
+	check(chooser.shown_text().contains("Now 3 folders, chosen here"), chooser.shown_text())
+	_press(chooser, KEY_LEFT)
+	eq(_focus_text(chooser), "Home", "left goes to the current place")
+	_press(chooser, KEY_UP)
+	eq(_focus_text(chooser), gone, "up reaches the chosen folders")
+	check(chooser.hint_text().contains("Remove"), chooser.hint_text())
+	check(chooser.shown_text().contains("is not found, so it is skipped"), chooser.shown_text())
+	_press(chooser, KEY_UP)
+	eq(_focus_text(chooser), "SD card › n64", "up")
+	check(chooser.shown_text().contains("1 port takes the ROM from here"), chooser.shown_text())
+	_press(chooser, KEY_ENTER)
+	eq(_chosen(ports), [first, gone], "accept removed the card's folder")
+	check(not ports.info("beta").rom.found, "and its game is missing")
+	check(ports.info("alpha").rom.found, "the other game is not")
+	eq(chooser.chosen_texts(), ["~/Games/A · 1 port", gone + " · Not found"], "the list follows")
+	eq(_focus_text(chooser), gone, "focus on the folder that took its place")
+	_press(chooser, KEY_ENTER)
+	_press(chooser, KEY_ENTER)
+	eq(_chosen(ports), [], "all removed")
+	eq(chooser.chosen_texts(), [], "none listed")
+	eq(_focus_text(chooser), "Home", "focus on the first place")
 	_done(chooser)
 	_free(ports)
 	remove(_dir)

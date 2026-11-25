@@ -26,7 +26,7 @@ in
         roms.directory = "~/Games/n64";
         ports.check_updates = false;
       };
-      description = "Written to $XDG_CONFIG_HOME/anchorage/config.ini.";
+      description = "Written to $XDG_CONFIG_HOME/anchorage/config.ini. A list is joined with ';', so roms.directory can name several folders.";
     };
     keybindings = lib.mkOption {
       type = lib.types.attrsOf (lib.types.listOf lib.types.str);

@@ -12,7 +12,7 @@ const V64_MAGIC := [0x37, 0x80, 0x40, 0x12]
 const N64_MAGIC := [0x40, 0x12, 0x37, 0x80]
 
 
-## Runs `scan` on a worker thread (ROM-4). Keep a reference to the job until `finished`
+## Runs `scan_all` on a worker thread (ROM-4). Keep a reference to the job until `finished`
 ## fires, and call `join` before the app exits.
 class ScanJob:
 	extends RefCounted
@@ -27,11 +27,11 @@ class ScanJob:
 	var _abort := false
 
 	func start(
-		dir: String, hashes: Dictionary, cache: Dictionary, max_size: int = MAX_ROM_SIZE
+		dirs: Array, hashes: Dictionary, cache: Dictionary, max_size: int = MAX_ROM_SIZE
 	) -> void:
 		_self_ref = self
 		_thread = Thread.new()
-		_thread.start(_run.bind(dir, hashes, cache.duplicate(true), max_size))
+		_thread.start(_run.bind(dirs.duplicate(), hashes, cache.duplicate(true), max_size))
 
 	## Asks the scan to stop at the next file or zip entry; `finished` still comes, with
 	## status "aborted". Call it before `join` when the app quits.
@@ -50,8 +50,8 @@ class ScanJob:
 		_lock.unlock()
 		return stop
 
-	func _run(dir: String, hashes: Dictionary, cache: Dictionary, max_size: int) -> void:
-		result = load("res://src/roms.gd").scan(dir, hashes, cache, max_size, _stopped)
+	func _run(dirs: Array, hashes: Dictionary, cache: Dictionary, max_size: int) -> void:
+		result = load("res://src/roms.gd").scan_all(dirs, hashes, cache, max_size, _stopped)
 		_deliver.call_deferred()
 
 	func _deliver() -> void:
@@ -179,6 +179,59 @@ static func scan(
 					break
 	for port in best:
 		result["matches"][port] = best[port]["match"]
+	return result
+
+
+## Scans every folder of `dirs` in order (ROM-17); a port keeps the match of the first
+## folder that has one (ROM-7 decides within a folder). A folder that is one of the earlier
+## ones by real path is not scanned again. Returns `scan`'s keys, with `dirs` (as given) in
+## place of `dir`, and `folders`: [{path, status ("ok"|"missing"|"aborted"|"skipped" for a
+## repeat), ports (ids whose match came from it)}]. The status is "ok" when any folder
+## could be read, "missing" when none, "aborted" when `stop` cut it short. The cache keeps
+## the entries of a missing folder, for when it is back (an unmounted SD card).
+static func scan_all(
+	dirs: Array,
+	hashes: Dictionary,
+	cache: Dictionary,
+	max_size: int = MAX_ROM_SIZE,
+	stop := Callable()
+) -> Dictionary:
+	var result := {
+		"status": "missing",
+		"dirs": dirs.duplicate(),
+		"folders": [],
+		"matches": _empty_matches(hashes),
+		"cache": {},
+		"hashed": 0,
+		"cache_hits": 0,
+	}
+	var seen: Array[String] = []
+	for dir: String in dirs:
+		var folder := {"path": dir, "status": "skipped", "ports": []}
+		result["folders"].append(folder)
+		if result["status"] == "aborted":
+			folder["status"] = "aborted"
+			continue
+		var real := real_path(dir) if dir.is_absolute_path() else dir
+		if real in seen:
+			continue
+		seen.append(real)
+		var one := scan(dir, hashes, cache, max_size, stop)
+		folder["status"] = one["status"]
+		result["hashed"] += one["hashed"]
+		result["cache_hits"] += one["cache_hits"]
+		result["cache"].merge(one["cache"])
+		if one["status"] == "missing":
+			for key: String in cache:
+				if key.rsplit("|", true, 2)[0].get_base_dir() == dir:
+					result["cache"][key] = cache[key]
+			continue
+		if result["status"] != "aborted":
+			result["status"] = "aborted" if one["status"] == "aborted" else "ok"
+		for port in one["matches"]:
+			if one["matches"][port]["found"] and not result["matches"][port]["found"]:
+				result["matches"][port] = one["matches"][port]
+				folder["ports"].append(port)
 	return result
 
 

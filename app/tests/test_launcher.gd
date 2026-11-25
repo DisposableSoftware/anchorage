@@ -247,14 +247,14 @@ func test_the_rom_is_placed_until_a_run_made_the_archive() -> void:
 	)
 	eq(FileAccess.get_file_as_string(data.path_join("gamecontrollerdb.txt")), "db", "extra file")
 	check(FileAccess.file_exists(data.path_join("assets/sub/a.yaml")), "extra folder")
-	var after := Launcher.after_exit(_root, port, placed, "", _now() - 5, true)
+	var after := Launcher.after_exit(_root, port, placed, [], _now() - 5, true)
 	eq(after, {"archive_current": false, "placed": placed}, "kept while the archive is missing")
 	check(FileAccess.file_exists(placed), "still there")
 	_write(data.path_join("fake.o2r"), "o2r")
-	after = Launcher.after_exit(_root, port, placed, "", _now() + 60, false)
+	after = Launcher.after_exit(_root, port, placed, [], _now() + 60, false)
 	eq(after["archive_current"], false, "an archive older than a short run is not its work")
 	check(FileAccess.file_exists(placed), "so the copy stays")
-	after = Launcher.after_exit(_root, port, placed, "", _now() - 5, false)
+	after = Launcher.after_exit(_root, port, placed, [], _now() - 5, false)
 	eq(after, {"archive_current": true, "placed": ""}, "the run wrote the archive")
 	check(not FileAccess.file_exists(placed), "deleted once a run made the archive")
 	result = Launcher.prepare(_root, port, rom, true, "")
@@ -275,12 +275,12 @@ func test_an_archive_from_another_version_gets_the_rom_again() -> void:
 	# The old archive is from before this version was installed.
 	_touch(data.path_join("fake.o2r"), _now() - 3600)
 	_touch(Launcher.executable(_root, port), _now() - 600)
-	var after := Launcher.after_exit(_root, port, result["placed"], "", _now() - 5, true)
+	var after := Launcher.after_exit(_root, port, result["placed"], [], _now() - 5, true)
 	eq(after, {"archive_current": false, "placed": result["placed"]}, "a settled run is not enough")
 	check(FileAccess.file_exists(data.path_join("fake.z64")), "so the copy stays for next time")
 	_write(data.path_join("fake.o2r"), "new o2r")
 	_touch(data.path_join("fake.o2r"), _now() - 60)
-	after = Launcher.after_exit(_root, port, result["placed"], "", _now() - 5, true)
+	after = Launcher.after_exit(_root, port, result["placed"], [], _now() - 5, true)
 	eq(
 		after,
 		{"archive_current": true, "placed": ""},
@@ -300,7 +300,7 @@ func test_a_long_run_that_kept_an_outdated_archive_keeps_the_rom() -> void:
 	_touch(data.path_join("fake.o2r"), _now() - 86400)
 	_touch(Launcher.executable(_root, port), _now() - 600)
 	var result := Launcher.prepare(_root, port, _rom_match(), false, "")
-	var after := Launcher.after_exit(_root, port, result["placed"], "", _now() - 30, true)
+	var after := Launcher.after_exit(_root, port, result["placed"], [], _now() - 30, true)
 	eq(after["archive_current"], false, "an archive older than the installed version")
 	check(FileAccess.file_exists(result["placed"]), "the ROM copy is still there")
 	result = Launcher.prepare(_root, port, _rom_match(), false, after["placed"])
@@ -321,13 +321,13 @@ func test_a_rom_anchorage_did_not_write_is_never_replaced_or_deleted() -> void:
 	eq(result["placed"], "", "nothing recorded as Anchorage's")
 	eq(FileAccess.get_file_as_string(data.path_join("fake.z64")), "the user's own", "not replaced")
 	_write(data.path_join("fake.o2r"), "o2r")
-	var after := Launcher.after_exit(_root, port, result["placed"], "", _now() - 5, true)
+	var after := Launcher.after_exit(_root, port, result["placed"], [], _now() - 5, true)
 	check(after["archive_current"], "the archive counts")
 	check(FileAccess.file_exists(data.path_join("fake.z64")), "the user's file stays")
 	result = Launcher.prepare(_root, port, _rom_match(), true, "")
 	check(FileAccess.file_exists(data.path_join("fake.z64")), "and stays with a current archive")
 	check(
-		not Launcher.delete_placed(data.path_join("other.z64"), port, _root, ""),
+		not Launcher.delete_placed(data.path_join("other.z64"), port, _root, []),
 		"only the catalog's file name is ever deleted"
 	)
 	_done()
@@ -344,8 +344,9 @@ func test_only_the_placed_copy_is_deleted_and_never_in_the_rom_folder() -> void:
 	_write(roms.path_join("fake.z64"), "in the ROM folder")
 	_write(roms.path_join("fake.o2r"), "o2r")
 	var target := Launcher.rom_target(_root, port)
-	var after := Launcher.after_exit(_root, port, target, roms, _now() - 5, true)
-	eq(after["placed"], target, "not deleted, still recorded")
+	var folders := [_root.get_base_dir().path_join("other"), roms]
+	var after := Launcher.after_exit(_root, port, target, folders, _now() - 5, true)
+	eq(after["placed"], target, "not deleted, still recorded (the second ROM folder, ROM-17)")
 	check(FileAccess.file_exists(roms.path_join("fake.z64")), "the ROM folder is untouched")
 	_done()
 

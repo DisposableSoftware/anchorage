@@ -238,7 +238,8 @@ in. A new folder is added to the ones you chose before, so a game found in one f
 found when you add another folder for a second game. Your ROM folders are listed on the
 left, with how many ports use each one, or `Not found` while its drive is unplugged (the
 other folders still work). Press <kbd>A</kbd> on one to remove it; remove them all and
-Anchorage looks for a folder by itself again. If two folders hold a ROM for the same port,
+Anchorage looks for a folder by itself again. If the folder it found by itself already has
+a game's ROM, your first choice keeps that folder in the list too. If two folders hold a ROM for the same port,
 the folder you added first wins. Your folders are remembered in `state.ini`.
 
 Anchorage reads `.z64`, `.n64` and `.v64` files and `.zip` files (every ROM inside them, up
