@@ -298,7 +298,7 @@ func _accept(id: String) -> void:
 						"Put a matching ROM in %s and press %s to look again, or press %s to"
 						% [info.rom.path, _button("refresh"), _button("ui_accept")]
 					)
-					+ " choose the folder or search the SD card"
+					+ " add a ROM folder or search the SD card"
 				)
 			)
 			_hint_bar.show_hints(_hints())

@@ -106,3 +106,6 @@ func test_check_updates_is_off_only_for_false() -> void:
 	eq(config_with("[ports]\ncheck_updates = false\n").check_updates, false, "false")
 	eq(config_with("[ports]\ncheck_updates = no\n").check_updates, true, "anything else is true")
 	eq(config_with("").roms_directory, "~/Roms/n64", "ROM folder default (CONF-8)")
+	var several := config_with("[roms]\ndirectory = ~/Roms/n64; /run/media/deck/SD/n64\n")
+	eq(several.roms_directory, "~/Roms/n64; /run/media/deck/SD/n64", "a list, as written")
+	check(several.roms_directory_set, "set: Ports splits it at ';' (ROM-17)")

@@ -1,3 +1,4 @@
+# gdlint: disable=max-public-methods
 extends Node
 ## A stand-in for `Ports` (ports.gd) with fixed demo data, for UI tests and screenshots.
 ## Same interface as the contract in spec/ports.md. Actions are recorded in `calls`; with
@@ -15,7 +16,10 @@ extends Node
 ##   art-late     as showcase, but the cover art arrives 2 s in (or on `deliver_art`)
 ##   first-run    every port installed, none has made its game files yet: the first-launch
 ##                notes (PORT-17), with the first card focused
-##   rom-config   as showcase, with the ROM folder set in config.ini (ROM-12)
+##   rom-config   as showcase, with two ROM folders set in config.ini (ROM-12)
+##   rom-folders  as showcase, with two chosen ROM folders: ~/Emulation/roms/n64 and the
+##                SD card's (ROM-17)
+##   rom-unplugged as rom-folders, with the SD card out: its folder is not found
 ##   no-card      as showcase, with no SD card or drive (ROM-14)
 ##   new-ports    as showcase; 1 s in (or on `add_new_ports` when `simulate` is off) a
 ##                catalog fetch adds NEW_DEMO at the end, with its notice and `New` badge
@@ -52,6 +56,8 @@ const SCENARIOS := [
 	"rom-config",
 	"no-card",
 	"new-ports",
+	"rom-folders",
+	"rom-unplugged",
 ]
 const NEW_DELAY := 1.0
 ## The port the `new-ports` scenario's catalog fetch adds.
@@ -70,6 +76,7 @@ const ART_SIZE := Vector2i(920, 430)
 const ART_DELAY := 2.0
 const ROM_FOLDER := "~/Emulation/roms/n64"
 const FAKE_HOME := "/home/deck"
+const FOUND_FOLDER := FAKE_HOME + "/Emulation/roms/n64"
 const SD_CARD := "/run/media/mmcblk0p1"
 const USB_DRIVE := "/run/media/deck/Backup"
 const TREE := {
@@ -101,6 +108,9 @@ const PLACES := [
 	{"label": "Backup", "path": USB_DRIVE, "sd": false},
 ]
 const SEARCH_SECONDS := 1.5
+## The `rom-folders` scenario's chosen folders, and how many demo ports each one serves.
+const CHOSEN_DEMO := [FOUND_FOLDER, SD_CARD + "/Emulation/roms/n64"]
+const FOLDER_PORTS := {FOUND_FOLDER: 5, SD_CARD + "/Emulation/roms/n64": 1}
 
 ## The catalog's notes (app/data/ports.json).
 const SHIP_NOTE := (
@@ -224,8 +234,10 @@ var _art := {}
 var _art_wait := -1.0
 ## Ports that have made their game files (PORT-17); a port that is not installed has not.
 var _extracted := {}
-var _folder := FAKE_HOME.path_join("Emulation/roms/n64")
+## The ROM folders scanned (ROM-17), where they came from, and the ones chosen here.
+var _folders: Array = [FOUND_FOLDER]
 var _folder_source := "emudeck"
+var _chosen: Array = []
 var _locked := false
 var _cards := true
 var _search := {"status": "idle", "results": []}
@@ -244,9 +256,13 @@ func _init(scenario := "showcase") -> void:
 		_extracted[id] = _info[id].installed and scenario != "first-run"
 	if scenario == "rom-config":
 		_locked = true
-		_folder = "/mnt/games/n64"
+		_folders = ["/mnt/games/n64", "/mnt/usb/n64"]
 		_folder_source = "config"
-	_cards = scenario != "no-card"
+	if scenario in ["rom-folders", "rom-unplugged"]:
+		_chosen = CHOSEN_DEMO.duplicate()
+		_folders = _chosen.duplicate()
+		_folder_source = "chosen"
+	_cards = not scenario in ["no-card", "rom-unplugged"]
 	if scenario == "art-late":
 		_art_wait = ART_DELAY
 	else:
@@ -466,26 +482,54 @@ func dismiss_error(id: String) -> void:
 
 
 func rom_folder_info() -> Dictionary:
+	var folders := []
+	for dir: String in _folders:
+		var missing := dir.begins_with("/run/media") and not _cards
+		var folder := {"path": _display(dir), "full": dir, "source": _folder_source}
+		folder["status"] = "missing" if missing else "ok"
+		folder["ports"] = 0 if missing else FOLDER_PORTS.get(dir, 0)
+		folders.append(folder)
 	return {
-		"path": _display(_folder),
-		"full": _folder,
+		"path": _display(_folders[0]) if not _folders.is_empty() else "",
+		"full": _folders[0] if not _folders.is_empty() else "",
 		"source": _folder_source,
 		"locked": _locked,
 		"config_file": "~/.config/anchorage/config.ini",
+		"folders": folders,
+		"chosen": _chosen.duplicate(),
 	}
 
 
-## Records the choice; with the folder unlocked it becomes the folder and every port is
-## "rescanned" (nothing changes in the demo data but the folder shown).
+## Records the choice; with the folders unlocked it is added to the chosen ones (after the
+## found folder, on the first choice, as Ports does) and every port is "rescanned" (nothing
+## changes in the demo data but the folders shown).
 func set_rom_folder(path: String) -> void:
 	calls.append(["set_rom_folder", path])
-	if _locked:
+	if _locked or path in _chosen:
 		return
-	_folder = path
-	_folder_source = "chosen"
+	if _chosen.is_empty() and _folder_source != "fallback":
+		_chosen = _folders.duplicate()
+	if not path in _chosen:
+		_chosen.append(path)
+	_use_chosen()
+
+
+## Records it; a chosen folder is removed, and with none left the found folder is back.
+func remove_rom_folder(path: String) -> void:
+	calls.append(["remove_rom_folder", path])
+	if _locked or not path in _chosen:
+		return
+	_chosen.erase(path)
+	_use_chosen()
+
+
+func _use_chosen() -> void:
+	_folders = _chosen.duplicate() if not _chosen.is_empty() else [FOUND_FOLDER]
+	_folder_source = "chosen" if not _chosen.is_empty() else "emudeck"
+	var shown := ", ".join(_folders.map(_display))
 	for id in _ids:
 		if not _info[id].rom.found:
-			_info[id].rom.path = _display(path)
+			_info[id].rom.path = shown
 	rom_folder_changed.emit()
 	for id in _ids:
 		changed.emit(id)
@@ -494,7 +538,7 @@ func set_rom_folder(path: String) -> void:
 ## Answers at once from TREE; a folder that is not in it lists its nearest parent that is.
 func browse(path: String) -> void:
 	calls.append(["browse", path])
-	var dir := path if not path.is_empty() else _folder
+	var dir: String = path if not path.is_empty() else _folders[0]
 	while dir != "/" and not _exists(dir):
 		dir = dir.get_base_dir()
 	var folders := []

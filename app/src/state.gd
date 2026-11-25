@@ -11,7 +11,9 @@ extends RefCounted
 ##   [catalog]  last_check = <unix seconds>   version = <the fetched version last announced>
 ##              new = <ids of fetched ports not focused yet, comma separated> (PORT-23)
 ##   [roms]     cache = <one line of JSON>  (owned by the ROM code: path -> entry)
-##              directory = <the ROM folder chosen in the app (ROM-12)>
+##              directories = <the ROM folders chosen in the app, a JSON array (ROM-12)>
+##              directory = <the first of them, for older versions; read when directories
+##                           is absent, as a one-folder list>
 
 const Ini := preload("res://src/ini.gd")
 const FIELDS := ["installed", "latest", "archive", "rom_placed"]
@@ -20,7 +22,7 @@ var path := ""
 var _ports := {}
 var _last_check := 0
 var _rom_cache := {}
-var _rom_dir := ""
+var _rom_dirs: Array[String] = []
 var _catalog := {"last_check": 0, "version": 0, "new": []}
 
 
@@ -58,7 +60,7 @@ static func load_from(file_path: String) -> RefCounted:
 	var json := JSON.new()
 	if json.parse(parsed.get("roms", {}).get("cache", "")) == OK and json.data is Dictionary:
 		state._rom_cache = json.data
-	state._rom_dir = parsed.get("roms", {}).get("directory", "")
+	state._rom_dirs = _dirs_from(parsed.get("roms", {}))
 	var catalog: Dictionary = parsed.get("catalog", {})
 	state._catalog["last_check"] = _int(catalog.get("last_check", ""))
 	state._catalog["version"] = _int(catalog.get("version", ""))
@@ -69,6 +71,23 @@ static func load_from(file_path: String) -> RefCounted:
 			if not name in state._catalog["new"]:
 				state._catalog["new"].append(name)
 	return state
+
+
+## `directories` (JSON) when it parses as a list, else the older single `directory`.
+static func _dirs_from(roms: Dictionary) -> Array[String]:
+	var json := JSON.new()
+	if json.parse(roms.get("directories", "")) == OK and json.data is Array:
+		return _clean_dirs(json.data)
+	return _clean_dirs([roms.get("directory", "")])
+
+
+static func _clean_dirs(items: Array) -> Array[String]:
+	var out: Array[String] = []
+	for item in items:
+		var dir := _line(item) if item is String else ""
+		if not dir.is_empty() and not dir in out:
+			out.append(dir)
+	return out
 
 
 static func _int(text: String) -> int:
@@ -134,13 +153,14 @@ func set_rom_cache(cache: Dictionary) -> void:
 	save()
 
 
-## The ROM folder chosen in the app, "" when none was (ROM-12).
-func rom_dir() -> String:
-	return _rom_dir
+## The ROM folders chosen in the app, in the order chosen (ROM-12, ROM-17); a copy.
+func rom_dirs() -> Array[String]:
+	return _rom_dirs.duplicate()
 
 
-func set_rom_dir(dir: String) -> void:
-	_rom_dir = _line(dir)
+## Stores the list, without empty or repeated entries.
+func set_rom_dirs(dirs: Array) -> void:
+	_rom_dirs = _clean_dirs(dirs)
 	save()
 
 
@@ -216,10 +236,11 @@ func _serialise() -> String:
 		out += "version = %d\n" % _catalog["version"]
 		if not _catalog["new"].is_empty():
 			out += "new = %s\n" % ",".join(PackedStringArray(_catalog["new"]))
-	if not _rom_cache.is_empty() or not _rom_dir.is_empty():
+	if not _rom_cache.is_empty() or not _rom_dirs.is_empty():
 		out += "\n[roms]\n"
-	if not _rom_dir.is_empty():
-		out += "directory = %s\n" % _rom_dir
+	if not _rom_dirs.is_empty():
+		out += "directories = %s\n" % JSON.stringify(_rom_dirs)
+		out += "directory = %s\n" % _rom_dirs[0]
 	if not _rom_cache.is_empty():
 		out += "cache = %s\n" % JSON.stringify(_rom_cache)
 	return out

@@ -1,6 +1,6 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i bash -p jq grim wtype
-# Spec: ROM-11, ROM-12, ROM-14, LOOK-9 (screenshots of the ROM folder chooser).
+# Spec: ROM-11, ROM-12, ROM-14, ROM-17, LOOK-9 (screenshots of the ROM folder chooser).
 # One output size (WxH, default 1280x720); run through headless.sh, with the output set
 # to that size:
 #   HEADLESS_RES=1280x800 HEADLESS_SCALE=1 scripts/manual/headless.sh scripts/manual/rom-folder.sh 1280x800
@@ -9,7 +9,8 @@
 # Starts the app with the fake ports, fullscreen, opens the chooser from the options menu
 # and saves $OUT/<size>-chooser*.png: the ROM folder, its parent with a folder highlighted,
 # a drive, the SD card search while it runs and its results, no card, the folder set in
-# config.ini, and the ROM missing hint that leads to it.
+# config.ini, two chosen folders (one highlighted to remove; the SD card's not found), and the
+# ROM missing hint that leads to it.
 cd "$(dirname "$0")/../.." || exit 1
 . scripts/manual/lib.sh
 [ -n "${HEADLESS:-}" ] || { echo "run through scripts/manual/headless.sh" >&2; exit 2; }
@@ -53,6 +54,19 @@ chooser
 keys -k Return
 sleep 2
 shot "$OUT/$res-chooser-no-card.png"
+close
+
+open rom-folders
+chooser
+shot "$OUT/$res-chooser-folders.png"
+keys -k Left -k Up
+shot "$OUT/$res-chooser-folders-remove.png"
+close
+
+open rom-unplugged
+chooser
+keys -k Left -k Up
+shot "$OUT/$res-chooser-folders-unplugged.png"
 close
 
 open rom-config

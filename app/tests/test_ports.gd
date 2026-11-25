@@ -189,6 +189,10 @@ func test_info_has_the_contract_keys_in_catalog_order() -> void:
 	eq(got, expected, "the same keys as ports_fake (PORT-14)")
 	eq(ports.info("alpha").rom.keys(), fake.info("soh").rom.keys(), "rom keys")
 	eq(ports.info("alpha").busy.keys(), fake.info("soh").busy.keys(), "busy keys")
+	var folders: Dictionary = ports.rom_folder_info()
+	var fake_folders: Dictionary = fake.rom_folder_info()
+	eq(folders.keys(), fake_folders.keys(), "rom_folder_info keys (ROM-17)")
+	eq(folders.folders[0].keys(), fake_folders.folders[0].keys(), "and each folder's")
 	fake.free()
 	_free(ports)
 
@@ -198,7 +202,7 @@ func test_ports_has_every_method_and_signal_the_screens_use() -> void:
 		for method in (
 			["list", "info", "install", "update", "remove", "launch", "cancel", "refresh"]
 			+ ["dismiss_error", "rom_folder_info", "set_rom_folder", "browse", "search_sd_card"]
-			+ ["cancel_search", "search_info", "notice", "mark_seen"]
+			+ ["cancel_search", "search_info", "notice", "mark_seen", "remove_rom_folder"]
 		):
 			check(ports.has_method(method), method)
 		for sig in ["changed", "launched", "exited"] + ["rom_folder_changed", "folder_listed"]:
