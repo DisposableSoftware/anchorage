@@ -85,6 +85,7 @@ app/tests/test_app_menu.gd the app menu and the Quit question   HOME-14 HOME-15 
 app/tests/test_http.gd   http.gd against a local TCPServer: redirects, stall, cancel, size limit, JSON, text, local http only   PORT-4 PORT-13 PORT-19
 app/tests/test_catalog_update.gd the fetched catalog: strict checks, hostile entries, argv not shell, merge, cache, hour, notice, New badge, repos   PORT-18 .. PORT-23
 app/tests/test_art.gd    art.gd with fake HTTP; art_catalog.json is its test catalog   ART
+app/tests/test_fake_art.gd ANCHORAGE_FAKE_ART_DIR in the fake ports: files, bad files, no variable, only the fake reads it   ART-8
 app/tests/test_rom_folders.gd, test_rom_folder.gd   ROM folder detection and search over fake trees; Ports' folder API and the chooser screen   ROM-10 .. ROM-17
 app/tests/test_rom_folder_list.gd several ROM folders in Ports: adding, removing, unmounted, first wins, config.ini list, old state.ini (rom_folder_case.gd: the shared temp tree)   ROM-17
 app/tests/test_self_update.gd self_update.gd with fake HTTP and fake AppImages (checks, swap, record, busy ports, restart), the chip, entry and dialog   UPD-1 .. UPD-10
@@ -92,6 +93,7 @@ app/tests/self_update_swap.gd the app's swap on real files, for scripts/manual/s
 app/tests/fake_http.gd   http.gd stand-in that answers from memory and local files (json, text, files)
 scripts/test.sh          runs app/tests headless with every XDG folder in a temp dir; fails on script, Unicode and engine errors (allowlist for the tests that break input on purpose)
 scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway); art.sh fetches the real cover art (ART), e2e.sh installs and starts the real ports, catalog.sh serves a catalog from 127.0.0.1 (PORT-18 .. PORT-23), self-update.sh updates the real AppImage from 127.0.0.1 (UPD)
+scripts/screenshots.sh   regenerates docs/screenshots/*.png headless at 1280x720 from the fake ports, with the catalog's covers fetched to a temp folder   INT-41 INT-43 ART-8
 scripts/check-no-roms.sh   refuses ROM-like names, N64 ROM headers and files over 5 MiB (PROD-14)
 scripts/release-check.sh recommended version bump since the last v* tag (spec delta)
 scripts/release.sh       bump, commit "Anchorage X.Y.Z", tag, draft notes (no push)
@@ -158,6 +160,7 @@ The app fetches `app/data/ports.json` from `main` (`PORT-18`). `ANCHORAGE_CATALO
 
 - `scripts/manual/shots.sh SIZE` takes a screenshot of every scenario, the options menu, the Remove dialog, the app menu, the Quit question and latte with blue: `HEADLESS_RES=1280x720 HEADLESS_SCALE=1 OUT=/tmp/shots scripts/manual/headless.sh scripts/manual/shots.sh 1280x720`. `FLAVOR` and `ACCENT` change the look for the whole run.
 - `scripts/manual/rom-folder.sh SIZE` takes screenshots of the ROM folder chooser (`ROM-11`, `ROM-12`, `ROM-14`, `ROM-17`), same usage as `shots.sh`.
+- `scripts/screenshots.sh [OUTDIR]` regenerates the five README and metainfo screenshots (`docs/screenshots/`): `nix build && scripts/screenshots.sh`. It fetches the seven covers from the catalog's `art.url` (SteamGridDB hosts only, at most 5 MiB, no redirects) into a temp folder that must not be inside the repository, runs the fake ports with `ANCHORAGE_FAKE_ART_DIR` pointing at it (`<port id>.png` per port; read only by `ports_fake.gd`, `ART-8`) in a headless sway at 1280×720 with fresh XDG and HOME folders, and optimises with pngquant and oxipng (each file under 400 KB). The covers are never committed. Look at every image after a run (the keys are timed for headless sway) and keep the alt texts in `README.md` and the captions in the metainfo true to the pictures.
 - `scripts/manual/home.sh` (1280×720) drives focus with keys and finds the focus ring by its colour, including while a download runs.
 - To try the UI from a checkout without `nix build`, run `godot --headless --path app --import` once (it imports the font), then pass `BIN=` a script that runs `godot --path app "$@"`.
 

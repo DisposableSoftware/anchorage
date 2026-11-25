@@ -36,6 +36,11 @@ extends Node
 ##
 ## The first two ports have placeholder cover art, drawn in code (never a real image), and
 ## the others show their monogram, so a screenshot has both looks (ART-5, ART-6).
+##
+## ANCHORAGE_FAKE_ART_DIR (ART-8, read here and nowhere else): a folder with `<port id>.png`
+## files gives those ports that image as their cover instead, for screenshots with real art
+## that is not in the repository (`scripts/screenshots.sh` fetches it). It is accepted like
+## the real art (`Art.decode`); a port without a usable file keeps the look above.
 
 signal changed(id: String)
 signal launched(id: String)
@@ -44,6 +49,8 @@ signal rom_folder_changed
 signal folder_listed(path: String, listing: Dictionary)
 signal search_changed
 signal notice_changed
+
+const Art := preload("res://src/art.gd")
 
 const SCENARIOS := [
 	"showcase",
@@ -80,6 +87,7 @@ const NEW_DEMO := {
 	"wanted": ["JP 1.0"],
 }
 const ART_PORTS := ["soh", "2ship"]
+const ART_DIR_ENV := "ANCHORAGE_FAKE_ART_DIR"
 const ART_SIZE := Vector2i(920, 430)
 const ART_DELAY := 2.0
 const ROM_FOLDER := "~/Emulation/roms/n64"
@@ -328,13 +336,31 @@ func mark_seen(id: String) -> void:
 		changed.emit(id)
 
 
-## Gives the art ports their texture (and says so) at once instead of after ART_DELAY.
+## Gives the ports their art (and says so) at once instead of after ART_DELAY: the images
+## of ANCHORAGE_FAKE_ART_DIR (ART-8), else the placeholders of ART_PORTS.
 func deliver_art(announce := true) -> void:
 	_art_wait = -1.0
-	for id in ART_PORTS:
-		_art[id] = _demo_art(ART_PORTS.find(id))
-		if announce:
-			changed.emit(id)
+	var dir := OS.get_environment(ART_DIR_ENV)
+	for id in _ids:
+		var texture: Texture2D = _dir_art(dir, id)
+		if texture == null and id in ART_PORTS:
+			texture = _demo_art(ART_PORTS.find(id))
+		if texture != null:
+			_art[id] = texture
+			if announce:
+				changed.emit(id)
+
+
+## `<dir>/<id>.png` as a texture when `dir` is set and the file passes the real art's
+## checks, else null.
+static func _dir_art(dir: String, id: String) -> Texture2D:
+	if dir == "":
+		return null
+	var path := dir.path_join(id + ".png")
+	if not FileAccess.file_exists(path):
+		return null
+	var image := Art.decode(path)
+	return ImageTexture.create_from_image(image) if image != null else null
 
 
 ## A 920x430 stand-in for cover art: a sky, a sun and two ridges, in a hue per index.
