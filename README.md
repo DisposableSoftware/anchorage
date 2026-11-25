@@ -12,7 +12,8 @@
 > No human has read this code. An AI wrote all of it while a person said "yeah, looks
 > good" and pressed Enter a lot. It downloads programs from the internet, runs them, and
 > rummages through your SD card looking for ROMs, all from a couch, with a gamepad. It has
-> never met a real Steam Deck. If that sounds like a lot of trust to hand a launcher, it is.
+> met a real Steam Deck, but only briefly. If that sounds like a lot of trust to hand a
+> launcher, it is.
 >
 > Like any good anchorage, it is a sheltered place to leave your boats, and it says nothing
 > about whether they float. Bug reports will be read with great affection and then ignored.
@@ -359,11 +360,12 @@ to make Anchorage forget.
 
 ## Status and known limitations
 
-- **Untested on a real Steam Deck at the time of writing.** Everything on Steam's side is
-  unconfirmed: the installer's shortcut and artwork showing up in a real Steam client, Game
-  Mode and gamescope, and Steam Input. So are the SD card's real mount names. All of it has
-  only been tried against fakes, in a headless sway and on a NixOS desktop. The code follows
-  the documented behaviour of each, and a Deck may still disagree.
+- **Tried on a real Steam Deck:** the SteamOS install command (it closes and restarts Steam
+  by itself), the shortcut in Game Mode, and installing and running all seven ports, with
+  their first launches done with the trackpads. Nothing else has been checked there yet.
+- **Still only tried against fakes, in a headless sway and on a NixOS desktop:** the SD card's
+  real mount names, EmuDeck and RetroDECK folders, Steam Input, and everything newer than
+  0.3.0. The code follows the documented behaviour of each, and a Deck may still disagree.
 - Updating Anchorage from Game Mode has only been tried from a NixOS desktop against a fake
   release: whether Steam keeps the restarted Anchorage in Game Mode is unconfirmed (start it
   again from the library if it does not come back).
