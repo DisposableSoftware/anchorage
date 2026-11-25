@@ -4,6 +4,13 @@ extends "res://tests/case.gd"
 
 const Launcher := preload("res://src/launcher.gd")
 const Installer := preload("res://src/installer.gd")
+## What gamescope and Steam set (WIN-6): never an AppImage variable.
+const GAME_MODE := {
+	"XDG_CURRENT_DESKTOP": "gamescope",
+	"GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0",
+	"SteamGameId": "15790555012393680896",
+	"SteamAppId": "0",
+}
 
 ## Records its environment, working directory and arguments in $SHIP_HOME/record.txt,
 ## says something on stdout and exits with 3.
@@ -96,6 +103,7 @@ func test_clean_environment_drops_what_the_appimage_runtime_added() -> void:
 		"APPDIRECTORY_NOT_OURS": "kept",
 		"MOUNTISH": mount + "x/usr/bin",
 	}
+	env.merge(GAME_MODE)
 	var out := Launcher.clean_environment(env)
 	for name in ["APPIMAGE", "APPDIR", "ARGV0", "OWD", "APPIMAGE_SILENT_INSTALL"]:
 		check(not out.has(name), "%s removed" % name)
@@ -108,6 +116,11 @@ func test_clean_environment_drops_what_the_appimage_runtime_added() -> void:
 	eq(out.get("APPDIRECTORY_NOT_OURS"), "kept", "only the exact names")
 	eq(out.get("MOUNTISH"), mount + "x/usr/bin", "other variables are never edited")
 	eq(env["APPDIR"], mount, "the input is not changed")
+	for name in GAME_MODE:
+		eq(out.get(name), GAME_MODE[name], "%s stays: a port runs in Game Mode too (WIN-6)" % name)
+	var port_env := Launcher.port_environment(env, "/data")
+	for name in GAME_MODE:
+		eq(port_env.get(name), GAME_MODE[name], "the port's own environment has %s" % name)
 
 
 func test_without_an_appimage_the_environment_is_kept() -> void:

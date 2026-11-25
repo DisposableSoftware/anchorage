@@ -66,6 +66,10 @@ export SWAYSOCK=$(ls "$R"/sway-ipc.*.sock)
 # Without these, an app that can't reach the headless display falls back to the user's
 # session through Xwayland ($DISPLAY).
 unset DISPLAY HYPRLAND_INSTANCE_SIGNATURE
+# Game Mode's variables would make the app fullscreen by itself (WIN-6); the scripts expect
+# a window unless they set them, as fullscreen.sh does.
+unset GAMESCOPE_WAYLAND_DISPLAY SteamGameId SteamAppId
+[ "${XDG_CURRENT_DESKTOP:-}" = gamescope ] && unset XDG_CURRENT_DESKTOP
 if [ -z "$WAYLAND_DISPLAY" ] || [ ! -S "$R/$WAYLAND_DISPLAY" ] || ! swaymsg -t get_outputs >/dev/null 2>&1; then
   echo "headless sway didn't start; see below" >&2; tail -5 "$R/sway.log" >&2; exit 2
 fi

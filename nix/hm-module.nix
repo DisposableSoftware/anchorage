@@ -25,8 +25,9 @@ in
         appearance.accent = "blue";
         roms.directory = "~/Games/n64";
         ports.check_updates = false;
+        window.fullscreen = true;
       };
-      description = "Written to $XDG_CONFIG_HOME/anchorage/config.ini. A list is joined with ';', so roms.directory can name several folders.";
+      description = "Written to $XDG_CONFIG_HOME/anchorage/config.ini. A list is joined with ';', so roms.directory can name several folders. window.fullscreen is \"auto\" (the default: fullscreen in Game Mode and when Steam starts Anchorage), true or false.";
     };
     keybindings = lib.mkOption {
       type = lib.types.attrsOf (lib.types.listOf lib.types.str);

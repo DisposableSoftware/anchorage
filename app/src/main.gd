@@ -1,5 +1,5 @@
 extends Control
-## Startup (WIN-1, WIN-4): config, bindings, the theme, the `Ports` service and the home
+## Startup (WIN-1, WIN-4, WIN-6): config, bindings, the theme, the `Ports` service and the home
 ## screen.
 
 const Config := preload("res://src/config.gd")
@@ -8,6 +8,7 @@ const Style := preload("res://src/theme.gd")
 const PortsFake := preload("res://src/ports_fake.gd")
 const SelfUpdate := preload("res://src/self_update.gd")
 const SelfUpdateFake := preload("res://src/self_update_fake.gd")
+const WindowMode := preload("res://src/window_mode.gd")
 const HomeScene := preload("res://scenes/home.tscn")
 const PORTS := "res://src/ports.gd"
 
@@ -20,9 +21,8 @@ func _ready() -> void:
 	RenderingServer.set_default_clear_color(theme.get_color("base", "Palette"))
 	var window := get_window()
 	window.title = "Anchorage"
-	window.min_size = Vector2i(1280, 720)
-	if window.mode == Window.MODE_WINDOWED:
-		window.size = Vector2i(cfg.width, cfg.height)
+	var size := Vector2i(cfg.width, cfg.height)
+	WindowMode.apply(window, WindowMode.decide(cfg.fullscreen, WindowMode.environment(), size))
 	var ports := make_ports(OS.get_cmdline_user_args(), cfg)
 	add_child(ports)
 	var self_update := make_self_update(OS.get_cmdline_user_args(), ports, cfg)

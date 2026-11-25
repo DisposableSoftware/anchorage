@@ -11,7 +11,7 @@ A controller-first launcher for the [HarbourMasters](https://github.com/HarbourM
 | `PROD-3` | Simple toolchain: `godot` and `gdtoolkit` inside a Nix devshell, nothing else. | done |
 | `PROD-4` | Easy NixOS integration. | done (see `INT-20`…`INT-24`) |
 | `PROD-5` | Every action has a binding users can change, for keyboard and gamepad (see [keybindings.md](keybindings.md)). | done (ongoing constraint) |
-| `PROD-6` | Run fullscreen in gamescope at 1280×720 and up. The layout scales with the window size and uses no fixed pixel layouts. | partial: the layout scales, but the window was never made fullscreen, so Game Mode on a 1280×800 Deck showed black bars (see `WIN-6`) |
+| `PROD-6` | Run fullscreen in gamescope at 1280×720 and up. The layout scales with the window size and uses no fixed pixel layouts. | partial: the layout scales, and the window makes itself fullscreen under gamescope at the size it is given (`WIN-6`, checked in headless sway on Wayland and Xwayland); not yet seen in Game Mode on a Deck since the 0.3.0 black bars |
 | `PROD-7` | Be fully usable with a gamepad alone: D-pad and stick to move, A to select, B to go back, with a button hint bar. Mouse and keyboard also work. | planned |
 | `PROD-8` | Install a port by downloading its latest Linux release from GitHub into the XDG data directory. | planned |
 | `PROD-9` | Check for updates and update an installed port. Keep the previous version until the new one launches. | planned |
