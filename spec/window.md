@@ -9,6 +9,7 @@
 | `WIN-3` | The window has the Wayland app ID `io.github.DisposableSoftware.Anchorage`, so compositor window rules match it. | done | `scripts/manual/smoke.sh` (headless: `swaymsg` reports the app ID) |
 | `WIN-4` | `quit` closes the window and quits the app. Closing the window by any other means quits it too. | done | `scripts/manual/smoke.sh` |
 | `WIN-5` | The shortcut overlay. | dropped | superseded: a controller-first app shows a button hint bar on every screen (`PROD-7`), which the first `/feature` specifies. |
+| `WIN-6` | Under gamescope (SteamOS Game Mode), and whenever Steam started the app, the window is fullscreen and takes the size the compositor gives it: no size is requested, so there are no black bars on 16:10 (1280×800) or any other screen, and the layout (`LOOK-9`) fills the output. Gamescope is recognised by `XDG_CURRENT_DESKTOP=gamescope`, `GAMESCOPE_WAYLAND_DISPLAY` being set, or `SteamGameId` or `SteamAppId` being set. Elsewhere the window stays windowed at the size of `[window] width` and `height` (`CONF-4`). `[window] fullscreen` (`CONF-10`) overrides the detection. | planned | `test_window_mode` (the decision from fake environments); `scripts/manual/fullscreen.sh` (headless sway with `GAMESCOPE_WAYLAND_DISPLAY` set: the window is as large as the output at 1280×720, 1280×800 and 1920×1200, and the corner pixel is painted) |
 
 ## Implementation notes
 
