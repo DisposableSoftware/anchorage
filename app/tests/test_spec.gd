@@ -7,7 +7,7 @@ const Ini := preload("res://src/ini.gd")
 const Keys := preload("res://src/keys.gd")
 
 ## Every key the config reads; adding one means adding it to the spec table too.
-const CONFIG_KEY_COUNT := 6
+const CONFIG_KEY_COUNT := 7
 
 
 ## Body rows of the table between `<!-- spec:NAME:begin -->` and `...:end -->`, each as
@@ -33,6 +33,7 @@ func config_value(cfg: RefCounted, section: String, key: String) -> Variant:
 	var values := {
 		"window width": str(cfg.width),
 		"window height": str(cfg.height),
+		"window fullscreen": cfg.fullscreen,
 		"appearance flavor": cfg.flavor,
 		"appearance accent": cfg.accent,
 		"roms directory": cfg.roms_directory,

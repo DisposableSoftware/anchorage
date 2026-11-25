@@ -1,5 +1,5 @@
 extends "res://tests/case.gd"
-## CONF-1, CONF-3, CONF-4, CONF-6 .. CONF-9, KEY-2
+## CONF-1, CONF-3, CONF-4, CONF-6 .. CONF-10, KEY-2
 
 const Config := preload("res://src/config.gd")
 
@@ -109,3 +109,12 @@ func test_check_updates_is_off_only_for_false() -> void:
 	var several := config_with("[roms]\ndirectory = ~/Roms/n64; /run/media/deck/SD/n64\n")
 	eq(several.roms_directory, "~/Roms/n64; /run/media/deck/SD/n64", "a list, as written")
 	check(several.roms_directory_set, "set: Ports splits it at ';' (ROM-17)")
+
+
+func test_fullscreen_is_auto_true_or_false() -> void:
+	eq(config_with("").fullscreen, "auto", "default (CONF-10)")
+	for value in ["auto", "true", "false"]:
+		eq(config_with("[window]\nfullscreen = %s\n" % value).fullscreen, value, value)
+	for value in ["yes", "True", "1", "borderless"]:
+		eq(config_with("[window]\nfullscreen = %s\n" % value).fullscreen, "auto", "'%s'" % value)
+	eq(config_with("[window]\nfullscreen =\n").fullscreen, "auto", "empty value is the default")

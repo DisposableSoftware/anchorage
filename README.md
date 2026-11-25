@@ -43,9 +43,10 @@ the right one. It never downloads ROMs.
 - **Controller first:** everything works with a gamepad alone, with a hint bar that shows
   your current buttons. A keyboard and mouse work too, and every binding can be changed.
 - **Catppuccin theming:** all four flavours and all 14 accents.
-- **Made for Game Mode:** fullscreen at 1280×720 and up, laid out for the Steam Deck's
-  16:10 screen as well as 16:9 TVs and monitors, one Steam shortcut with its own artwork,
-  and the ports run as child processes, so quitting a game brings you back.
+- **Made for Game Mode:** fullscreen at whatever size gamescope gives it (1280×720 and
+  up), laid out for the Steam Deck's 16:10 screen as well as 16:9 TVs and monitors, one
+  Steam shortcut with its own artwork, and the ports run as child processes, so quitting a
+  game brings you back.
 
 | | |
 |---|---|
@@ -317,6 +318,9 @@ lists are in [`app/data/config.example.ini`](app/data/config.example.ini) and
 # size when not fullscreen, in logical px (at least 1280x720)
 width = 1280
 height = 720
+# auto: fullscreen in Game Mode (gamescope) and whenever Steam starts Anchorage, a window
+# anywhere else; true or false to choose yourself
+fullscreen = auto
 
 [appearance]
 # latte, frappe, macchiato or mocha
@@ -363,6 +367,10 @@ to make Anchorage forget.
 - Updating Anchorage from Game Mode has only been tried from a NixOS desktop against a fake
   release: whether Steam keeps the restarted Anchorage in Game Mode is unconfirmed (start it
   again from the library if it does not come back).
+- 0.3.0 asked gamescope for a 1280×720 window, so a Deck showed black bars above and below
+  it. Anchorage now goes fullscreen when it sees Game Mode or Steam in its environment;
+  that has been checked in a headless sway, not yet on a Deck. If the bars are still
+  there, set `fullscreen = true` under `[window]` in `config.ini` and say so in an issue.
 - Four ports need a mouse, trackpad or keyboard on their first launch (see the table). That
   is their dialog, not Anchorage's.
 
@@ -390,7 +398,8 @@ git config core.hooksPath .githooks   # once per clone: ROM guard and release ch
 
 The scripts in [`scripts/manual/`](scripts/manual) drive the app in a headless sway
 (`scripts/manual/headless.sh`), so they work with the screen locked: focus, screenshots of
-every state (`shots.sh`, `rom-folder.sh`), the window sizes from 720p to 4K, the AppImage,
+every state (`shots.sh`, `rom-folder.sh`), the window sizes from 720p to 4K, going
+fullscreen by itself when Game Mode's variables are set (`fullscreen.sh`), the AppImage,
 the SteamOS installer against fake Steam folders (`steam-install.sh`), and an end-to-end
 run that installs and starts the real ports (`e2e.sh`). The README screenshots are
 1280×720 shots of the demo data (below).

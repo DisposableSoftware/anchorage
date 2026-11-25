@@ -566,9 +566,23 @@ func test_restart_waits_for_this_process_and_drops_the_appimage_variables() -> v
 		"OWD": _dir,
 		"APPIMAGE_EXTRACT_AND_RUN": "1",
 	}
+	# What Game Mode sets (WIN-6): the new copy must find it too, to open fullscreen.
+	var game_mode := {
+		"XDG_CURRENT_DESKTOP": "gamescope",
+		"GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0",
+		"SteamGameId": "15790555012393680896",
+		"SteamAppId": "0",
+	}
+	var saved := {}
+	for name in game_mode:
+		if OS.has_environment(name):
+			saved[name] = OS.get_environment(name)
+		runtime[name] = game_mode[name]
 	for name in runtime:
 		OS.set_environment(name, runtime[name])
 	var base := Launcher.current_environment()
+	# Steam sets them before Anchorage starts, so they are in /proc/self/environ too.
+	base.merge(game_mode, true)
 	var log := _dir.path_join("restart.log")
 	var waited := OS.create_process("/bin/sh", PackedStringArray(["-c", "sleep 0.6"]))
 	var args := SelfUpdate.restart_command(
@@ -581,12 +595,17 @@ func test_restart_waits_for_this_process_and_drops_the_appimage_variables() -> v
 		),
 		"/bin/sh waits, then the launcher's script (UPD-9)"
 	)
+	for at in args.size() - 1:
+		if args[at] == "-u":
+			check(not game_mode.has(args[at + 1]), "%s is not unset" % args[at + 1])
 	var spawned := OS.create_process("/bin/sh", args)
 	check(spawned > 0, "spawned")
 	OS.set_environment("PATH", path)
 	for name in runtime:
 		if name != "PATH":
 			OS.unset_environment(name)
+	for name in saved:
+		OS.set_environment(name, saved[name])
 	var tree := Engine.get_main_loop() as SceneTree
 	await tree.create_timer(0.3).timeout
 	check(not FileAccess.file_exists(log), "nothing starts while the process runs")
@@ -605,6 +624,11 @@ func test_restart_waits_for_this_process_and_drops_the_appimage_variables() -> v
 	check(out.contains("\nAPPIMAGE_EXTRACT_AND_RUN=1"), "extract-and-run kept: the user set it")
 	check(out.contains("\nANCHORAGE_TEST_SENTINEL=a=b c"), "the rest of the environment")
 	check(out.contains("\nPATH=%s\n" % path), "the mount's PATH entry dropped (PORT-15)")
+	for name in game_mode:
+		check(
+			out.contains("\n%s=%s\n" % [name, game_mode[name]]),
+			"%s kept: the new copy opens fullscreen in Game Mode (WIN-6)" % name
+		)
 	_finish()
 
 

@@ -50,6 +50,7 @@ app/scenes/main.tscn     the root node; main.gd adds the Ports service and the h
 app/scenes/home.tscn     the home screen: cards row, detail panel, hint bar, port menu, app menu, dialog, Playing   HOME
 app/scenes/card.tscn     one port card                                            HOME-1 HOME-2
 app/src/main.gd          startup: config, bindings, theme, Ports and the self-update (real or fake), window, quit   WIN-1 WIN-4 CONF-8 CONF-9 UPD
+app/src/window_mode.gd   fullscreen or windowed from [window] fullscreen and Game Mode's variables; applies it (no size in fullscreen)   WIN-6 CONF-10
 app/src/ini.gd           INI reader (Godot's ConfigFile can't read unquoted values) CONF-1
 app/src/config.gd        config.ini + keybindings.ini, first-run files            CONF KEY-2
 app/src/keys.gd          Keys.BINDINGS, key and gamepad tokens, InputMap setup, hint labels   KEY HOME-11
@@ -88,11 +89,12 @@ app/tests/test_art.gd    art.gd with fake HTTP; art_catalog.json is its test cat
 app/tests/test_fake_art.gd ANCHORAGE_FAKE_ART_DIR in the fake ports: files, bad files, no variable, only the fake reads it   ART-8
 app/tests/test_rom_folders.gd, test_rom_folder.gd   ROM folder detection and search over fake trees; Ports' folder API and the chooser screen   ROM-10 .. ROM-17
 app/tests/test_rom_folder_list.gd several ROM folders in Ports: adding, removing, unmounted, first wins, config.ini list, old state.ini (rom_folder_case.gd: the shared temp tree)   ROM-17
+app/tests/test_window_mode.gd the fullscreen decision over fake environments: each Game Mode variable alone, none, config overrides, bad values   WIN-6 CONF-10
 app/tests/test_self_update.gd self_update.gd with fake HTTP and fake AppImages (checks, swap, record, busy ports, restart), the chip, entry and dialog   UPD-1 .. UPD-10
 app/tests/self_update_swap.gd the app's swap on real files, for scripts/manual/steam-install.sh   UPD-7
 app/tests/fake_http.gd   http.gd stand-in that answers from memory and local files (json, text, files)
 scripts/test.sh          runs app/tests headless with every XDG folder in a temp dir; fails on script, Unicode and engine errors (allowlist for the tests that break input on purpose)
-scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway); art.sh fetches the real cover art (ART), e2e.sh installs and starts the real ports, catalog.sh serves a catalog from 127.0.0.1 (PORT-18 .. PORT-23), self-update.sh updates the real AppImage from 127.0.0.1 (UPD)
+scripts/manual/          UI checks (lib.sh helpers; headless.sh runs one in a headless sway); fullscreen.sh (WIN-6, CONF-10); art.sh fetches the real cover art (ART), e2e.sh installs and starts the real ports, catalog.sh serves a catalog from 127.0.0.1 (PORT-18 .. PORT-23), self-update.sh updates the real AppImage from 127.0.0.1 (UPD)
 scripts/screenshots.sh   regenerates docs/screenshots/*.png headless at 1280x720 from the fake ports, with the catalog's covers fetched to a temp folder   INT-41 INT-43 ART-8
 scripts/check-no-roms.sh   refuses ROM-like names, N64 ROM headers and files over 5 MiB (PROD-14)
 scripts/release-check.sh recommended version bump since the last v* tag (spec delta)
@@ -171,6 +173,7 @@ Run checks with `./scripts/manual/headless.sh ./scripts/manual/<name>.sh`. It st
 - `lib.sh`'s `launch` starts the app with `--display-driver wayland --rendering-driver opengl3`, so it never falls back to the user's X11 session. It kills only the process it started (`$PID`).
 - The output defaults to 3840×2160 at scale 2. Set `HEADLESS_RES` and `HEADLESS_SCALE` to test other sizes. The app ignores Wayland scale for layout, since the stretch mode scales the UI by window size, so check sizes with `scripts/manual/resolutions.sh` (1280×720, 1280×800, 1920×1080, 1920×1200, 2560×1600, 3840×2160, fullscreen as in gamescope; `resolutions.sh scripts/manual/shots.sh` takes every screenshot at each size, `SIZES` picks them). Inside `nix develop` run it with `bash`: started through its nix-shell shebang there, the nested `headless.sh` exits without running anything. Windows float, so they open at their default size.
 - A window size the app sets on itself after startup leaves part of the surface unpainted under sway (see the `CONF-4` row). Make the compositor resize instead (`swaymsg fullscreen enable`), as gamescope does.
+- `GAMESCOPE_WAYLAND_DISPLAY`, `SteamGameId`, `SteamAppId` or `XDG_CURRENT_DESKTOP=gamescope` make the app fullscreen by itself (`WIN-6`). `headless.sh` unsets them, so the other scripts (`smoke.sh`, `e2e.sh`, `appimage.sh` and the rest) get a 1280×720 window. `scripts/manual/fullscreen.sh` sets them one at a time and checks the window takes the output size at 1280×720, 1280×800 and 1920×1200, painted to the corners, on Wayland; on Xwayland (`--display-driver x11`, the release build's first choice when `DISPLAY` is set, as under gamescope) it checks the fullscreen request, and the size only as a note, because sway leaves the release build at 1280×720 (see `spec/window.md`, notes); `IMG=dist/...AppImage RUNNER=steam-run` runs the AppImage instead. It runs headless.sh itself, so start it directly, outside `nix develop`, with a short `TMPDIR` (`TMPDIR=~/.cache/ae`). Gamescope itself, and which of these variables Steam really sets in Game Mode, only a Deck can show.
 - Send screenshots (`shot`, into `$OUT`) to the user when a change is visual.
 - Headless sway drops the first key after `wtype` loads its keymap; `keys` sends a Shift tap first to absorb it.
 - Gamepad input can't come from `wtype`. Unit-test the bindings (`test_keys.gd`), and for a screen's focus navigation send keyboard keys, which the default bindings map to the same actions.
